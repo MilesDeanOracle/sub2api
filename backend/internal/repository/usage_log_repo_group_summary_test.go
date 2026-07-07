@@ -38,7 +38,33 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryUsesRollupTail(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}).
 			AddRow(int64(7), 12.5, 1.25, 2.5))
 
-	result, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
+	// 缓存 token 聚合（公开快照用）在同一次调用里追加执行。
+	mock.ExpectQuery(`(?s)FROM usage_logs ul\s+GROUP BY ul\.group_id`).
+		WithArgs(
+			todayStart,
+			time.Date(2026, 3, 8, 4, 0, 0, 0, time.UTC), // since24h
+			time.Date(2026, 3, 2, 4, 0, 0, 0, time.UTC), // since7d
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"group_id",
+			"total_input_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
+			"today_input_tokens", "today_cache_creation_tokens", "today_cache_read_tokens",
+			"last_24h_input_tokens", "last_24h_cache_creation_tokens", "last_24h_cache_read_tokens",
+			"last_7d_input_tokens", "last_7d_cache_creation_tokens", "last_7d_cache_read_tokens",
+		}).AddRow(
+			int64(7),
+			int64(1000), int64(200), int64(800),
+			int64(100), int64(20), int64(80),
+			int64(400), int64(80), int64(320),
+			int64(900), int64(180), int64(720),
+		))
+
+	result, err := repo.GetAllGroupUsageSummary(
+		context.Background(),
+		todayStart,
+		time.Date(2026, 3, 8, 4, 0, 0, 0, time.UTC),
+		time.Date(2026, 3, 2, 4, 0, 0, 0, time.UTC),
+	)
 	require.NoError(t, err)
 	require.Equal(t, int64(7), result[0].GroupID)
 	require.InDelta(t, 12.5, result[0].TotalCost, 0.0000001)
@@ -87,8 +113,17 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryFallsBackWhenWatermarkInvalid(
 			mock.ExpectQuery(`(?s)usage_group_daily_rollups.*FROM usage_logs ul\s+WHERE ul\.created_at >= \$7`).
 				WithArgs(todayStart, yesterdayStart, "2026-03-08", false, "1970-01-01", "1970-01-01", epoch).
 				WillReturnRows(sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}))
+			mock.ExpectQuery(`(?s)FROM usage_logs ul\s+GROUP BY ul\.group_id`).
+				WithArgs(todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour)).
+				WillReturnRows(sqlmock.NewRows([]string{
+					"group_id",
+					"total_input_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
+					"today_input_tokens", "today_cache_creation_tokens", "today_cache_read_tokens",
+					"last_24h_input_tokens", "last_24h_cache_creation_tokens", "last_24h_cache_read_tokens",
+					"last_7d_input_tokens", "last_7d_cache_creation_tokens", "last_7d_cache_read_tokens",
+				}))
 
-			_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
+			_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 			require.NoError(t, err)
 			require.NoError(t, mock.ExpectationsWereMet())
 		})

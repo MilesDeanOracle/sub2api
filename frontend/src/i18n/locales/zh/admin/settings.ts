@@ -76,6 +76,15 @@ export default {
           enabled: '显示插件管理菜单',
           enabledHint: '关闭后仅隐藏侧边栏菜单；已加载或正在运行的插件不会因此停止。',
         },
+        publicTransit: {
+          title: '公开资料出口',
+          description: '公开标准 ai-transit.v1 快照接口，并可选开放可视化页面，供 PriceAI 或第三方采集器自动抓取模型价格与监测数据。',
+          configureLink: '打开公开资料页面',
+          apiEnabled: '公开资料接口',
+          apiEnabledHint: '默认开启。开放 /.well-known/ai-transit.json 和 /api/public/transit/v1/snapshot，不公开账号、密钥、Cookie 或内部渠道 ID。',
+          pageEnabled: '公开资料页面',
+          pageEnabledHint: '可选开启。开放 /public/transit 可视化页面；关闭后仍可保留接口供采集器抓取。',
+        },
         riskControl: {
           title: '风控中心',
           description: '启用内容审计菜单和全端点请求审核入口。默认关闭。',

@@ -397,6 +397,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PluginManagementEnabled: settings.PluginManagementEnabled,
 		ModelPlazaDescription:   settings.ModelPlazaDescription,
 
+		PublicTransitEnabled:     settings.PublicTransitEnabled,
+		PublicTransitPageEnabled: settings.PublicTransitPageEnabled,
+
 		AffiliateEnabled: settings.AffiliateEnabled,
 
 		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,

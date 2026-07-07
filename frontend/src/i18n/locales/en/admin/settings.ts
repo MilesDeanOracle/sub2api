@@ -76,6 +76,15 @@ export default {
           enabled: 'Show Plugin Management',
           enabledHint: 'Turning this off only hides the sidebar entry; loaded or running plugins are not stopped.',
         },
+        publicTransit: {
+          title: 'Public Transit Export',
+          description: 'Expose the standard ai-transit.v1 snapshot API, with an optional visual public page for PriceAI or third-party crawlers to ingest model pricing and monitoring data.',
+          configureLink: 'Open public data page',
+          apiEnabled: 'Public data API',
+          apiEnabledHint: 'Enabled by default. Exposes /.well-known/ai-transit.json and /api/public/transit/v1/snapshot. Accounts, keys, cookies and internal channel IDs stay private.',
+          pageEnabled: 'Public data page',
+          pageEnabledHint: 'Optional. Exposes the /public/transit visual page; when off, the API can still stay available for crawlers.',
+        },
         riskControl: {
           title: 'Risk Control',
           description: 'Enable the content moderation menu and gateway audit entry point. Disabled by default.',

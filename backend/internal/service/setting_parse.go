@@ -211,6 +211,11 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyModelPlazaDescription:   "",
 		SettingKeyPluginManagementEnabled: "false",
 
+		// Public transit API snapshot is public by default for machine ingestion.
+		SettingKeyPublicTransitEnabled: "true",
+		// Public visual page remains opt-in for new installs.
+		SettingKeyPublicTransitPageEnabled: "false",
+
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
 		SettingKeyAffiliateEnabled:              "false",
 		SettingKeyAffiliateAdminRechargeEnabled: strconv.FormatBool(AdminRechargeRebateEnabledDefault),
@@ -836,6 +841,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ModelPlazaDescription = settings[SettingKeyModelPlazaDescription]
 	result.PluginManagementEnabled = settings[SettingKeyPluginManagementEnabled] == "true"
 
+	// Public transit API defaults to enabled; the visual page is a separate
+	// opt-in switch, with legacy fallback for pre-split deployments.
+	result.PublicTransitEnabled = !isFalseSettingValue(settings[SettingKeyPublicTransitEnabled])
+	result.PublicTransitPageEnabled = publicTransitPageEnabledFromSettings(settings)
+
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"
 
@@ -1029,6 +1039,20 @@ func isFalseSettingValue(value string) bool {
 	default:
 		return false
 	}
+}
+
+func publicTransitPageEnabledFromSettings(settings map[string]string) bool {
+	if settings == nil {
+		return false
+	}
+	if isFalseSettingValue(settings[SettingKeyPublicTransitEnabled]) {
+		return false
+	}
+	value, exists := settings[SettingKeyPublicTransitPageEnabled]
+	if exists {
+		return value == "true"
+	}
+	return settings[SettingKeyPublicTransitEnabled] == "true"
 }
 
 func isTrueSettingValue(value string) bool {
