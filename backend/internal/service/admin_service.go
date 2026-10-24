@@ -8,6 +8,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
 
 // AdminService interface defines admin management operations
@@ -24,6 +25,10 @@ type AdminService interface {
 	BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
+	// GetUserOverview 返回用户充值与消费概览（用户详情抽屉的数字卡片数据）。
+	GetUserOverview(ctx context.Context, userID int64) (*UserOverview, error)
+	// GetUserModelUsageStats 返回用户按分组/模型维度的用量统计（含 P95 延迟指标）。
+	GetUserModelUsageStats(ctx context.Context, userID int64) (*UserModelUsageStats, error)
 	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
 	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
 	// codeType is optional - pass empty string to return all types.
@@ -696,6 +701,7 @@ type adminServiceImpl struct {
 	proxyRepo            ProxyRepository
 	apiKeyRepo           APIKeyRepository
 	redeemCodeRepo       RedeemCodeRepository
+	usageAnalyticsRepo   UserUsageAnalyticsReader
 	userGroupRateRepo    UserGroupRateRepository
 	userRPMCache         UserRPMCache
 	billingCacheService  *BillingCacheService
@@ -721,6 +727,53 @@ type ChannelCacheInvalidator interface {
 	InvalidateCache()
 }
 
+// UserUsageAnalyticsReader 用户分析（概览/模型统计）所需的用量仓储能力。
+// 窄接口，由 usage log repository 实现，避免 admin 服务依赖完整 UsageLogRepository。
+type UserUsageAnalyticsReader interface {
+	GetUserModelUsageStats(ctx context.Context, userID int64) ([]usagestats.UserModelUsageStat, error)
+	GetUserGroupUsageStats(ctx context.Context, userID int64) ([]usagestats.UserGroupUsageStat, error)
+	GetUserLifetimeUsage(ctx context.Context, userID int64) (*usagestats.UserLifetimeUsage, error)
+}
+
+// UserOverview 用户充值与消费概览。
+type UserOverview struct {
+	Recharge *UserRechargeStats            `json:"recharge"`
+	Usage    *usagestats.UserLifetimeUsage `json:"usage"`
+}
+
+// UserModelUsageStats 分组维度的用量统计，每组下挂模型明细。
+type UserModelUsageStats struct {
+	Groups []UserGroupUsageStatView `json:"groups"`
+}
+
+// UserGroupUsageStatView 分组行（P95 为分组级独立聚合，非模型行折算）。
+type UserGroupUsageStatView struct {
+	GroupID        int64                    `json:"group_id"`
+	GroupName      string                   `json:"group_name"`
+	Platform       string                   `json:"platform"`
+	RateMultiplier *float64                 `json:"rate_multiplier"`
+	Requests       int64                    `json:"requests"`
+	TotalTokens    int64                    `json:"total_tokens"`
+	ActualCost     float64                  `json:"actual_cost"`
+	AccountCost    float64                  `json:"account_cost"`
+	TtftP95Ms      *float64                 `json:"ttft_p95_ms"`
+	DurationP95Ms  *float64                 `json:"duration_p95_ms"`
+	OutputTpsP95   *float64                 `json:"output_tps_p95"`
+	Models         []UserModelUsageStatView `json:"models"`
+}
+
+// UserModelUsageStatView 模型行。
+type UserModelUsageStatView struct {
+	Model         string   `json:"model"`
+	Requests      int64    `json:"requests"`
+	TotalTokens   int64    `json:"total_tokens"`
+	ActualCost    float64  `json:"actual_cost"`
+	AccountCost   float64  `json:"account_cost"`
+	TtftP95Ms     *float64 `json:"ttft_p95_ms"`
+	DurationP95Ms *float64 `json:"duration_p95_ms"`
+	OutputTpsP95  *float64 `json:"output_tps_p95"`
+}
+
 type adminRechargeAffiliateAccruer interface {
 	AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error)
 }
@@ -738,6 +791,7 @@ func NewAdminService(
 	proxyRepo ProxyRepository,
 	apiKeyRepo APIKeyRepository,
 	redeemCodeRepo RedeemCodeRepository,
+	usageAnalyticsRepo UserUsageAnalyticsReader,
 	userGroupRateRepo UserGroupRateRepository,
 	userRPMCache UserRPMCache,
 	billingCacheService *BillingCacheService,
@@ -767,6 +821,7 @@ func NewAdminService(
 		proxyRepo:            proxyRepo,
 		apiKeyRepo:           apiKeyRepo,
 		redeemCodeRepo:       redeemCodeRepo,
+		usageAnalyticsRepo:   usageAnalyticsRepo,
 		userGroupRateRepo:    userGroupRateRepo,
 		userRPMCache:         userRPMCache,
 		billingCacheService:  billingCacheService,

@@ -696,6 +696,74 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 	}, nil
 }
 
+// GetUserOverview 返回用户充值与消费概览（用户详情抽屉数字卡片数据）。
+func (s *adminServiceImpl) GetUserOverview(ctx context.Context, userID int64) (*UserOverview, error) {
+	recharge, err := s.redeemCodeRepo.GetUserRechargeStats(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	usage, err := s.usageAnalyticsRepo.GetUserLifetimeUsage(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &UserOverview{Recharge: recharge, Usage: usage}, nil
+}
+
+// GetUserModelUsageStats 返回按分组/模型的用量统计；分组级 P95 为独立聚合，
+// 分组名称/平台通过 groupRepo 补齐（分组已删除时名称留空，由前端回退显示）。
+func (s *adminServiceImpl) GetUserModelUsageStats(ctx context.Context, userID int64) (*UserModelUsageStats, error) {
+	groupRows, err := s.usageAnalyticsRepo.GetUserGroupUsageStats(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	modelRows, err := s.usageAnalyticsRepo.GetUserModelUsageStats(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	modelsByGroup := make(map[int64][]UserModelUsageStatView, len(modelRows))
+	for _, m := range modelRows {
+		modelsByGroup[m.GroupID] = append(modelsByGroup[m.GroupID], UserModelUsageStatView{
+			Model:         m.Model,
+			Requests:      m.Requests,
+			TotalTokens:   m.TotalTokens,
+			ActualCost:    m.ActualCost,
+			AccountCost:   m.AccountCost,
+			TtftP95Ms:     m.TtftP95Ms,
+			DurationP95Ms: m.DurationP95Ms,
+			OutputTpsP95:  m.OutputTpsP95,
+		})
+	}
+
+	groups := make([]UserGroupUsageStatView, 0, len(groupRows))
+	for _, g := range groupRows {
+		view := UserGroupUsageStatView{
+			GroupID:       g.GroupID,
+			Requests:      g.Requests,
+			TotalTokens:   g.TotalTokens,
+			ActualCost:    g.ActualCost,
+			AccountCost:   g.AccountCost,
+			TtftP95Ms:     g.TtftP95Ms,
+			DurationP95Ms: g.DurationP95Ms,
+			OutputTpsP95:  g.OutputTpsP95,
+			Models:        []UserModelUsageStatView{},
+		}
+		if g.GroupID != 0 {
+			if grp, groupErr := s.groupRepo.GetByIDLite(ctx, g.GroupID); groupErr == nil && grp != nil {
+				view.GroupName = grp.Name
+				view.Platform = grp.Platform
+				rate := grp.RateMultiplier
+				view.RateMultiplier = &rate
+			}
+		}
+		if models := modelsByGroup[g.GroupID]; len(models) > 0 {
+			view.Models = models
+		}
+		groups = append(groups, view)
+	}
+	return &UserModelUsageStats{Groups: groups}, nil
+}
+
 // GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
 func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}

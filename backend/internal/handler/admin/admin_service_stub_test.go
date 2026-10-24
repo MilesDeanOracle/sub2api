@@ -212,6 +212,12 @@ func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, pag
 	return s.apiKeys, int64(len(s.apiKeys)), nil
 }
 
+func (s *stubAdminService) GetUserOverview(ctx context.Context, userID int64) (*service.UserOverview, error) {
+	return nil, nil
+}
+func (s *stubAdminService) GetUserModelUsageStats(ctx context.Context, userID int64) (*service.UserModelUsageStats, error) {
+	return nil, nil
+}
 func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
 	return map[string]any{"user_id": userID}, nil
 }

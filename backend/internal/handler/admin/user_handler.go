@@ -462,6 +462,40 @@ func (h *UserHandler) GetUserUsage(c *gin.Context) {
 	response.Success(c, stats)
 }
 
+// GetUserOverview handles getting user recharge & spend overview
+// GET /api/v1/admin/users/:id/overview
+func (h *UserHandler) GetUserOverview(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	overview, err := h.adminService.GetUserOverview(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, overview)
+}
+
+// GetUserModelUsageStats handles getting user model usage stats grouped by group/model
+// GET /api/v1/admin/users/:id/model-stats
+func (h *UserHandler) GetUserModelUsageStats(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	stats, err := h.adminService.GetUserModelUsageStats(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, stats)
+}
+
 // GetBalanceHistory handles getting user's balance/concurrency change history
 // GET /api/v1/admin/users/:id/balance-history
 // Query params:
