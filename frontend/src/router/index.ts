@@ -451,6 +451,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/users-element',
+    name: 'AdminUsersElement',
+    component: () => import('@/views/admin/UsersViewElement.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'User Management (Element Plus)',
+      titleKey: 'admin.users.title',
+      descriptionKey: 'admin.users.description'
+    }
+  },
+  {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: () => import('@/views/admin/GroupsView.vue'),

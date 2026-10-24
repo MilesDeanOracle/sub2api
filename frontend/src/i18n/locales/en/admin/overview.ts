@@ -494,6 +494,33 @@ export default {
 
     // Users
     users: {
+      drawer: {
+        title: 'User Details',
+        firstRecharge: 'First Recharge',
+        lastRecharge: 'Last Recharge',
+        rechargeCount: 'Recharge Count',
+        rechargeTotal: 'Total Recharged',
+        balance: 'Balance',
+        totalSpend: 'Total Spend',
+        modelStats: 'Group / Model Usage',
+        colName: 'Group / Model',
+        colTokens: 'Request Tokens',
+        colActual: 'Actual Amount',
+        colCost: 'Cost',
+        colRate: 'Group Rate',
+        colRequests: 'Requests',
+        colProfit: 'Profit',
+        colTtft: 'TTFT P95 (ms)',
+        colDuration: 'Duration P95 (s)',
+        colTps: 'Output TPS (P95) tok/s',
+        colAvgDuration: 'Avg Duration (s)',
+        colAvgTps: 'Output Rate (tok/s)',
+        groupUnknown: 'No Group',
+        noData: 'No usage records',
+        never: '—',
+        times: 'times',
+        viewHint: 'Click username for details'
+      },
       title: 'User Management',
       description: 'Manage users and their permissions',
       createUser: 'Create User',
