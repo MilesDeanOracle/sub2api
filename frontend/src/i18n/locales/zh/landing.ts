@@ -17,6 +17,33 @@ export default {
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+    // 沉浸式粒子首页
+    immersion: {
+      tagline: '一站式 AI 网关',
+      supportedModels: '支持的模型',
+      exploreModels: '探索模型',
+      slogans: {
+        s1a: '一个密钥',
+        s1b: '，直连',
+        s1c: '万千模型',
+        s1d: '。',
+        s2a: '更高',
+        s2b: '质量',
+        s2c: '，更低',
+        s2d: '价格',
+        s2e: '。',
+        s3a: '多账号',
+        s3b: '智能调度',
+        s3c: '，自动切换，',
+        s3d: '稳定可靠',
+        s3e: '。',
+        s4a: '订阅转 ',
+        s4b: 'API',
+        s4c: '，',
+        s4d: '按量计费',
+        s4e: '。'
+      }
+    },
     tags: {
       subscriptionToApi: '订阅转 API',
       stickySession: '会话保持',

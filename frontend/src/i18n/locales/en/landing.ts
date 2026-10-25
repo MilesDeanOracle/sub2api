@@ -17,6 +17,33 @@ export default {
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
+    // Immersive particle home
+    immersion: {
+      tagline: 'One-stop AI Gateway',
+      supportedModels: 'Supported Models',
+      exploreModels: 'Explore Models',
+      slogans: {
+        s1a: 'One key',
+        s1b: ' to ',
+        s1c: 'every model',
+        s1d: '.',
+        s2a: 'Higher ',
+        s2b: 'quality',
+        s2c: ', lower ',
+        s2d: 'price',
+        s2e: '.',
+        s3a: 'Smart ',
+        s3b: 'scheduling',
+        s3c: ' across accounts — ',
+        s3d: 'always stable',
+        s3e: '.',
+        s4a: 'Subscription to ',
+        s4b: 'API',
+        s4c: ', ',
+        s4d: 'pay as you go',
+        s4e: '.'
+      }
+    },
     tags: {
       subscriptionToApi: 'Subscription to API',
       stickySession: 'Session Persistence',
