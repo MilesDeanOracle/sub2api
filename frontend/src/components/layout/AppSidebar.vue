@@ -776,6 +776,7 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/admin/dashboard-element', label: t('nav.dashboardNew'), icon: DashboardIcon, hideInSimpleMode: true },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/users-element', label: t('nav.usersNew'), icon: UsersIcon, hideInSimpleMode: true },

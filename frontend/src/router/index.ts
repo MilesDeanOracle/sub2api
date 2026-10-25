@@ -415,6 +415,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/dashboard-element',
+    name: 'AdminDashboardElement',
+    component: () => import('@/views/admin/DashboardViewElement.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Admin Dashboard (Element Plus)',
+      titleKey: 'admin.dashboard.title',
+      descriptionKey: 'admin.dashboard.description'
+    }
+  },
+  {
     path: '/admin/ops',
     name: 'AdminOps',
     component: () => import('@/views/admin/ops/OpsDashboard.vue'),
