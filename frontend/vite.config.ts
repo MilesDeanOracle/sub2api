@@ -114,42 +114,19 @@ export default defineConfig(({ mode }) => {
          */
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
-            // Vue 核心库
-            if (
-              id.includes('/vue/') ||
-              id.includes('/vue-router/') ||
-              id.includes('/pinia/') ||
-              id.includes('/@vue/')
-            ) {
-              return 'vendor-vue'
-            }
-
-            // UI 工具库（较大，单独分离）
-            if (id.includes('/@vueuse/') || id.includes('/xlsx/')) {
-              return 'vendor-ui'
-            }
-
-            // 图表库
-            if (id.includes('/chart.js/') || id.includes('/vue-chartjs/')) {
-              return 'vendor-chart'
-            }
-
-            // 国际化
-            if (id.includes('/vue-i18n/') || id.includes('/@intlify/')) {
-              return 'vendor-i18n'
-            }
-
             // Stripe 仅在支付流程中按需加载，避免进入首页公共依赖。
+            // （stripe-js 无其他依赖，独立成块不会产生跨 chunk 循环）
             if (id.includes('/@stripe/stripe-js/')) {
               return 'vendor-stripe'
             }
 
-            // 其他小型第三方库合并
-            return 'vendor-misc'
+            // 其余第三方库全部并入单一 vendor 块。
+            // 按包名细分会造成跨 chunk 循环引用（如 vue 生态 ↔ 工具库），
+            // 运行时报 "Cannot access 'xx' before initialization" 白屏；
+            // 单一 vendor 块内 Rollup 会自动处理模块初始化顺序。
+            return 'vendor'
           }
-
-          // 应用代码：按入口点自动分包，不手动干预
-          // 这样可以避免循环依赖，同时保持合理的 chunk 数量
+          return undefined
         }
       }
     }

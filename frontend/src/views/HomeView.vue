@@ -846,7 +846,9 @@ class ParticleEngine {
       this.ctx.clearRect(0, 0, this.width, this.height)
     }
     for (const p of this.particles) {
-      const alpha = 0.35 + Math.sin(p.twinkle) * 0.3 + 0.2
+      let alpha = 0.35 + Math.sin(p.twinkle) * 0.3 + 0.2
+      // 穿梭期间整体透明度压到 70%
+      if (this.phase === 'warp') alpha = Math.min(alpha, 0.7)
       const color = p.accent
         ? this.dark
           ? `rgba(251, 191, 36, ${Math.min(alpha, 0.95)})`
