@@ -26,6 +26,7 @@
             :currency="paymentState.currency || selectedCurrency"
             :out-trade-no="paymentState.outTradeNo"
             :mobile-alipay-deep-link="paymentState.alipayMobilePrecreateDeepLink"
+            :embed-pay-url="normalizeVisibleMethod(paymentState.paymentType) === 'wxpay'"
             @done="onPaymentDone"
             @success="onPaymentSuccess"
             @settled="onPaymentSettled"
@@ -59,7 +60,7 @@
               ></div>
               <AmountInput
                 v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :amounts="[1, 2, 5, 10, 20, 50, 100, 200, 500]"
                 :min="globalMinAmount"
                 :max="globalMaxAmount"
                 :bonus-tiers="rechargeBonusTiers"
@@ -979,7 +980,11 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         window.location.href = decision.paymentState.payUrl
         return
       }
-      openWindow(decision.paymentState.payUrl)
+      // 微信支付不再自动弹窗（弹窗易被劫持伪造付款信息）：
+      // 收银台页面改为在当前页内嵌展示，由 PaymentStatusPanel 渲染 iframe
+      if (visibleMethod !== 'wxpay') {
+        openWindow(decision.paymentState.payUrl)
+      }
     }
   } catch (err: unknown) {
     const apiErr = err as Record<string, unknown>

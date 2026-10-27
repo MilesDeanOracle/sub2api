@@ -340,4 +340,59 @@ describe('PaymentStatusPanel', () => {
     Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
     if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden)
   })
+
+  it('embeds the WeChat cashier inline instead of opening a popup when embedPayUrl is set', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window)
+
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        amount: 88,
+        payAmount: 88,
+        qrCode: '',
+        payUrl: 'https://pay.example.com/cashier/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'wxpay',
+        orderType: 'balance',
+        embedPayUrl: true,
+      },
+      global: { stubs: { Icon: true } },
+    })
+
+    await flushPromises()
+
+    const embed = wrapper.find('[data-test="wxpay-inline-cashier"]')
+    expect(embed.exists()).toBe(true)
+    const iframe = embed.find('iframe')
+    expect(iframe.exists()).toBe(true)
+    expect(iframe.attributes('src')).toBe('https://pay.example.com/cashier/42')
+    // 不应自动弹窗
+    expect(openSpy).not.toHaveBeenCalled()
+    // 兜底链接只在 iframe 加载后才出现（手动打开，非自动弹窗）
+    expect(embed.find('a[href="https://pay.example.com/cashier/42"]').exists()).toBe(false)
+    await iframe.trigger('load')
+    expect(embed.find('a[href="https://pay.example.com/cashier/42"]').exists()).toBe(true)
+
+    openSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('keeps the spinner waiting mode when embedPayUrl is not set', async () => {
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        qrCode: '',
+        payUrl: 'https://pay.example.com/session/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'wxpay',
+        orderType: 'balance',
+      },
+      global: { stubs: { Icon: true } },
+    })
+
+    await flushPromises()
+    expect(wrapper.find('[data-test="wxpay-inline-cashier"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('payment.qr.payInNewWindowHint')
+    wrapper.unmount()
+  })
 })

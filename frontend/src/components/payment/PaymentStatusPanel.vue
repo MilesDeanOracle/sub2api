@@ -202,7 +202,40 @@
 
     <!-- Waiting for Popup/Redirect Mode -->
     <template v-else>
-      <div class="card p-6">
+      <!-- 微信收银台内嵌模式：不弹窗，支付页面直接嵌在当前页（防弹窗劫持） -->
+      <div v-if="embedPayUrl && payUrl" class="card p-6" data-test="wxpay-inline-cashier">
+        <div class="flex flex-col items-center space-y-4">
+          <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.qr.scanWxpay') }}</p>
+          <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.inlineCashierHint') }}</p>
+          <div class="relative w-full overflow-hidden rounded-lg border-2 border-[#2BB741] bg-white" style="height: 480px">
+            <iframe
+              :src="payUrl"
+              class="h-full w-full border-0"
+              :title="t('payment.qr.scanWxpay')"
+              referrerpolicy="no-referrer-when-downgrade"
+              @load="iframeLoaded = true"
+            ></iframe>
+            <div
+              v-if="!iframeLoaded"
+              class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white dark:bg-dark-800"
+            >
+              <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#2BB741] border-t-transparent"></div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</p>
+            </div>
+          </div>
+          <!-- 收银台拒绝被嵌入（X-Frame-Options 等）时的兜底：用户主动点击打开，非自动弹窗 -->
+          <a
+            v-if="iframeLoaded"
+            :href="payUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary text-sm"
+          >
+            {{ t('payment.qr.openPayWindow') }}
+          </a>
+        </div>
+      </div>
+      <div v-else class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
           <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
@@ -255,6 +288,8 @@ const props = defineProps<{
   currency?: string
   outTradeNo?: string
   mobileAlipayDeepLink?: boolean
+  /** 微信收银台内嵌模式：payUrl 以 iframe 嵌入当前页而非弹窗 */
+  embedPayUrl?: boolean
 }>()
 
 type PaymentOutcome = 'success' | 'cancelled' | 'expired'
@@ -273,6 +308,7 @@ const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
 const deepLinkState = ref<AlipayDeepLinkState>('idle')
 const deepLinkFallbackVisible = ref(false)
+const iframeLoaded = ref(false)
 const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
 const creditedAmountSymbol = currencySymbol('USD')
 const localeCode = computed(() => {
