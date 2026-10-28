@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置 =====
 $TunnelHost = '154.51.40.64'   # 隧道服务器地址
+$SshPort    = 9922             # 隧道服务器 SSH 端口
 $LocalPort  = 8090             # 本机访问后端的端口
 $RemoteHost = '127.0.0.1'      # 后端服务在隧道服务器上的地址
 $RemotePort = 8090             # 后端服务在隧道服务器上的端口
@@ -25,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($SshUser)) {
 }
 
 Write-Host ''
-Write-Host "==> 建立隧道 $BackendUrl -> $SshUser@$TunnelHost/${RemoteHost}:$RemotePort"
+Write-Host "==> 建立隧道 $BackendUrl -> ${SshUser}@${TunnelHost}:$SshPort -> ${RemoteHost}:$RemotePort"
 Write-Host '==> 连接时会提示输入密码（输入时不回显，属正常现象）'
 Write-Host ''
 
@@ -42,6 +43,7 @@ if (-not (Test-Path $sshExe)) {
 
 $tunnel = Start-Process -FilePath $sshExe -ArgumentList @(
     '-N',
+    '-p', "$SshPort",
     '-o', 'ExitOnForwardFailure=yes',
     '-o', 'StrictHostKeyChecking=accept-new',
     '-o', 'ServerAliveInterval=30',
@@ -55,7 +57,7 @@ try {
     $tunnelReady = $false
     foreach ($i in 1..50) {
         if ($tunnel.HasExited) {
-            Write-Host "错误：隧道建立失败（请检查用户名/密码，或本机能否访问 ${TunnelHost}:22）"
+            Write-Host "错误：隧道建立失败（请检查用户名/密码，或本机能否访问 ${TunnelHost}:$SshPort）"
             exit 1
         }
         $client = New-Object System.Net.Sockets.TcpClient

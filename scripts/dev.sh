@@ -10,6 +10,7 @@ set -euo pipefail
 
 # ===== 可按需修改的配置 =====
 TUNNEL_HOST="154.51.40.64"     # 隧道服务器地址
+SSH_PORT="9922"                # 隧道服务器 SSH 端口
 LOCAL_PORT="8090"              # 本机访问后端的端口
 REMOTE_HOST="127.0.0.1"        # 后端服务在隧道服务器上的地址
 REMOTE_PORT="8090"             # 后端服务在隧道服务器上的端口
@@ -27,12 +28,13 @@ if [ -z "$SSH_USER" ]; then
 fi
 
 echo
-echo "==> 建立隧道 ${BACKEND_URL} -> ${SSH_USER}@${TUNNEL_HOST}:${REMOTE_HOST}:${REMOTE_PORT}"
+echo "==> 建立隧道 ${BACKEND_URL} -> ${SSH_USER}@${TUNNEL_HOST}:${SSH_PORT} -> ${REMOTE_HOST}:${REMOTE_PORT}"
 echo "==> 连接时会提示输入密码（输入时不回显，属正常现象）"
 echo
 
 # 2. 后台建立隧道；-N 只做端口转发不执行远程命令，绑定本机回环避免暴露到局域网
 ssh -N \
+  -p "${SSH_PORT}" \
   -o ExitOnForwardFailure=yes \
   -o StrictHostKeyChecking=accept-new \
   -o ServerAliveInterval=30 \
@@ -52,7 +54,7 @@ trap cleanup EXIT INT TERM
 tunnel_ready=0
 for _ in $(seq 1 50); do
   if ! kill -0 "${TUNNEL_PID}" 2>/dev/null; then
-    echo "错误：隧道建立失败（请检查用户名/密码，或本机能否访问 ${TUNNEL_HOST}:22）"
+    echo "错误：隧道建立失败（请检查用户名/密码，或本机能否访问 ${TUNNEL_HOST}:${SSH_PORT}）"
     exit 1
   fi
   if (exec 3<>"/dev/tcp/127.0.0.1/${LOCAL_PORT}") 2>/dev/null; then
