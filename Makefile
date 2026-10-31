@@ -1,4 +1,4 @@
-.PHONY: help dev build build-backend build-frontend build-docker test test-backend test-frontend test-frontend-critical
+.PHONY: help dev dev-local build build-backend build-frontend build-docker test test-backend test-frontend test-frontend-critical
 
 # 裸 make 仍保持编译行为（help 现在是第一个目标，需显式声明默认目标）
 .DEFAULT_GOAL := build
@@ -61,6 +61,14 @@ dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（输�
 else
 dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（输入用户名密码后连接）
 	@bash scripts/dev.sh
+endif
+
+ifeq ($(OS),Windows_NT)
+dev-local: ## 启动本地前后端开发服务（连接本地 PostgreSQL 和 Redis）
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-local.ps1
+else
+dev-local: ## 启动本地前后端开发服务（连接本地 PostgreSQL 和 Redis）
+	@bash scripts/dev-local.sh
 endif
 
 ifeq ($(OS),Windows_NT)
