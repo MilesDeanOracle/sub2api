@@ -26,6 +26,7 @@ type GroupHandler struct {
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
 	cfg                  *config.Config
+	upstreamGroupProber  upstreamGroupProber
 }
 
 // GetLiveCapability 返回当前服务端是否具备生成 Live attestation 的运行环境。
@@ -101,6 +102,7 @@ func NewGroupHandlerWithConfig(adminService service.AdminService, dashboardServi
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
 		cfg:                  cfg,
+		upstreamGroupProber:  newHTTPUpstreamGroupProber(cfg),
 	}
 }
 

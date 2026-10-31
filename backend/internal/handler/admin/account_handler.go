@@ -136,6 +136,7 @@ type CreateAccountRequest struct {
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
 	ProbeEnabled            *bool          `json:"upstream_billing_probe_enabled"`
+	RateSyncEnabled         *bool          `json:"upstream_billing_rate_sync_enabled"`
 	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 }
 
@@ -1058,6 +1059,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 			ExpiresAt:             req.ExpiresAt,
 			AutoPauseOnExpired:    req.AutoPauseOnExpired,
 			ProbeEnabled:          req.ProbeEnabled,
+			RateSyncEnabled:       req.RateSyncEnabled,
 			SkipMixedChannelCheck: skipCheck,
 		})
 		if execErr != nil {
@@ -1215,6 +1217,79 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		h.scheduleOpenAIResponsesProbe(account)
 	}
 
+	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+type accountGroupMembershipService interface {
+	SetAccountGroupMembership(ctx context.Context, accountID, groupID int64, priority int, skipMixedChannelCheck bool) (*service.Account, error)
+	RemoveAccountGroupMembership(ctx context.Context, accountID, groupID int64) (*service.Account, error)
+}
+
+type setAccountGroupMembershipRequest struct {
+	Priority                int  `json:"priority" binding:"required,min=1"`
+	ConfirmMixedChannelRisk bool `json:"confirm_mixed_channel_risk"`
+}
+
+// SetGroupMembership creates or updates one group relationship without replacing
+// any of the account's other memberships.
+// PUT /api/v1/admin/accounts/:id/groups/:group_id
+func (h *AccountHandler) SetGroupMembership(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req setAccountGroupMembershipRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	membershipService, ok := h.adminService.(accountGroupMembershipService)
+	if !ok {
+		response.BadRequest(c, "Account group membership operations are not supported")
+		return
+	}
+	account, err := membershipService.SetAccountGroupMembership(c.Request.Context(), accountID, groupID, req.Priority, req.ConfirmMixedChannelRisk)
+	if err != nil {
+		var mixedErr *service.MixedChannelError
+		if errors.As(err, &mixedErr) {
+			c.JSON(http.StatusConflict, gin.H{"error": "mixed_channel_warning", "message": mixedErr.Error()})
+			return
+		}
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+// RemoveGroupMembership deletes only the requested group relationship.
+// DELETE /api/v1/admin/accounts/:id/groups/:group_id
+func (h *AccountHandler) RemoveGroupMembership(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	membershipService, ok := h.adminService.(accountGroupMembershipService)
+	if !ok {
+		response.BadRequest(c, "Account group membership operations are not supported")
+		return
+	}
+	account, err := membershipService.RemoveAccountGroupMembership(c.Request.Context(), accountID, groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
@@ -2140,6 +2215,7 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 				GroupIDs:              item.GroupIDs,
 				ExpiresAt:             item.ExpiresAt,
 				AutoPauseOnExpired:    item.AutoPauseOnExpired,
+				RateSyncEnabled:       item.RateSyncEnabled,
 				SkipMixedChannelCheck: skipCheck,
 			})
 			if err != nil {

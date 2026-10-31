@@ -188,3 +188,8 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 	require.Equal(t, "<credential-bearing body omitted>", logs[0].RequestBody)
 	require.NotContains(t, logs[0].RequestBody, "audit-canary")
 }
+
+func TestUpstreamGroupProbeRouteOmitsEphemeralCredentialsFromAuditBody(t *testing.T) {
+	route := "POST /api/v1/admin/groups/upstream-probe"
+	require.Contains(t, auditBodyOmittedRoutes, route)
+}

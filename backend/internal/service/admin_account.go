@@ -446,6 +446,18 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		}
 		account.Extra[UpstreamBillingProbeEnabledExtraKey] = true
 	}
+	if input.RateSyncEnabled != nil && *input.RateSyncEnabled {
+		if !isUpstreamBillingProbeAccount(account) {
+			return nil, ErrUpstreamBillingProbeAccountInvalid
+		}
+		if account.Extra == nil {
+			account.Extra = make(map[string]any)
+		}
+		// Syncing the upstream-declared multiplier requires the probe runner;
+		// enabling rate sync therefore also enables probing for new accounts.
+		account.Extra[UpstreamBillingProbeEnabledExtraKey] = true
+		account.Extra[UpstreamBillingRateSyncEnabledExtraKey] = true
+	}
 	// 预计算固定时间重置的下次重置时间
 	if account.Extra != nil {
 		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
@@ -921,6 +933,57 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, err
 	}
 	return updated, nil
+}
+
+// accountGroupMembershipRepository is deliberately narrower than AccountRepository.
+// Relationship-only mutations are used by the resource-pool workspace and must not
+// replace the account's complete group binding set.
+type accountGroupMembershipRepository interface {
+	AddToGroup(ctx context.Context, accountID, groupID int64, priority int) error
+	RemoveFromGroup(ctx context.Context, accountID, groupID int64) error
+}
+
+// SetAccountGroupMembership creates or updates one account-group relationship while
+// preserving every unrelated membership.
+func (s *adminServiceImpl) SetAccountGroupMembership(ctx context.Context, accountID, groupID int64, priority int, skipMixedChannelCheck bool) (*Account, error) {
+	if priority < 1 {
+		return nil, infraerrors.BadRequest("INVALID_ACCOUNT_GROUP_PRIORITY", "priority must be >= 1")
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ValidateAccountGroupBindings(ctx, []int64{groupID}); err != nil {
+		return nil, err
+	}
+	if !skipMixedChannelCheck {
+		if err := s.CheckMixedChannelRisk(ctx, accountID, account.Platform, []int64{groupID}); err != nil {
+			return nil, err
+		}
+	}
+	repo, ok := s.accountRepo.(accountGroupMembershipRepository)
+	if !ok {
+		return nil, errors.New("account group membership operations are not supported")
+	}
+	if err := repo.AddToGroup(ctx, accountID, groupID, priority); err != nil {
+		return nil, err
+	}
+	return s.accountRepo.GetByID(ctx, accountID)
+}
+
+// RemoveAccountGroupMembership removes only the requested relationship.
+func (s *adminServiceImpl) RemoveAccountGroupMembership(ctx context.Context, accountID, groupID int64) (*Account, error) {
+	if _, err := s.accountRepo.GetByID(ctx, accountID); err != nil {
+		return nil, err
+	}
+	repo, ok := s.accountRepo.(accountGroupMembershipRepository)
+	if !ok {
+		return nil, errors.New("account group membership operations are not supported")
+	}
+	if err := repo.RemoveFromGroup(ctx, accountID, groupID); err != nil {
+		return nil, err
+	}
+	return s.accountRepo.GetByID(ctx, accountID)
 }
 
 // UpdateAccountExtra 仅对 Extra JSONB 做 key 级合并，避免覆盖其它运行态键

@@ -1874,11 +1874,24 @@ func (r *accountRepository) AddToGroup(ctx context.Context, accountID, groupID i
 	if err := lockLiveGroups(ctx, client, []int64{groupID}); err != nil {
 		return err
 	}
-	_, err = client.AccountGroup.Create().
-		SetAccountID(accountID).
-		SetGroupID(groupID).
-		SetPriority(priority).
-		Save(ctx)
+	binding, err := client.AccountGroup.Query().
+		Where(
+			dbaccountgroup.AccountIDEQ(accountID),
+			dbaccountgroup.GroupIDEQ(groupID),
+		).
+		Only(ctx)
+	if err != nil && !dbent.IsNotFound(err) {
+		return err
+	}
+	if binding == nil {
+		_, err = client.AccountGroup.Create().
+			SetAccountID(accountID).
+			SetGroupID(groupID).
+			SetPriority(priority).
+			Save(ctx)
+	} else {
+		_, err = binding.Update().SetPriority(priority).Save(ctx)
+	}
 	if err != nil {
 		return err
 	}
