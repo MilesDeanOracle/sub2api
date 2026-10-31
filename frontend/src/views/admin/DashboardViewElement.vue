@@ -67,7 +67,7 @@
               <button
                 type="button"
                 class="ep-quick-action hover:!bg-emerald-50 dark:hover:!bg-emerald-900/20"
-                @click="router.push('/admin/groups')"
+                @click="router.push('/admin/resource-pools?scope=all&focus=groups')"
               >
                 <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
                   <el-icon :size="20"><Grid /></el-icon>

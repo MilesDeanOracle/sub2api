@@ -4,6 +4,7 @@
  */
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { redirectLegacyAccounts, redirectLegacyGroups } from '@/views/admin/resourcePoolRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
@@ -475,16 +476,34 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/groups',
-    name: 'AdminGroups',
-    component: () => import('@/views/admin/GroupsView.vue'),
+    path: '/admin/resource-pools',
+    name: 'AdminResourcePools',
+    component: () => import('@/views/admin/ResourcePoolsViewElement.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Group Management',
-      titleKey: 'admin.groups.title',
-      descriptionKey: 'admin.groups.description'
+      title: 'Resource Pool Management',
+      titleKey: 'resourcePool.title',
+      descriptionKey: 'resourcePool.description'
     }
+  },
+  {
+    path: '/admin/resource-pools/advanced-groups',
+    name: 'AdminResourcePoolAdvancedGroups',
+    component: () => import('@/views/admin/ResourcePoolAdvancedGroupsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Advanced Group Settings',
+      titleKey: 'admin.groups.title',
+      descriptionKey: 'admin.groups.description',
+      hidden: true
+    }
+  },
+  {
+    path: '/admin/groups',
+    name: 'AdminGroups',
+    redirect: to => redirectLegacyGroups(to.query)
   },
   {
     path: '/admin/channels',
@@ -540,14 +559,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/accounts',
     name: 'AdminAccounts',
-    component: () => import('@/views/admin/AccountsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Account Management',
-      titleKey: 'admin.accounts.title',
-      descriptionKey: 'admin.accounts.description'
-    }
+    redirect: to => redirectLegacyAccounts(to.query)
   },
   {
     path: '/admin/plugins',

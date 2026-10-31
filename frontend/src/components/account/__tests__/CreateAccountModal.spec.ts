@@ -109,7 +109,7 @@ const GroupSelectorStub = defineComponent({
     },
   },
   emits: ['update:modelValue'],
-  template: `
+  template: `<div>
     <button
       type="button"
       data-testid="select-pricing-groups"
@@ -117,7 +117,8 @@ const GroupSelectorStub = defineComponent({
     >
       groups
     </button>
-  `,
+    <span data-testid="selected-groups">{{ modelValue.join(',') }}</span>
+  </div>`,
 })
 
 const ModelWhitelistSelectorStub = defineComponent({
@@ -200,6 +201,14 @@ async function openCodexImportStep(toggleClicks = 0) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('defaults account creation to the selected resource pool', async () => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, defaultGroupIds: [7] })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="selected-groups"]').text()).toBe('7')
+  })
+
   beforeEach(() => {
     authIsSimpleMode.value = true
     createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })

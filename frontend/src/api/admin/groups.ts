@@ -21,6 +21,28 @@ export interface LiveCapability {
   reason?: string
 }
 
+export interface UpstreamGroupSummary {
+  id: number
+  name: string
+  description: string
+  platform: string
+  status: string
+  rate_multiplier: number
+  is_exclusive: boolean
+  api_key?: string
+  already_added?: boolean
+}
+
+export interface UpstreamGroupProbeResult {
+  groups: UpstreamGroupSummary[]
+  total: number
+}
+
+export interface UpstreamGroupProbeRequest {
+  base_url: string
+  access_token: string
+}
+
 /**
  * List all groups with pagination
  * @param page - Page number (default: 1)
@@ -74,6 +96,17 @@ export async function getAllIncludingInactive(): Promise<AdminGroup[]> {
   const { data } = await apiClient.get<AdminGroup[]>('/admin/groups/all', {
     params: { include_inactive: true }
   })
+  return data
+}
+
+/** Inspect all groups exposed by a compatible Sub2API upstream. */
+export async function probeUpstreamGroups(
+  request: UpstreamGroupProbeRequest
+): Promise<UpstreamGroupProbeResult> {
+  const { data } = await apiClient.post<UpstreamGroupProbeResult>(
+    '/admin/groups/upstream-probe',
+    request
+  )
   return data
 }
 
@@ -475,6 +508,7 @@ export const groupsAPI = {
   getAll,
   getByPlatform,
   getAllIncludingInactive,
+  probeUpstreamGroups,
   getLiveCapability,
   getById,
   getModelAllowlistCandidates,

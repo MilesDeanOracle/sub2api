@@ -243,6 +243,30 @@ export async function update(id: number, updates: UpdateAccountRequest): Promise
   return data
 }
 
+export interface AccountGroupMembershipInput {
+  priority: number
+  confirm_mixed_channel_risk?: boolean
+}
+
+/** Create or update one membership without replacing unrelated group bindings. */
+export async function setGroupMembership(
+  accountId: number,
+  groupId: number,
+  input: AccountGroupMembershipInput
+): Promise<Account> {
+  const { data } = await apiClient.put<Account>(
+    `/admin/accounts/${accountId}/groups/${groupId}`,
+    input
+  )
+  return data
+}
+
+/** Remove only the requested membership. */
+export async function removeGroupMembership(accountId: number, groupId: number): Promise<Account> {
+  const { data } = await apiClient.delete<Account>(`/admin/accounts/${accountId}/groups/${groupId}`)
+  return data
+}
+
 export async function getGrokMediaEligibility(id: number): Promise<GrokMediaEligibilityState> {
   const { data } = await apiClient.get<GrokMediaEligibilityState>(
     `/admin/accounts/${id}/grok-media-eligibility`
@@ -492,12 +516,12 @@ export async function exchangeCode(
 export async function batchCreate(accounts: CreateAccountRequest[]): Promise<{
   success: number
   failed: number
-  results: Array<{ success: boolean; account?: Account; error?: string }>
+  results: Array<{ name?: string; id?: number; success: boolean; account?: Account; error?: string }>
 }> {
   const { data } = await apiClient.post<{
     success: number
     failed: number
-    results: Array<{ success: boolean; account?: Account; error?: string }>
+    results: Array<{ name?: string; id?: number; success: boolean; account?: Account; error?: string }>
   }>('/admin/accounts/batch', { accounts })
   return data
 }
@@ -1139,6 +1163,8 @@ export const accountsAPI = {
   create,
   duplicate,
   update,
+  setGroupMembership,
+  removeGroupMembership,
   getGrokMediaEligibility,
   updateGrokMediaEligibility,
   checkMixedChannelRisk,
