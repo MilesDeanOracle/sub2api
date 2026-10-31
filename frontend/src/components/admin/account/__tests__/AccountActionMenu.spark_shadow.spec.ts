@@ -98,6 +98,22 @@ describe('AccountActionMenu — spark shadow 按钮可见性', () => {
     wrapper.unmount()
   })
 
+  it('资源池使用原版菜单时显示账号操作', () => {
+    const account = makeAccount({ platform: 'openai', type: 'apikey', parent_account_id: null })
+    const wrapper = mount(AccountActionMenu, {
+      props: { show: true, account, anchorRect, resourcePoolMode: true },
+      attachTo: document.body,
+    })
+    const body = getBodyText()
+    expect(body).toContain('admin.accounts.testConnection')
+    expect(body).toContain('admin.accounts.viewStats')
+    expect(body).toContain('admin.accounts.duplicateAccount')
+    expect(body).toContain('admin.scheduledTests.schedule')
+    expect(body).toContain('admin.accounts.recoverState')
+    expect(body).not.toContain('admin.accounts.reAuthorize')
+    wrapper.unmount()
+  })
+
   it('OpenAI OAuth 母账号（无 parent_account_id）显示「创建 spark 影子」按钮', () => {
     const account = makeAccount({ platform: 'openai', type: 'oauth', parent_account_id: null })
     const wrapper = mount(AccountActionMenu, {
