@@ -2,223 +2,325 @@
   <AppLayout>
     <el-config-provider :locale="epLocale">
       <div class="ep-users-page">
-        <!-- Single Row: Search, Filters, and Actions -->
-        <div class="ep-filter-bar">
-          <!-- Left: Search + Active Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <!-- Search Box -->
-            <div class="w-full md:w-64">
-              <el-input
-                v-model="searchQuery"
-                :placeholder="t('admin.users.searchUsers')"
-                :prefix-icon="SearchIcon"
-                @input="handleSearch"
-              />
+        <!-- Page Top Header -->
+        <div class="page-top-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/70 dark:border-dark-800">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
+              <el-icon class="text-xl"><UserFilledIcon /></el-icon>
             </div>
-
-            <!-- Role Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
-              <el-select v-model="filters.role" @change="applyFilter">
-                <el-option value="" :label="t('admin.users.allRoles')" />
-                <el-option value="admin" :label="t('admin.users.admin')" />
-                <el-option value="user" :label="t('admin.users.user')" />
-              </el-select>
+            <div>
+              <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight m-0">
+                {{ t('admin.users.title') }}
+              </h1>
+              <p class="text-xs text-gray-500 dark:text-gray-400 m-0 mt-0.5">
+                {{ t('admin.users.description') }}
+              </p>
             </div>
-
-            <!-- Status Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('status')" class="w-full sm:w-32">
-              <el-select v-model="filters.status" @change="applyFilter">
-                <el-option value="" :label="t('admin.users.allStatus')" />
-                <el-option value="active" :label="t('common.active')" />
-                <el-option value="disabled" :label="t('admin.users.disabled')" />
-              </el-select>
-            </div>
-
-            <!-- Group Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
-              <el-select
-                v-model="filters.group"
-                filterable
-                allow-create
-                :placeholder="t('admin.users.fuzzySearch')"
-                @change="applyFilter"
-              >
-                <el-option
-                  v-for="opt in groupFilterOptions"
-                  :key="opt.value"
-                  :value="opt.value"
-                  :label="opt.label"
-                />
-              </el-select>
-            </div>
-
-            <!-- API Key Group Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('apiKeyGroup')" class="w-full sm:w-44">
-              <el-select
-                v-model="filters.apiKeyGroup"
-                filterable
-                :placeholder="t('admin.users.searchApiKeyGroups')"
-                @change="applyFilter"
-              >
-                <el-option
-                  v-for="opt in apiKeyGroupFilterOptions"
-                  :key="String(opt.value)"
-                  :value="opt.value"
-                  :label="opt.label"
-                  :disabled="opt.disabled === true"
-                />
-              </el-select>
-            </div>
-
-            <!-- Dynamic Attribute Filters -->
-            <template v-for="(value, attrId) in activeAttributeFilters" :key="attrId">
-              <div
-                v-if="visibleFilters.has(`attr_${attrId}`)"
-                class="w-full sm:w-36"
-              >
-                <!-- Select/Multi-select type -->
-                <el-select
-                  v-if="['select', 'multi_select'].includes(getAttributeDefinition(Number(attrId))?.type || '')"
-                  :model-value="value"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
-                  @update:model-value="(val: SelectEmittedValue) => { updateAttributeFilter(Number(attrId), String(val ?? '')); applyFilter() }"
-                >
-                  <el-option value="" :label="getAttributeDefinitionName(Number(attrId))" />
-                  <el-option
-                    v-for="opt in getAttributeDefinition(Number(attrId))?.options || []"
-                    :key="opt.value"
-                    :value="opt.value"
-                    :label="opt.label"
-                  />
-                </el-select>
-                <!-- Number type -->
-                <el-input
-                  v-else-if="getAttributeDefinition(Number(attrId))?.type === 'number'"
-                  :model-value="value"
-                  type="number"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
-                  @update:model-value="(val: SelectEmittedValue) => updateAttributeFilter(Number(attrId), String(val ?? ''))"
-                  @keyup.enter="applyFilter"
-                />
-                <!-- Text/Email/URL/Textarea/Date type -->
-                <el-input
-                  v-else
-                  :model-value="value"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
-                  @update:model-value="(val: SelectEmittedValue) => updateAttributeFilter(Number(attrId), String(val ?? ''))"
-                  @keyup.enter="applyFilter"
-                />
-              </div>
-            </template>
           </div>
 
-          <!-- Right: Actions and Settings -->
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <!-- Quick Metrics & Top Actions -->
+          <div class="flex items-center flex-wrap gap-2.5">
+            <!-- Header Badges -->
+            <div class="hidden lg:flex items-center gap-2 mr-1 text-xs">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-dark-800 text-gray-600 dark:text-gray-300 font-medium border border-gray-200/60 dark:border-dark-700">
+                <span class="text-gray-400 font-normal">{{ t('common.total') || '总计' }}:</span>
+                <strong class="text-gray-900 dark:text-gray-100 font-semibold">{{ pagination.total }}</strong>
+              </span>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-200/60 dark:border-emerald-800/60">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span class="text-emerald-600 dark:text-emerald-400 font-normal">{{ t('common.active') }}:</span>
+                <strong>{{ activeUsersCount }}</strong>
+              </span>
+              <span v-if="disabledUsersCount > 0" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-medium border border-rose-200/60 dark:border-rose-800/60">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span class="text-rose-600 dark:text-rose-400 font-normal">{{ t('admin.users.disabled') }}:</span>
+                <strong>{{ disabledUsersCount }}</strong>
+              </span>
+              <span v-if="adminUsersCount > 0" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-medium border border-amber-200/60 dark:border-amber-800/60">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span class="text-amber-600 dark:text-amber-400 font-normal">{{ t('admin.users.admin') }}:</span>
+                <strong>{{ adminUsersCount }}</strong>
+              </span>
+            </div>
+
             <!-- Refresh Button -->
-            <el-button
-              plain
-              :title="t('common.refresh')"
-              :icon="RefreshIcon"
-              :class="{ 'ep-refresh-loading': loading }"
-              @click="loadUsers"
-            />
-
-            <!-- Filter Settings Dropdown -->
-            <el-dropdown trigger="click" popper-class="ep-check-dropdown">
-              <el-button plain :title="t('admin.users.filterSettings')">
-                <el-icon class="el-icon--left"><FilterIcon /></el-icon>
-                <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="filter in builtInFilters"
-                    :key="filter.key"
-                    @click="toggleBuiltInFilter(filter.key)"
-                  >
-                    <span class="ep-check-row">
-                      <span>{{ filter.name }}</span>
-                      <el-icon v-if="visibleFilters.has(filter.key)" class="ep-check-row-mark"><CheckIcon /></el-icon>
-                    </span>
-                  </el-dropdown-item>
-                  <div v-if="filterableAttributes.length > 0" class="ep-dropdown-divider"></div>
-                  <el-dropdown-item
-                    v-for="attr in filterableAttributes"
-                    :key="attr.id"
-                    @click="toggleAttributeFilter(attr)"
-                  >
-                    <span class="ep-check-row">
-                      <span>{{ attr.name }}</span>
-                      <el-icon v-if="visibleFilters.has(`attr_${attr.id}`)" class="ep-check-row-mark"><CheckIcon /></el-icon>
-                    </span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-
-            <!-- Column Settings Dropdown -->
-            <el-dropdown trigger="click" popper-class="ep-check-dropdown ep-column-dropdown">
-              <el-button plain :title="t('admin.users.columnSettings')">
-                <el-icon class="el-icon--left"><GridIcon /></el-icon>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="col in toggleableColumns"
-                    :key="col.key"
-                    :disabled="isForcedVisibleColumn(col.key)"
-                    :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
-                    @click="toggleColumn(col.key)"
-                  >
-                    <span class="ep-check-row" :class="{ 'is-disabled': isForcedVisibleColumn(col.key) }">
-                      <span>{{ col.label }}</span>
-                      <el-icon v-if="isColumnVisible(col.key)" class="ep-check-row-mark"><CheckIcon /></el-icon>
-                    </span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-tooltip :content="t('common.refresh')" placement="top">
+              <el-button
+                plain
+                circle
+                :icon="RefreshIcon"
+                :class="{ 'ep-refresh-loading': loading }"
+                class="!border-gray-200 dark:!border-dark-700 hover:!border-primary-500"
+                @click="loadUsers"
+              />
+            </el-tooltip>
 
             <!-- Attributes Config Button -->
-            <el-button plain :title="t('admin.users.attributes.configButton')" @click="showAttributesModal = true">
-              <el-icon class="el-icon--left"><SettingIcon /></el-icon>
-              <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
-            </el-button>
+            <el-tooltip :content="t('admin.users.attributes.configButton')" placement="top">
+              <el-button plain class="!rounded-xl text-xs font-medium" @click="showAttributesModal = true">
+                <el-icon class="mr-1"><SettingIcon /></el-icon>
+                <span class="hidden sm:inline">{{ t('admin.users.attributes.configButton') }}</span>
+              </el-button>
+            </el-tooltip>
 
+            <!-- Create User Button -->
             <el-button
-              v-if="selectedCount > 0"
-              plain
-              data-test="bulk-edit-limits"
-              :icon="UserIcon"
-              class="flex-1 md:flex-initial"
-              @click="showBulkEditModal = true"
+              type="primary"
+              class="!rounded-xl text-xs font-medium shadow-sm hover:shadow"
+              @click="showCreateModal = true"
             >
-              {{ t('admin.users.bulkLimits.action', { count: selectedCount }) }}
-            </el-button>
-
-            <el-button
-              v-if="selectedCount > 0"
-              type="danger"
-              plain
-              data-test="bulk-delete-users"
-              :disabled="bulkDeleting"
-              :icon="DeleteIcon"
-              class="flex-1 md:flex-initial"
-              @click="handleBulkDeleteClick"
-            >
-              {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
-            </el-button>
-
-            <!-- Create User Button (full width on mobile, auto width on desktop) -->
-            <el-button type="primary" :icon="PlusIcon" class="flex-1 md:flex-initial" @click="showCreateModal = true">
+              <el-icon class="mr-1"><PlusIcon /></el-icon>
               {{ t('admin.users.createUser') }}
             </el-button>
           </div>
         </div>
 
-        <!-- Users Table -->
-        <el-card shadow="never" class="ep-table-card" :body-style="{ padding: '0' }">
+        <!-- Filter Card -->
+        <div class="ep-filter-card bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-2xl p-3.5 shadow-sm flex flex-col gap-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <!-- Left: Search and active filters -->
+            <div class="flex flex-1 flex-wrap items-center gap-2.5 min-w-0">
+              <!-- Search Box -->
+              <div class="w-full sm:w-64">
+                <el-input
+                  v-model="searchQuery"
+                  clearable
+                  :placeholder="t('admin.users.searchUsers')"
+                  :prefix-icon="SearchIcon"
+                  class="ep-filter-input"
+                  @input="handleSearch"
+                  @clear="handleSearch"
+                />
+              </div>
+
+              <!-- Role Filter (visible when enabled) -->
+              <div v-if="visibleFilters.has('role')" class="w-full sm:w-36">
+                <el-select v-model="filters.role" clearable :placeholder="t('admin.users.allRoles')" @change="applyFilter">
+                  <el-option value="" :label="t('admin.users.allRoles')" />
+                  <el-option value="admin" :label="t('admin.users.admin')" />
+                  <el-option value="user" :label="t('admin.users.user')" />
+                </el-select>
+              </div>
+
+              <!-- Status Filter (visible when enabled) -->
+              <div v-if="visibleFilters.has('status')" class="w-full sm:w-36">
+                <el-select v-model="filters.status" clearable :placeholder="t('admin.users.allStatus')" @change="applyFilter">
+                  <el-option value="" :label="t('admin.users.allStatus')" />
+                  <el-option value="active" :label="t('common.active')" />
+                  <el-option value="disabled" :label="t('admin.users.disabled')" />
+                </el-select>
+              </div>
+
+              <!-- Group Filter (visible when enabled) -->
+              <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
+                <el-select
+                  v-model="filters.group"
+                  clearable
+                  filterable
+                  allow-create
+                  :placeholder="t('admin.users.fuzzySearch')"
+                  @change="applyFilter"
+                >
+                  <el-option
+                    v-for="opt in groupFilterOptions"
+                    :key="opt.value"
+                    :value="opt.value"
+                    :label="opt.label"
+                  />
+                </el-select>
+              </div>
+
+              <!-- API Key Group Filter (visible when enabled) -->
+              <div v-if="visibleFilters.has('apiKeyGroup')" class="w-full sm:w-48">
+                <el-select
+                  v-model="filters.apiKeyGroup"
+                  clearable
+                  filterable
+                  :placeholder="t('admin.users.searchApiKeyGroups')"
+                  @change="applyFilter"
+                >
+                  <el-option
+                    v-for="opt in apiKeyGroupFilterOptions"
+                    :key="String(opt.value)"
+                    :value="opt.value"
+                    :label="opt.label"
+                    :disabled="opt.disabled === true"
+                  />
+                </el-select>
+              </div>
+
+              <!-- Dynamic Attribute Filters -->
+              <template v-for="(value, attrId) in activeAttributeFilters" :key="attrId">
+                <div
+                  v-if="visibleFilters.has(`attr_${attrId}`)"
+                  class="w-full sm:w-40"
+                >
+                  <!-- Select/Multi-select type -->
+                  <el-select
+                    v-if="['select', 'multi_select'].includes(getAttributeDefinition(Number(attrId))?.type || '')"
+                    :model-value="value"
+                    clearable
+                    :placeholder="getAttributeDefinitionName(Number(attrId))"
+                    @update:model-value="(val: SelectEmittedValue) => { updateAttributeFilter(Number(attrId), String(val ?? '')); applyFilter() }"
+                  >
+                    <el-option value="" :label="getAttributeDefinitionName(Number(attrId))" />
+                    <el-option
+                      v-for="opt in getAttributeDefinition(Number(attrId))?.options || []"
+                      :key="opt.value"
+                      :value="opt.value"
+                      :label="opt.label"
+                    />
+                  </el-select>
+                  <!-- Number type -->
+                  <el-input
+                    v-else-if="getAttributeDefinition(Number(attrId))?.type === 'number'"
+                    :model-value="value"
+                    type="number"
+                    clearable
+                    :placeholder="getAttributeDefinitionName(Number(attrId))"
+                    @update:model-value="(val: SelectEmittedValue) => updateAttributeFilter(Number(attrId), String(val ?? ''))"
+                    @keyup.enter="applyFilter"
+                  />
+                  <!-- Text/Email/URL/Textarea/Date type -->
+                  <el-input
+                    v-else
+                    :model-value="value"
+                    clearable
+                    :placeholder="getAttributeDefinitionName(Number(attrId))"
+                    @update:model-value="(val: SelectEmittedValue) => updateAttributeFilter(Number(attrId), String(val ?? ''))"
+                    @keyup.enter="applyFilter"
+                  />
+                </div>
+              </template>
+
+              <!-- Reset Active Filters Button -->
+              <button
+                v-if="hasActiveFilters"
+                type="button"
+                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
+                @click="resetAllFilters"
+              >
+                <el-icon><CloseIcon /></el-icon>
+                <span>{{ t('common.reset') || '重置筛选' }}</span>
+              </button>
+            </div>
+
+            <!-- Right: Filter Settings & Column Settings -->
+            <div class="flex items-center gap-2 shrink-0">
+              <!-- Filter Settings Dropdown -->
+              <el-dropdown trigger="click" popper-class="ep-check-dropdown">
+                <el-button plain class="!rounded-xl text-xs" :title="t('admin.users.filterSettings')">
+                  <el-icon class="el-icon--left"><FilterIcon /></el-icon>
+                  <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="filter in builtInFilters"
+                      :key="filter.key"
+                      @click="toggleBuiltInFilter(filter.key)"
+                    >
+                      <span class="ep-check-row">
+                        <span>{{ filter.name }}</span>
+                        <el-icon v-if="visibleFilters.has(filter.key)" class="ep-check-row-mark"><CheckIcon /></el-icon>
+                      </span>
+                    </el-dropdown-item>
+                    <div v-if="filterableAttributes.length > 0" class="ep-dropdown-divider"></div>
+                    <el-dropdown-item
+                      v-for="attr in filterableAttributes"
+                      :key="attr.id"
+                      @click="toggleAttributeFilter(attr)"
+                    >
+                      <span class="ep-check-row">
+                        <span>{{ attr.name }}</span>
+                        <el-icon v-if="visibleFilters.has(`attr_${attr.id}`)" class="ep-check-row-mark"><CheckIcon /></el-icon>
+                      </span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+
+              <!-- Column Settings Dropdown -->
+              <el-dropdown trigger="click" popper-class="ep-check-dropdown ep-column-dropdown">
+                <el-button plain class="!rounded-xl text-xs" :title="t('admin.users.columnSettings')">
+                  <el-icon class="el-icon--left"><GridIcon /></el-icon>
+                  <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="col in toggleableColumns"
+                      :key="col.key"
+                      :disabled="isForcedVisibleColumn(col.key)"
+                      :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
+                      @click="toggleColumn(col.key)"
+                    >
+                      <span class="ep-check-row" :class="{ 'is-disabled': isForcedVisibleColumn(col.key) }">
+                        <span>{{ col.label }}</span>
+                        <el-icon v-if="isColumnVisible(col.key)" class="ep-check-row-mark"><CheckIcon /></el-icon>
+                      </span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Batch Selection Dock -->
+        <transition name="el-zoom-in-top">
+          <div
+            v-if="selectedCount > 0"
+            class="ep-batch-dock p-3 rounded-2xl bg-gradient-to-r from-primary-50 via-indigo-50/70 to-blue-50/60 dark:from-primary-950/40 dark:via-indigo-950/30 dark:to-blue-950/30 border border-primary-200/70 dark:border-primary-800/50 shadow-sm flex flex-wrap items-center justify-between gap-3 shrink-0"
+          >
+            <div class="flex items-center gap-2.5">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-600"></span>
+              </span>
+              <span class="text-sm font-semibold text-primary-900 dark:text-primary-100">
+                {{ t('admin.users.bulkLimits.selectedCount', { count: selectedCount }) }}
+              </span>
+            </div>
+            <div class="flex items-center flex-wrap gap-2">
+              <el-button
+                plain
+                size="small"
+                data-test="bulk-edit-limits"
+                :icon="UserIcon"
+                class="!rounded-xl font-medium"
+                @click="showBulkEditModal = true"
+              >
+                {{ t('admin.users.bulkLimits.action', { count: selectedCount }) }}
+              </el-button>
+
+              <el-button
+                type="danger"
+                plain
+                size="small"
+                data-test="bulk-delete-users"
+                :disabled="bulkDeleting"
+                :icon="DeleteIcon"
+                class="!rounded-xl font-medium"
+                @click="handleBulkDeleteClick"
+              >
+                {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
+              </el-button>
+
+              <el-button
+                size="small"
+                text
+                class="!rounded-xl text-gray-500 hover:text-gray-700 dark:text-dark-400"
+                @click="clearTableSelection"
+              >
+                {{ t('common.cancel') }}
+              </el-button>
+            </div>
+          </div>
+        </transition>
+
+        <!-- Users Table Card -->
+        <div class="ep-table-card bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-2xl shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
           <el-table
             ref="tableRef"
             v-loading="loading"
@@ -226,29 +328,38 @@
             row-key="id"
             :height="isMobile ? undefined : '100%'"
             :default-sort="defaultTableSort"
+            class="ep-refined-table"
             @sort-change="handleSortChange"
             @selection-change="handleSelectionChange"
           >
             <el-table-column type="selection" width="44" reserve-selection />
 
-            <el-table-column prop="email" :label="t('admin.users.columns.user')" min-width="220" sortable="custom" :sort-orders="SORT_ORDERS">
+            <el-table-column prop="email" :label="t('admin.users.columns.user')" min-width="240" sortable="custom" :sort-orders="SORT_ORDERS">
               <template #default="{ row }">
                 <el-tooltip :content="t('admin.users.drawer.viewHint')" placement="top">
-                  <div class="flex w-full items-center gap-2">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
-                      <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
-                        {{ row.email.charAt(0).toUpperCase() }}
+                  <div class="flex items-center gap-2.5 py-1">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-500 to-indigo-600 text-white font-semibold text-xs shadow-sm shadow-primary-500/20">
+                      {{ (row.email || 'U').charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="min-w-0 flex flex-col items-start leading-tight">
+                      <div class="flex items-center gap-1.5 max-w-full">
+                        <el-button
+                          link
+                          type="primary"
+                          class="ep-username-link truncate font-semibold !text-sm"
+                          data-test="open-user-drawer"
+                          @click.stop="openUserDrawer(row)"
+                        >
+                          {{ row.email }}
+                        </el-button>
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-gray-500 bg-gray-100 dark:bg-dark-800 dark:text-dark-400 shrink-0">
+                          #{{ row.id }}
+                        </span>
+                      </div>
+                      <span v-if="row.username" class="text-xs text-gray-400 dark:text-dark-400 truncate max-w-[190px] mt-0.5">
+                        @{{ row.username }}
                       </span>
                     </div>
-                    <el-button
-                      link
-                      type="primary"
-                      class="ep-username-link"
-                      data-test="open-user-drawer"
-                      @click.stop="openUserDrawer(row)"
-                    >
-                      {{ row.email }}
-                    </el-button>
                   </div>
                 </el-tooltip>
               </template>
@@ -297,11 +408,21 @@
               </el-table-column>
             </template>
 
-            <el-table-column v-if="isColumnVisible('role')" prop="role" :label="t('admin.users.columns.role')" min-width="100" sortable="custom" :sort-orders="SORT_ORDERS">
+            <el-table-column v-if="isColumnVisible('role')" prop="role" :label="t('admin.users.columns.role')" min-width="110" sortable="custom" :sort-orders="SORT_ORDERS">
               <template #default="{ row }">
-                <el-tag :type="row.role === 'admin' ? 'warning' : 'info'" effect="light" size="small" round>
+                <span
+                  v-if="row.role === 'admin'"
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60"
+                >
+                  <el-icon class="text-[11px]"><StarIcon /></el-icon>
+                  <span>{{ t('admin.users.roles.' + row.role) }}</span>
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200/60 dark:bg-dark-800 dark:text-dark-300 dark:border-dark-700"
+                >
                   {{ t('admin.users.roles.' + row.role) }}
-                </el-tag>
+                </span>
               </template>
             </el-table-column>
 
@@ -480,16 +601,25 @@
               </template>
             </el-table-column>
 
-            <el-table-column v-if="isColumnVisible('status')" prop="status" :label="t('admin.users.columns.status')" min-width="100" sortable="custom" :sort-orders="SORT_ORDERS">
+            <el-table-column v-if="isColumnVisible('status')" prop="status" :label="t('admin.users.columns.status')" min-width="110" sortable="custom" :sort-orders="SORT_ORDERS">
               <template #default="{ row }">
-                <div class="flex items-center gap-1.5">
-                  <span
-                    :class="['inline-block h-2 w-2 rounded-full', row.status === 'active' ? 'bg-green-500' : 'bg-red-500']"
-                  ></span>
-                  <span class="text-sm text-gray-700 dark:text-gray-300">
-                    {{ row.status === 'active' ? t('common.active') : t('admin.users.disabled') }}
+                <span
+                  v-if="row.status === 'active'"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60"
+                >
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                </div>
+                  <span>{{ t('common.active') }}</span>
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60"
+                >
+                  <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                  <span>{{ t('admin.users.disabled') }}</span>
+                </span>
               </template>
             </el-table-column>
 
@@ -515,15 +645,20 @@
               </template>
             </el-table-column>
 
-            <el-table-column :label="t('admin.users.columns.actions')" width="200" fixed="right" align="center">
+            <el-table-column :label="t('admin.users.columns.actions')" width="180" fixed="right" align="center">
               <template #default="{ row }">
-                <div class="flex items-center justify-center gap-1">
+                <div class="flex items-center justify-center gap-1.5">
                   <!-- Edit Button -->
                   <el-tooltip :content="t('common.edit')" placement="top">
-                    <button class="ep-action-btn" @click="handleEdit(row)">
+                    <el-button
+                      size="small"
+                      plain
+                      class="!rounded-lg !px-2"
+                      @click="handleEdit(row)"
+                    >
                       <el-icon><EditIcon /></el-icon>
-                      <span>{{ t('common.edit') }}</span>
-                    </button>
+                      <span class="ml-1 text-xs">{{ t('common.edit') }}</span>
+                    </el-button>
                   </el-tooltip>
 
                   <!-- Toggle Status Button (not for admin) -->
@@ -532,21 +667,28 @@
                     :content="row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')"
                     placement="top"
                   >
-                    <button
-                      :class="['ep-action-btn', row.status === 'active' ? 'ep-action-warn' : 'ep-action-ok']"
+                    <el-button
+                      size="small"
+                      :type="row.status === 'active' ? 'warning' : 'success'"
+                      plain
+                      class="!rounded-lg !px-2"
                       @click="handleToggleStatus(row)"
                     >
                       <el-icon><LockIcon v-if="row.status === 'active'" /><CircleCheckIcon v-else /></el-icon>
-                      <span>{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
-                    </button>
+                      <span class="ml-1 text-xs">{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
+                    </el-button>
                   </el-tooltip>
 
                   <!-- More Actions Menu -->
                   <el-dropdown trigger="click" @command="(cmd: string) => handleRowCommand(cmd, row)">
-                    <button class="ep-action-btn" @click.stop>
+                    <el-button
+                      size="small"
+                      plain
+                      class="!rounded-lg !px-1.5"
+                      @click.stop
+                    >
                       <el-icon><MoreFilledIcon /></el-icon>
-                      <span>{{ t('common.more') }}</span>
-                    </button>
+                    </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
                         <el-dropdown-item command="apiKeys" :icon="KeyIcon">
@@ -584,28 +726,42 @@
             </el-table-column>
 
             <template #empty>
-              <el-empty :image-size="90">
-                <template #description>
-                  <div class="text-base font-medium text-gray-900 dark:text-white">{{ t('admin.users.noUsersYet') }}</div>
-                  <div class="mt-1 text-sm text-gray-500">{{ t('admin.users.createFirstUser') }}</div>
-                </template>
-                <el-button type="primary" :icon="PlusIcon" @click="showCreateModal = true">
-                  {{ t('admin.users.createUser') }}
-                </el-button>
-              </el-empty>
+              <div class="py-12 flex flex-col items-center justify-center">
+                <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-dark-800 text-gray-400 dark:text-dark-400 flex items-center justify-center mb-3">
+                  <el-icon class="text-3xl"><UserFilledIcon /></el-icon>
+                </div>
+                <div class="text-base font-semibold text-gray-900 dark:text-white">
+                  {{ t('admin.users.noUsersYet') }}
+                </div>
+                <div class="mt-1 text-xs text-gray-500 max-w-sm text-center">
+                  {{ t('admin.users.createFirstUser') }}
+                </div>
+                <div class="mt-4 flex items-center gap-2">
+                  <el-button v-if="hasActiveFilters" plain size="small" class="!rounded-xl" @click="resetAllFilters">
+                    {{ t('common.reset') || '重置筛选' }}
+                  </el-button>
+                  <el-button type="primary" size="small" class="!rounded-xl" :icon="PlusIcon" @click="showCreateModal = true">
+                    {{ t('admin.users.createUser') }}
+                  </el-button>
+                </div>
+              </div>
             </template>
           </el-table>
-        </el-card>
+        </div>
 
-        <!-- Pagination -->
-        <div v-if="pagination.total > 0" class="ep-pagination-bar">
+        <!-- Pagination Bar -->
+        <div v-if="pagination.total > 0" class="ep-pagination-bar bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-2xl p-3 shadow-sm flex items-center justify-between flex-shrink-0">
+          <div class="text-xs text-gray-500 dark:text-dark-400 hidden sm:block">
+            {{ t('common.total') || '共' }} <strong class="text-gray-900 dark:text-gray-100 font-semibold">{{ pagination.total }}</strong> {{ t('admin.users.drawer.times') || '条记录' }}
+          </div>
           <el-pagination
             background
             :total="pagination.total"
             :current-page="pagination.page"
             :page-size="pagination.page_size"
             :page-sizes="pageSizeOptions"
-            :layout="isMobile ? 'total, prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+            :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+            class="!m-0"
             @current-change="handlePageChange"
             @size-change="handlePageSizeChange"
           />
@@ -668,7 +824,8 @@ import {
   Star as StarIcon,
   Connection as ConnectionIcon,
   Switch as SwitchIcon,
-  CircleClose as CircleCloseIcon
+  CircleClose as CircleCloseIcon,
+  Close as CloseIcon
 } from '@element-plus/icons-vue'
 import type { TableInstance } from 'element-plus'
 import { useAppStore } from '@/stores/app'
@@ -1072,6 +1229,32 @@ const applyFilter = () => {
   loadUsers()
 }
 
+const hasActiveFilters = computed(() => {
+  if (searchQuery.value.trim()) return true
+  if (filters.role) return true
+  if (filters.status) return true
+  if (filters.group) return true
+  if (typeof filters.apiKeyGroup === 'number') return true
+  for (const val of Object.values(activeAttributeFilters)) {
+    if (val) return true
+  }
+  return false
+})
+
+const resetAllFilters = () => {
+  searchQuery.value = ''
+  filters.role = ''
+  filters.status = ''
+  filters.group = ''
+  filters.apiKeyGroup = null
+  for (const key of Object.keys(activeAttributeFilters)) {
+    activeAttributeFilters[Number(key)] = ''
+  }
+  saveFiltersToStorage()
+  pagination.page = 1
+  loadUsers()
+}
+
 // ==================== 用量数据与本地排序 ====================
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
 const platformQuotaStats = ref<Record<number, PlatformQuotaItem[]>>({})
@@ -1188,6 +1371,15 @@ const {
 const handleSelectionChange = (rows: AdminUser[]) => {
   setSelectedIds(rows.map(row => row.id))
 }
+
+const clearTableSelection = () => {
+  clearSelection()
+  tableRef.value?.clearSelection()
+}
+
+const activeUsersCount = computed(() => users.value.filter(u => u.status === 'active').length)
+const disabledUsersCount = computed(() => users.value.filter(u => u.status === 'disabled').length)
+const adminUsersCount = computed(() => users.value.filter(u => u.role === 'admin').length)
 
 // ==================== 分页 ====================
 const pagination = reactive({
@@ -1693,30 +1885,46 @@ onUnmounted(() => {
 
 <style scoped>
 .ep-users-page {
-  @apply flex flex-col gap-6;
+  @apply flex flex-col gap-3.5;
   height: calc(100vh - 64px - 4rem); /* 减去 header + lg:p-8 的上下padding */
 }
 
-.ep-filter-bar {
-  @apply flex flex-wrap items-center gap-3 flex-shrink-0;
-}
-
-.ep-filter-bar :deep(.el-select) {
+.ep-filter-card :deep(.el-select) {
   width: 100%;
 }
 
 .ep-table-card {
   @apply flex-1 min-h-0 flex flex-col;
-  border-radius: 1rem;
 }
 
-.ep-table-card :deep(.el-card__body) {
-  @apply flex-1 min-h-0 flex flex-col;
+.ep-refined-table {
+  --el-table-header-bg-color: transparent;
+}
+
+.ep-refined-table :deep(.el-table__header-wrapper th) {
+  background-color: rgb(249 250 251 / 0.85);
+  font-weight: 600;
+  color: rgb(75 85 99);
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+}
+
+:global(.dark) .ep-refined-table :deep(.el-table__header-wrapper th) {
+  background-color: rgb(17 24 39 / 0.75);
+  color: rgb(156 163 175);
+}
+
+.ep-refined-table :deep(.el-table__row:hover > td) {
+  background-color: rgb(248 250 252 / 0.8) !important;
+}
+
+:global(.dark) .ep-refined-table :deep(.el-table__row:hover > td) {
+  background-color: rgb(30 41 59 / 0.35) !important;
 }
 
 /* 用户列邮箱链接按钮：点击打开详情抽屉（主要样式由 el-button link type=primary 提供） */
 .ep-username-link {
-  @apply text-left text-sm font-medium;
+  @apply text-left text-sm font-semibold;
   height: auto;
   padding: 0;
 }
@@ -1726,29 +1934,12 @@ onUnmounted(() => {
   @apply font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:text-primary-600 dark:text-white dark:decoration-dark-500 dark:hover:text-primary-400;
 }
 
-/* 操作列小按钮：图标在上、文字在下 */
-.ep-action-btn {
-  @apply flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white;
-}
-
-.ep-action-warn {
-  @apply hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400;
-}
-
-.ep-action-ok {
-  @apply hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400;
-}
-
 .ep-usage-sort-trigger {
   @apply flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-gray-400 transition-colors hover:bg-gray-200 dark:text-dark-500 dark:hover:bg-dark-700;
 }
 
 .ep-usage-sort-trigger.is-active {
   @apply text-primary-600 dark:text-primary-400;
-}
-
-.ep-pagination-bar {
-  @apply flex flex-shrink-0 justify-end;
 }
 
 .ep-rotate-180 {
