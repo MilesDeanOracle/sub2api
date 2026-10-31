@@ -235,8 +235,10 @@ export default {
       clearSearch: 'Clear search'
     },
     actions: {
-      createGroup: 'New pool',
+      createGroup: 'New group',
       createAccount: 'New account',
+      probeBatch: 'Probe selected accounts',
+      toggleStatus: 'Click to toggle active/paused',
       addExisting: 'Add existing',
       addToGroup: 'Add to pool',
       removeFromCurrent: 'Remove from current pool',
@@ -390,6 +392,7 @@ export default {
       loadFailed: 'Failed to load resource-pool accounts',
       accountLoadFailed: 'Failed to load account details',
       groupSaved: 'Resource pool saved',
+      quickSaveFailed: 'Save failed, please retry',
       groupDuplicated: 'Resource pool duplicated',
       groupDeleted: 'Resource pool deleted; its accounts were preserved',
       deleteGroupTitle: 'Delete resource pool',

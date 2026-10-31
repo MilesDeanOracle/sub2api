@@ -118,9 +118,24 @@
 
         <!-- Loop Platform Categories -->
         <div v-for="section in groupedPools" :key="section.platform" class="space-y-1">
-          <!-- Platform Category Header -->
-          <div class="flex items-center justify-between px-2 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <!-- Platform Category Header（可点击折叠/展开该平台下的池列表） -->
+          <button
+            type="button"
+            :data-testid="`platform-toggle-${section.platform}`"
+            :aria-expanded="isPlatformExpanded(section.platform)"
+            class="w-full flex items-center justify-between px-2 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100/70 dark:hover:bg-dark-800/60 transition-colors text-left"
+            @click="togglePlatform(section.platform)"
+          >
             <div class="flex items-center gap-1.5">
+              <svg
+                class="w-3 h-3 shrink-0 text-slate-400 transition-transform duration-200"
+                :class="isPlatformExpanded(section.platform) ? 'rotate-90' : ''"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+              </svg>
               <!-- Platform Icon -->
               <span class="w-4 h-4 flex items-center justify-center">
                 <PlatformIcon :platform="section.platform" size="md" :class="platformIconColor(section.platform)" />
@@ -128,45 +143,52 @@
               <span>{{ platformLabel(section.platform) }}</span>
             </div>
             <Badge variant="platform-count">{{ section.groups.length }}</Badge>
-          </div>
+          </button>
 
-          <!-- Pool Items Under Platform -->
-          <div class="space-y-0.5 pl-1.5">
-            <div
-              v-for="group in section.groups"
-              :key="group.id"
-              :data-testid="`pool-group-${group.id}`"
-              :class="poolItemVariants({ active: scope === 'group' && groupId === group.id })"
-              @click="$emit('select', { scope: 'group', groupId: group.id })"
-            >
-              <!-- Left: Status Dot + Name + Multiplier Tag -->
-              <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                <!-- Status Indicator with Ring -->
-                <span
-                  :class="group.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-slate-400'"
-                  class="w-2 h-2 rounded-full shrink-0 shadow-sm"
-                ></span>
+          <!-- Pool Items Under Platform（grid-rows 过渡实现平滑折叠） -->
+          <div
+            class="grid transition-[grid-template-rows] duration-200 ease-out"
+            :style="{ gridTemplateRows: isPlatformExpanded(section.platform) ? '1fr' : '0fr' }"
+          >
+            <div class="overflow-hidden min-h-0" :inert="!isPlatformExpanded(section.platform)">
+              <div class="space-y-0.5 pl-1.5 pt-0.5">
+                <div
+                  v-for="group in section.groups"
+                  :key="group.id"
+                  :data-testid="`pool-group-${group.id}`"
+                  :class="poolItemVariants({ active: scope === 'group' && groupId === group.id })"
+                  @click="$emit('select', { scope: 'group', groupId: group.id })"
+                >
+                  <!-- Left: Status Dot + Name + Multiplier Tag -->
+                  <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                    <!-- Status Indicator with Ring -->
+                    <span
+                      :class="group.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-slate-400'"
+                      class="w-2 h-2 rounded-full shrink-0 shadow-sm"
+                    ></span>
 
-                <span class="truncate font-medium text-slate-800 dark:text-slate-200" :title="group.name">
-                  {{ group.name }}
-                </span>
+                    <span class="truncate font-medium text-slate-800 dark:text-slate-200" :title="group.name">
+                      {{ group.name }}
+                    </span>
 
-                <Badge v-if="group.rate_multiplier && group.rate_multiplier !== 1" variant="multiplier">
-                  {{ Number(group.rate_multiplier).toFixed(1) }}x
-                </Badge>
-              </div>
+                    <Badge v-if="group.rate_multiplier && group.rate_multiplier !== 1" variant="multiplier">
+                      {{ Number(group.rate_multiplier).toFixed(1) }}x
+                    </Badge>
+                  </div>
 
-              <!-- Right: Account Load Metrics & Alert Badge -->
-              <div class="flex items-center gap-1.5 shrink-0">
-                <span
-                  v-if="group.rate_limited_account_count && group.rate_limited_account_count > 0"
-                  class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"
-                  :title="`${group.rate_limited_account_count} 个账号速率受限中`"
-                ></span>
+                  <!-- Right: Account Load Metrics & Alert Badge -->
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span
+                      v-if="group.rate_limited_account_count && group.rate_limited_account_count > 0"
+                      class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"
+                      :title="`${group.rate_limited_account_count} 个账号速率受限中`"
+                    ></span>
 
-                <Badge :variant="scope === 'group' && groupId === group.id ? 'count-active' : 'pool-count'">
-                  {{ group.active_account_count ?? 0 }}/{{ group.account_count ?? 0 }}
-                </Badge>
+                    <Badge :variant="scope === 'group' && groupId === group.id ? 'count-active' : 'pool-count'">
+                      {{ group.active_account_count ?? 0 }}/{{ group.account_count ?? 0 }}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -191,7 +213,7 @@
         @click="$emit('create')"
       >
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-        <span>添加池</span>
+        <span>新建分组</span>
       </Button>
     </div>
   </aside>
@@ -250,6 +272,33 @@ const groupedPools = computed(() => {
 })
 
 const filteredGroupsCount = computed(() => groupedPools.value.reduce((acc, s) => acc + s.groups.length, 0))
+
+// 平台分组的折叠状态（localStorage 持久化；搜索时自动全部展开）
+const COLLAPSED_PLATFORMS_KEY = 'rp-navigator-collapsed-platforms'
+
+function loadCollapsedPlatforms(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_PLATFORMS_KEY) ?? '{}') ?? {}
+  } catch {
+    return {}
+  }
+}
+
+const collapsedPlatforms = ref<Record<string, boolean>>(loadCollapsedPlatforms())
+
+function togglePlatform(platform: string) {
+  collapsedPlatforms.value = { ...collapsedPlatforms.value, [platform]: !collapsedPlatforms.value[platform] }
+  try {
+    localStorage.setItem(COLLAPSED_PLATFORMS_KEY, JSON.stringify(collapsedPlatforms.value))
+  } catch {
+    /* localStorage 不可用时静默降级为内存态 */
+  }
+}
+
+function isPlatformExpanded(platform: string) {
+  // 搜索/筛选时强制展开,保证结果可见
+  return Boolean(search.value) || statusFilter.value !== 'all' || !collapsedPlatforms.value[platform]
+}
 
 function platformLabel(platform: string) {
   const labels: Record<string, string> = { anthropic: 'Anthropic Claude', openai: 'OpenAI', gemini: 'Google Gemini', antigravity: 'Antigravity', grok: 'xAI Grok', bedrock: 'AWS Bedrock', vertex: 'Google Vertex AI', typesafe: 'TypeSafe', kimi: 'Moonshot Kimi', zhipu: '智谱 GLM', deepseek: 'DeepSeek', opencode_go: 'OpenCode Go', ollama: 'Ollama', minimax: 'MiniMax' }

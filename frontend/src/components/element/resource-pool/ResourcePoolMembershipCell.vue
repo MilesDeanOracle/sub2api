@@ -19,7 +19,10 @@
     </el-tag>
 
     <!-- Ungrouped prompt tag -->
-    <span v-if="selectedIds.length === 0" class="text-amber-600 dark:text-amber-400 text-[11px] italic font-medium">
+    <span
+      v-if="selectedIds.length === 0"
+      class="inline-flex items-center px-2 py-0.5 rounded-full border border-dashed border-slate-300 dark:border-dark-600 text-[11px] font-medium text-slate-400 dark:text-dark-400 whitespace-nowrap"
+    >
       {{ t('resourcePool.accounts.membershipEmpty') }}
     </span>
 

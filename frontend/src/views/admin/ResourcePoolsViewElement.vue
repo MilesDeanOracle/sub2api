@@ -151,7 +151,7 @@
           </aside>
 
           <!-- Right Content Column -->
-          <main class="workspace-main space-y-4 min-w-0">
+          <main class="workspace-main space-y-0 min-w-0">
             <!-- Pool Hero Summary / Scope Overview -->
             <ResourcePoolSummaryElement
               :group="selectedGroup"
@@ -164,7 +164,6 @@
             <!-- Accounts Management Table Card -->
             <ResourcePoolAccountsElement
               :accounts="accounts"
-              :title="currentTitle"
               :total="accountsTotal"
               :page="page"
               :pageSize="pageSize"
@@ -185,6 +184,8 @@
               @edit="openAccountModal('edit', $event)"
               @test="openAccountModal('test', $event)"
               @stats="openAccountModal('stats', $event)"
+              @schedule="openScheduledTests"
+              @recover-state="recoverAccountState"
               @row-action="handleAccountAction"
             />
           </main>
@@ -212,123 +213,67 @@
           />
         </el-drawer>
 
-        <!-- Create / Edit Resource Pool Dialog -->
-        <el-dialog
-          v-model="groupDialogVisible"
-          :title="editingGroup ? t('resourcePool.groupForm.editTitle') : t('resourcePool.groupForm.createTitle')"
-          width="540px"
-          class="group-dialog !rounded-2xl"
-          destroy-on-close
+        <!-- Original system group form dialog -->
+        <BaseDialog
+          :show="groupDialogVisible"
+          :title="editingGroup ? t('admin.groups.editGroup') : t('admin.groups.createGroup')"
+          width="wide"
+          @close="groupDialogVisible = false"
         >
-          <template #header>
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-950/60 dark:text-primary-400 flex items-center justify-center shrink-0">
-                <PlatformIcon v-if="editingGroup" :platform="editingGroup.platform" size="sm" />
-                <el-icon v-else class="text-base"><Folder /></el-icon>
-              </div>
-              <span class="font-bold text-base text-gray-900 dark:text-gray-100">
-                {{ editingGroup ? t('resourcePool.groupForm.editTitle') : t('resourcePool.groupForm.createTitle') }}
-              </span>
-            </div>
-          </template>
-
-          <el-form label-position="top" class="space-y-3">
-            <el-form-item :label="t('resourcePool.groupForm.name')" required>
-              <el-input
+          <form class="space-y-5" @submit.prevent="saveGroup">
+            <div>
+              <label class="input-label">{{ t('admin.groups.form.name') }}</label>
+              <input
                 v-model="groupForm.name"
+                type="text"
                 maxlength="80"
-                show-word-limit
+                required
+                class="input"
                 :placeholder="t('resourcePool.groupForm.namePlaceholder')"
-                class="!rounded-lg"
               />
-            </el-form-item>
-
-            <el-form-item :label="t('resourcePool.groupForm.platform')" required>
-              <el-select
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.groups.form.platform') }}</label>
+              <Select
                 v-model="groupForm.platform"
-                filterable
+                :options="groupPlatformOptions"
                 :disabled="Boolean(editingGroup)"
-                class="w-full"
-              >
-                <el-option
-                  v-for="platform in platforms"
-                  :key="platform"
-                  :label="platformLabel(platform)"
-                  :value="platform"
-                >
-                  <div class="flex items-center gap-2">
-                    <PlatformIcon :platform="platform" size="xs" />
-                    <span>{{ platformLabel(platform) }}</span>
-                  </div>
-                </el-option>
-              </el-select>
-            </el-form-item>
-
-            <el-form-item :label="t('resourcePool.summary.multiplier')">
-              <div class="w-full space-y-2">
-                <div class="flex items-center gap-3">
-                  <el-input-number
-                    v-model="groupForm.rate_multiplier"
-                    :min="0"
-                    :step="0.1"
-                    :precision="2"
-                    controls-position="right"
-                    class="!w-36"
-                  />
-                  <span class="text-xs text-gray-400">
-                    {{ t('resourcePool.groupForm.multiplierTip') }}
-                  </span>
-                </div>
-                <!-- Quick multiplier preset chips -->
-                <div class="flex items-center gap-1.5 text-xs text-gray-500">
-                  <span class="text-gray-400">{{ t('resourcePool.groupForm.quickPresets') }}:</span>
-                  <button
-                    v-for="preset in [1.0, 1.2, 1.5, 2.0]"
-                    :key="preset"
-                    type="button"
-                    :class="[
-                      'px-2 py-0.5 rounded text-xs font-mono font-medium transition-colors border',
-                      groupForm.rate_multiplier === preset
-                        ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800'
-                        : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200 dark:bg-dark-800 dark:text-gray-400 dark:border-dark-700'
-                    ]"
-                    @click="groupForm.rate_multiplier = preset"
-                  >
-                    {{ preset.toFixed(1) }}x
-                  </button>
-                </div>
-              </div>
-            </el-form-item>
-
-            <el-form-item :label="t('resourcePool.groupForm.description')">
-              <el-input
+              />
+              <p v-if="editingGroup" class="input-hint">{{ t('admin.groups.platformNotEditable') }}</p>
+              <p v-else class="input-hint">{{ t('admin.groups.platformHint') }}</p>
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.groups.form.rateMultiplier') }}</label>
+              <input
+                v-model.number="groupForm.rate_multiplier"
+                type="number"
+                min="0.001"
+                step="0.001"
+                required
+                class="input"
+              />
+              <p class="input-hint">{{ t('resourcePool.groupForm.multiplierTip') }}</p>
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.groups.form.description') }}</label>
+              <textarea
                 v-model="groupForm.description"
-                type="textarea"
-                :rows="3"
+                rows="3"
                 maxlength="255"
-                show-word-limit
+                class="input"
                 :placeholder="t('resourcePool.groupForm.descPlaceholder')"
               />
-            </el-form-item>
-          </el-form>
-
-          <template #footer>
-            <div class="flex items-center justify-end gap-2">
-              <el-button @click="groupDialogVisible = false">
-                {{ t('common.cancel') }}
-              </el-button>
-              <el-button
-                type="primary"
-                :loading="groupSaving"
-                :disabled="!groupForm.name.trim()"
-                class="!rounded-lg shadow-sm"
-                @click="saveGroup"
-              >
-                {{ t('common.save') }}
-              </el-button>
             </div>
-          </template>
-        </el-dialog>
+            <div class="flex justify-end gap-2">
+              <button type="button" class="btn btn-secondary" @click="groupDialogVisible = false">
+                {{ t('common.cancel') }}
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="groupSaving || !groupForm.name.trim()">
+                {{ groupSaving ? t('common.saving') : t('common.save') }}
+              </button>
+            </div>
+          </form>
+        </BaseDialog>
 
         <!-- Batch Add to Group Dialog -->
         <el-dialog
@@ -422,6 +367,37 @@
           :account="activeAccount"
           @close="showStatsAccount = false"
         />
+        <ScheduledTestsPanel
+          :show="showSchedulePanel"
+          :account-id="scheduleAccountId"
+          :model-options="scheduleModelOptions"
+          @close="closeScheduledTests"
+        />
+
+        <!-- Group Rate Multipliers Modal（原系统弹窗，直接搬用） -->
+        <GroupRateMultipliersModal
+          :show="showRateMultipliersModal"
+          :group="rateMultipliersGroup"
+          @close="showRateMultipliersModal = false"
+          @success="loadGroups"
+        />
+
+        <!-- Group RPM Overrides Modal（原系统弹窗，直接搬用） -->
+        <GroupRPMOverridesModal
+          :show="showRPMOverridesModal"
+          :group="rpmOverridesGroup"
+          @close="showRPMOverridesModal = false"
+          @success="loadGroups"
+        />
+
+        <div class="hidden" aria-hidden="true">
+          <GroupsView
+            ref="originalGroupsView"
+            embedded-create-only
+            @group-created="handleOriginalGroupCreated"
+            @group-updated="loadGroups"
+          />
+        </div>
       </div>
     </el-config-provider>
   </AppLayout>
@@ -445,18 +421,25 @@ import {
   Setting
 } from '@element-plus/icons-vue'
 import { accountsAPI, groupsAPI, proxiesAPI } from '@/api/admin'
-import type { Account, AccountListItem, AdminGroup, GroupPlatform, Proxy as AccountProxy } from '@/types'
+import type { Account, AccountListItem, AdminGroup, ClaudeModel, GroupPlatform, Proxy as AccountProxy } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ResourcePoolNavigatorElement from '@/components/element/resource-pool/ResourcePoolNavigatorElement.vue'
 import ResourcePoolSummaryElement from '@/components/element/resource-pool/ResourcePoolSummaryElement.vue'
 import ResourcePoolAccountsElement, { type ResourcePoolAccountFilters } from '@/components/element/resource-pool/ResourcePoolAccountsElement.vue'
 import AssignAccountsToGroupDialogElement from '@/components/element/resource-pool/AssignAccountsToGroupDialogElement.vue'
 import UpstreamAccountManagementDrawerElement from '@/components/element/resource-pool/UpstreamAccountManagementDrawerElement.vue'
+import GroupRateMultipliersModal from '@/components/admin/group/GroupRateMultipliersModal.vue'
+import GroupRPMOverridesModal from '@/components/admin/group/GroupRPMOverridesModal.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import EditAccountModal from '@/components/account/EditAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
+import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
+import type { SelectOption } from '@/components/common/Select.vue'
+import GroupsView from './GroupsView.vue'
 import { accountGroupFilter, buildResourcePoolQuery, parseResourcePoolRoute } from './resourcePoolRoute'
 
 type PoolSelection = { scope: 'all' | 'ungrouped' | 'issues' | 'group'; groupId?: number }
@@ -491,9 +474,18 @@ const showEditAccount = ref(false)
 const showTestAccount = ref(false)
 const showStatsAccount = ref(false)
 const activeAccount = ref<Account | null>(null)
+const showSchedulePanel = ref(false)
+const scheduleAccountId = ref<number | null>(null)
+const scheduleModelOptions = ref<SelectOption[]>([])
 
 const groupDialogVisible = ref(false)
 const groupSaving = ref(false)
+
+// 原系统分组弹窗（与 GroupsView 相同的挂载方式）
+const showRateMultipliersModal = ref(false)
+const rateMultipliersGroup = ref<AdminGroup | null>(null)
+const showRPMOverridesModal = ref(false)
+const rpmOverridesGroup = ref<AdminGroup | null>(null)
 const editingGroup = ref<AdminGroup | null>(null)
 const groupForm = reactive({
   name: '',
@@ -501,6 +493,7 @@ const groupForm = reactive({
   description: '',
   rate_multiplier: 1
 })
+const originalGroupsView = ref<{ openCreateModal: () => void; openEditModal: (group: AdminGroup) => void } | null>(null)
 
 const batchGroupVisible = ref(false)
 const batchTargetGroupId = ref<number>()
@@ -523,7 +516,7 @@ const platforms: GroupPlatform[] = [
   'ollama',
   'minimax'
 ] as GroupPlatform[]
-
+const groupPlatformOptions = computed(() => platforms.map(platform => ({ value: platform, label: platformLabel(platform) })))
 const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value) ?? null)
 const selectionKey = computed(() => (scope.value === 'group' ? `group:${selectedGroupId.value}` : scope.value))
 const currentTitle = computed(() => {
@@ -638,8 +631,14 @@ function resetGroupForm(group?: AdminGroup) {
 
 function openCreateGroup() {
   resetGroupForm()
-  groupDialogVisible.value = true
+  groupDialogVisible.value = false
   navigatorDrawer.value = false
+  originalGroupsView.value?.openCreateModal()
+}
+
+async function handleOriginalGroupCreated(group: AdminGroup) {
+  await loadGroups()
+  await applySelection({ scope: 'group', groupId: group.id })
 }
 
 async function saveGroup() {
@@ -671,7 +670,7 @@ async function goToAdvanced() {
   })
 }
 
-async function handleGroupAction(command: string) {
+async function handleGroupAction(command: string, payload?: number | boolean) {
   if (command === 'create-account') {
     showCreateAccount.value = true
     return
@@ -688,13 +687,60 @@ async function handleGroupAction(command: string) {
     await refreshWorkspace()
     return
   }
+  if (command === 'rate-multipliers') {
+    rateMultipliersGroup.value = selectedGroup.value
+    showRateMultipliersModal.value = true
+    return
+  }
+  if (command === 'rpm-overrides') {
+    rpmOverridesGroup.value = selectedGroup.value
+    showRPMOverridesModal.value = true
+    return
+  }
 
   const group = selectedGroup.value
   if (!group) return
 
+  if (command === 'toggle-exclusive') {
+    try {
+      await groupsAPI.update(group.id, { is_exclusive: Boolean(payload) })
+      ElMessage.success(t('resourcePool.messages.groupSaved'))
+      await loadGroups()
+    } catch (error) {
+      console.error('Failed to toggle exclusive:', error)
+      ElMessage.error(t('resourcePool.messages.quickSaveFailed'))
+    }
+    return
+  }
+  if (command === 'toggle-status') {
+    const next = group.status === 'active' ? 'inactive' : 'active'
+    try {
+      await groupsAPI.update(group.id, { status: next })
+      ElMessage.success(t('resourcePool.messages.groupSaved'))
+      await loadGroups()
+    } catch (error) {
+      console.error('Failed to toggle status:', error)
+      ElMessage.error(t('resourcePool.messages.quickSaveFailed'))
+    }
+    return
+  }
+  if (command === 'set-rate') {
+    const rate = typeof payload === 'number' ? payload : NaN
+    if (!Number.isFinite(rate) || rate < 0) return
+    try {
+      await groupsAPI.update(group.id, { rate_multiplier: rate })
+      ElMessage.success(t('resourcePool.messages.groupSaved'))
+      await loadGroups()
+    } catch (error) {
+      console.error('Failed to update rate multiplier:', error)
+      ElMessage.error(t('resourcePool.messages.quickSaveFailed'))
+    }
+    return
+  }
   if (command === 'edit') {
-    resetGroupForm(group)
-    groupDialogVisible.value = true
+    if (!group) return
+    navigatorDrawer.value = false
+    originalGroupsView.value?.openEditModal(group)
     return
   }
   if (command === 'advanced') {
@@ -733,6 +779,37 @@ async function openAccountModal(kind: AccountModal, account: AccountListItem) {
     if (kind === 'stats') showStatsAccount.value = true
   } catch {
     ElMessage.error(t('resourcePool.messages.accountLoadFailed'))
+  }
+}
+
+async function openScheduledTests(account: AccountListItem) {
+  scheduleAccountId.value = account.id
+  scheduleModelOptions.value = []
+  showSchedulePanel.value = true
+  try {
+    const models = await accountsAPI.getAvailableModels(account.id)
+    scheduleModelOptions.value = models.map((model: ClaudeModel) => ({
+      value: model.id,
+      label: model.display_name || model.id
+    }))
+  } catch {
+    scheduleModelOptions.value = []
+  }
+}
+
+function closeScheduledTests() {
+  showSchedulePanel.value = false
+  scheduleAccountId.value = null
+  scheduleModelOptions.value = []
+}
+
+async function recoverAccountState(account: AccountListItem) {
+  try {
+    await accountsAPI.recoverState(account.id)
+    await relationshipChanged()
+    ElMessage.success(t('admin.accounts.recoverStateSuccess'))
+  } catch (error: any) {
+    ElMessage.error(error?.message || t('admin.accounts.recoverStateFailed'))
   }
 }
 
@@ -948,7 +1025,8 @@ onMounted(async () => {
   height: 100%;
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
-  gap: 16px;
+  gap: 0;
+  align-items: stretch;
   overflow: hidden;
 }
 
@@ -976,7 +1054,7 @@ onMounted(async () => {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
   padding-right: 4px;
   scrollbar-gutter: stable;
 }

@@ -235,8 +235,10 @@ export default {
       clearSearch: '清空搜索'
     },
     actions: {
-      createGroup: '新建资源池',
+      createGroup: '新建分组',
       createAccount: '新建账号',
+      probeBatch: '批量探测选中账号',
+      toggleStatus: '点击切换启用/停用',
       addExisting: '添加已有账号',
       addToGroup: '加入资源池',
       removeFromCurrent: '移出当前资源池',
@@ -391,6 +393,7 @@ export default {
       loadFailed: '资源池账号加载失败',
       accountLoadFailed: '账号详情加载失败',
       groupSaved: '资源池已保存',
+      quickSaveFailed: '保存失败，请重试',
       groupDuplicated: '资源池已复制',
       groupDeleted: '资源池已删除，池内账号不会被删除',
       deleteGroupTitle: '删除资源池',

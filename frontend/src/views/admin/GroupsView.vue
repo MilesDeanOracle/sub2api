@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <AppLayout v-if="!props.embeddedCreateOnly">
     <TablePageLayout>
       <template #filters>
         <div
@@ -474,6 +474,7 @@
         />
       </template>
     </TablePageLayout>
+  </AppLayout>
 
     <!-- Create Group Modal -->
     <BaseDialog
@@ -4261,7 +4262,6 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -4374,6 +4374,14 @@ import {
   supportsVideoPricingPlatform,
   videoPricingI18nKey,
 } from "./groupsImagePricing";
+
+const props = withDefaults(defineProps<{ embeddedCreateOnly?: boolean }>(), {
+  embeddedCreateOnly: false,
+});
+const emit = defineEmits<{
+  "group-created": [group: AdminGroup];
+  "group-updated": [];
+}>();
 import {
   createVideoModelPricesForm,
   grokVideoPriceResolutions,
@@ -6033,9 +6041,10 @@ const handleCreateGroup = async () => {
           platform: createForm.platform,
         }
       : requestData;
-    await adminAPI.groups.create(payload);
+    const createdGroup = await adminAPI.groups.create(payload);
     appStore.showSuccess(t("admin.groups.groupCreated"));
     closeCreateModal();
+    emit("group-created", createdGroup);
     loadGroups();
     // Only advance tour if active, on submit step, and creation succeeded
     if (onboardingStore.isCurrentStep('[data-tour="group-form-submit"]')) {
@@ -6178,6 +6187,8 @@ const handleEdit = async (group: AdminGroup) => {
   loadModelAllowlistCandidates("edit", group.id, group.platform);
   showEditModal.value = true;
 };
+
+defineExpose({ openCreateModal, openEditModal: handleEdit });
 
 const closeEditModal = () => {
   editModelRoutingRules.value.forEach((rule) => {
@@ -6394,6 +6405,7 @@ const handleUpdateGroup = async () => {
     appStore.showSuccess(t("admin.groups.groupUpdated"));
     closeEditModal();
     loadGroups();
+    emit("group-updated");
   } catch (error: any) {
     appStore.showError(
       extractApiErrorMessage(error, t("admin.groups.failedToUpdate")),

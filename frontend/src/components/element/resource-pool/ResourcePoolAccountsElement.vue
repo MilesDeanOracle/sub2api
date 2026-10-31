@@ -1,59 +1,5 @@
 <template>
-  <div class="accounts-card grow min-h-[360px] bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-    <!-- Header -->
-    <div class="p-4 border-b border-gray-100 dark:border-dark-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-950/60 dark:text-primary-400 flex items-center justify-center shrink-0">
-          <el-icon class="text-base"><Operation /></el-icon>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight m-0 truncate">
-              {{ title }}
-            </h3>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-gray-300">
-              {{ t('resourcePool.accounts.total', { count: total }) }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="flex items-center flex-wrap gap-2 shrink-0">
-        <el-tooltip :content="t('common.refresh')" placement="top">
-          <el-button
-            plain
-            circle
-            :loading="loading"
-            class="!border-gray-200 dark:!border-dark-700 hover:!border-primary-500"
-            @click="$emit('refresh')"
-          >
-            <el-icon><Refresh /></el-icon>
-          </el-button>
-        </el-tooltip>
-
-        <el-button
-          v-if="groupId"
-          plain
-          class="!rounded-lg font-medium"
-          @click="$emit('add-existing')"
-        >
-          <el-icon class="mr-1"><Plus /></el-icon>
-          {{ t('resourcePool.actions.addExisting') }}
-        </el-button>
-
-        <el-button
-          type="primary"
-          data-tour="accounts-create-btn"
-          class="!rounded-lg font-medium shadow-sm hover:shadow"
-          @click="$emit('create')"
-        >
-          <el-icon class="mr-1"><CirclePlus /></el-icon>
-          {{ t('resourcePool.actions.createAccount') }}
-        </el-button>
-      </div>
-    </div>
-
+  <div class="accounts-card grow min-h-0 bg-white dark:bg-dark-900 border border-t-0 border-gray-200/80 dark:border-dark-700/80 rounded-br-2xl rounded-bl-none shadow-sm overflow-hidden flex flex-col">
     <!-- Filter Toolbar -->
     <div class="p-3.5 border-b border-gray-100 dark:border-dark-800 bg-gray-50/50 dark:bg-dark-950/30">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -189,7 +135,7 @@
     </transition>
 
     <!-- Table -->
-    <div class="p-3 flex-1 min-h-0 overflow-x-auto">
+    <div ref="tableAreaRef" class="p-3 flex-1 min-h-0 overflow-x-auto">
       <el-table
         ref="tableRef"
         v-loading="loading"
@@ -200,12 +146,22 @@
         @selection-change="onSelectionChange"
       >
         <!-- Selection Checkbox -->
-        <el-table-column type="selection" width="46" align="center" />
+        <el-table-column type="selection" width="36" align="center" />
 
         <!-- Name -->
-        <el-table-column :label="t('resourcePool.accounts.name')" min-width="220" fixed="left">
+        <el-table-column :label="t('resourcePool.accounts.name')" :min-width="nameColumnMinWidth" fixed="left">
           <template #default="{ row }">
             <div class="flex items-center gap-2.5 py-1">
+              <PlatformIcon
+                :platform="row.platform"
+                size="md"
+                class="shrink-0"
+                :class="!row.schedulable
+                  ? 'text-gray-900 dark:text-gray-100'
+                  : accountAvailable(row)
+                    ? 'text-emerald-500'
+                    : 'text-red-500'"
+              />
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-bold text-sm text-gray-900 dark:text-gray-100 truncate" :title="row.name">
@@ -228,15 +184,37 @@
           </template>
         </el-table-column>
 
-        <!-- Billing multiplier -->
-        <el-table-column :label="t('resourcePool.accounts.multiplier')" width="90" align="center">
+        <!-- Billing multiplier + upstream rate probe -->
+        <el-table-column v-if="showRateColumn" :label="t('resourcePool.accounts.multiplier')" width="128" align="center">
+          <template #header>
+            <div class="flex items-center justify-center gap-1">
+              <span>{{ t('resourcePool.accounts.multiplier') }}</span>
+              <button
+                type="button"
+                class="probe-trigger"
+                :class="{ 'is-loading': batchProbing }"
+                :title="t('resourcePool.actions.probeBatch')"
+                :disabled="batchProbing"
+                @click="onBatchProbe"
+              >
+                <el-icon v-if="batchProbing" class="is-loading"><Loading /></el-icon>
+                <Icon v-else name="bolt" size="sm" />
+              </button>
+            </div>
+          </template>
           <template #default="{ row }">
-            <span class="font-mono font-semibold text-gray-700 dark:text-gray-300">{{ Number(row.rate_multiplier ?? 1).toFixed(2) }}x</span>
+            <UpstreamBillingRateCell
+              :account="row"
+              :now="upstreamBillingNow"
+              :probing="probingIds.has(row.id)"
+              :global-probe-enabled="upstreamBillingProbeGloballyEnabled"
+              @probe="onProbe(row)"
+            />
           </template>
         </el-table-column>
 
         <!-- Scheduling -->
-        <el-table-column :label="t('resourcePool.accounts.scheduling')" width="90" align="center">
+        <el-table-column :label="t('resourcePool.accounts.scheduling')" width="68" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="row.schedulable"
@@ -248,7 +226,7 @@
         </el-table-column>
 
         <!-- Groups -->
-        <el-table-column label="分组" min-width="220">
+        <el-table-column label="分组" :min-width="groupColumnMinWidth">
           <template #default="{ row }">
             <ResourcePoolMembershipCell
               :selected-ids="accountGroupIds(row)"
@@ -265,38 +243,21 @@
           </template>
         </el-table-column>
 
-        <!-- Platform / type -->
-        <el-table-column :label="t('resourcePool.accounts.platform')" width="96">
-          <template #default="{ row }">
-            <div class="flex flex-col items-start gap-1">
-              <PlatformIcon
-                :platform="row.platform"
-                size="md"
-                :class="!row.schedulable
-                  ? 'text-gray-900 dark:text-gray-100'
-                  : accountAvailable(row)
-                    ? 'text-emerald-500'
-                    : 'text-red-500'"
-              />
-            </div>
-          </template>
-        </el-table-column>
-
         <!-- Capacity -->
-        <el-table-column :label="t('resourcePool.accounts.capacity')" min-width="150">
+        <el-table-column v-if="showCapacity" :label="t('resourcePool.accounts.capacity')" min-width="130">
           <template #default="{ row }">
-            <div class="space-y-1 py-1">
-              <div class="flex items-center justify-between gap-2 text-xs">
-                <span class="text-gray-500 dark:text-gray-400">并发</span>
-                <span class="font-mono font-semibold text-gray-700 dark:text-gray-300">{{ row.current_concurrency ?? 0 }} / {{ row.concurrency }}</span>
+            <div class="space-y-1.5 py-0.5 min-w-0">
+              <div class="flex items-center justify-between gap-2 text-[11px]">
+                <span class="text-gray-400 dark:text-dark-400">并发</span>
+                <span class="font-mono font-semibold text-gray-700 dark:text-gray-300 tabular-nums">{{ row.current_concurrency ?? 0 }} / {{ row.concurrency }}</span>
               </div>
-              <el-progress :percentage="concurrencyPercent(row)" :status="concurrencyStatus(row)" :show-text="false" :stroke-width="5" />
+              <el-progress :percentage="concurrencyPercent(row)" :status="concurrencyStatus(row)" :show-text="false" :stroke-width="4" />
             </div>
           </template>
         </el-table-column>
 
         <!-- Today's stats -->
-        <el-table-column :label="t('resourcePool.accounts.todayStats')" min-width="190">
+        <el-table-column v-if="showTodayStats" :label="t('resourcePool.accounts.todayStats')" min-width="160">
           <template #default="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -307,40 +268,21 @@
         </el-table-column>
 
         <!-- Actions -->
-        <el-table-column :label="t('common.actions')" width="200" fixed="right" align="center">
+        <el-table-column :label="t('common.actions')" width="132" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="flex items-center justify-center gap-1">
-              <el-button link type="primary" size="small" @click="$emit('test', row)">
-                {{ t('resourcePool.actions.test') }}
+            <div class="action-cell">
+              <el-button link size="small" class="action-button" @click="$emit('edit', row)">
+                <el-icon class="action-button-icon"><Edit /></el-icon>
+                <span class="action-button-label">{{ t('common.edit') }}</span>
               </el-button>
-              <el-button link size="small" @click="$emit('stats', row)">
-                {{ t('resourcePool.actions.stats') }}
+              <el-button link size="small" class="action-button delete-action" @click="onRowCommand('delete', row)">
+                <el-icon class="action-button-icon"><Delete /></el-icon>
+                <span class="action-button-label">{{ t('common.delete') }}</span>
               </el-button>
-              <el-button link size="small" @click="$emit('edit', row)">
-                {{ t('common.edit') }}
+              <el-button link size="small" class="action-button" @click="openOriginalActionMenu(row, $event)">
+                <el-icon class="action-button-icon"><MoreFilled /></el-icon>
+                <span class="action-button-label">{{ t('common.more') }}</span>
               </el-button>
-
-              <el-dropdown trigger="click" @command="onRowCommand($event, row)">
-                <el-button link size="small" class="!px-1">
-                  <el-icon><MoreFilled /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu class="account-row-dropdown">
-                    <el-dropdown-item command="duplicate">
-                      <el-icon><CopyDocument /></el-icon>
-                      <span>{{ t('resourcePool.actions.duplicate') }}</span>
-                    </el-dropdown-item>
-                    <el-dropdown-item v-if="groupId" command="remove" divided class="!text-amber-600">
-                      <el-icon><Delete /></el-icon>
-                      <span>{{ t('resourcePool.actions.removeFromCurrent') }}</span>
-                    </el-dropdown-item>
-                    <el-dropdown-item command="delete" :divided="!groupId" class="!text-red-500">
-                      <el-icon><Delete /></el-icon>
-                      <span>{{ t('common.delete') }}</span>
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
             </div>
           </template>
         </el-table-column>
@@ -376,12 +318,13 @@
     </div>
 
     <!-- Pagination Footer -->
-    <div class="p-3.5 border-t border-gray-100 dark:border-dark-800 flex items-center justify-between flex-wrap gap-2">
+    <div class="p-3 border-t border-gray-100 dark:border-dark-800 flex items-center justify-between flex-wrap gap-2">
       <div class="text-xs text-gray-400 dark:text-dark-400">
         {{ t('resourcePool.accounts.total', { count: total }) }}
       </div>
       <el-pagination
         background
+        size="small"
         layout="total, sizes, prev, pager, next"
         :current-page="page"
         :page-size="pageSize"
@@ -392,29 +335,45 @@
         @update:page-size="changePageSize"
       />
     </div>
+
+    <AccountActionMenu
+      :show="rowMenuOpen"
+      :account="rowMenuAccount"
+      :anchor-rect="rowMenuAnchor"
+      resource-pool-mode
+      @close="rowMenuOpen = false"
+      @test="runOriginalMenuAction('test')"
+      @stats="runOriginalMenuAction('stats')"
+      @schedule="$emit('schedule', $event)"
+      @duplicate="runOriginalMenuAction('duplicate')"
+      @recover-state="$emit('recover-state', $event)"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMediaQuery } from '@vueuse/core'
+import { useElementSize, useIntervalFn, useMediaQuery } from '@vueuse/core'
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus'
 import {
   CirclePlus,
   Close,
-  CopyDocument,
   Delete,
+  Edit,
   Filter,
   FolderAdd,
   Link,
+  Loading,
   MoreFilled,
-  Operation,
   Plus,
-  Refresh,
   Search
 } from '@element-plus/icons-vue'
 import { accountsAPI } from '@/api/admin'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
+import { Icon } from '@/components/icons'
+import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import ResourcePoolMembershipCell from './ResourcePoolMembershipCell.vue'
@@ -429,7 +388,6 @@ export interface ResourcePoolAccountFilters {
 
 const props = defineProps<{
   accounts: AccountListItem[]
-  title: string
   total: number
   page: number
   pageSize: number
@@ -452,12 +410,23 @@ const emit = defineEmits<{
   edit: [account: AccountListItem]
   test: [account: AccountListItem]
   stats: [account: AccountListItem]
+  schedule: [account: AccountListItem]
+  'recover-state': [account: AccountListItem]
   'row-action': [command: string, account: AccountListItem]
   'membership-changed': []
 }>()
 
 const { t } = useI18n()
 const isNarrow = useMediaQuery('(max-width: 960px)')
+// 按容器实际宽度渐进显隐次要列,保证核心列永远不被固定操作列遮挡
+// (固定列组合约 580px 起,容量 +130,今日统计 +160)
+const tableAreaRef = ref<HTMLElement>()
+const { width: tableAreaWidth } = useElementSize(tableAreaRef)
+const showRateColumn = computed(() => tableAreaWidth.value >= 600)
+const showCapacity = computed(() => tableAreaWidth.value >= 730)
+const showTodayStats = computed(() => tableAreaWidth.value >= 890)
+const nameColumnMinWidth = computed(() => (tableAreaWidth.value >= 730 ? 200 : 150))
+const groupColumnMinWidth = computed(() => (tableAreaWidth.value >= 730 ? 170 : 130))
 const tableRef = ref<TableInstance>()
 const selected = ref<AccountListItem[]>([])
 const pendingGroupSelections = ref(new Map<number, number[]>())
@@ -467,6 +436,9 @@ const todayStatsByAccountId = ref<Record<string, WindowStats>>({})
 const todayStatsLoading = ref(false)
 const todayStatsError = ref<string | null>(null)
 const schedulingAccountId = ref<number | null>(null)
+const rowMenuOpen = ref(false)
+const rowMenuAccount = ref<AccountListItem | null>(null)
+const rowMenuAnchor = ref<DOMRect | null>(null)
 let todayStatsRequest = 0
 
 const platforms: GroupPlatform[] = [
@@ -521,6 +493,71 @@ function resetAllFilters() {
 
 function onSelectionChange(rows: AccountListItem[]) {
   selected.value = rows
+}
+
+// —— 探测上游倍率:单个 + 批量,复用原系统 upstream-billing-probe API 与 UpstreamBillingRateCell ——
+const probingIds = reactive(new Set<number>())
+const batchProbing = ref(false)
+const upstreamBillingNow = ref(Date.now())
+useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
+const upstreamBillingProbeGloballyEnabled = ref<boolean | undefined>(undefined)
+
+onMounted(async () => {
+  try {
+    const settings = await accountsAPI.getUpstreamBillingProbeSettings()
+    upstreamBillingProbeGloballyEnabled.value = settings.enabled
+  } catch {
+    // 全局探测开关状态未知时按默认(启用)展示
+  }
+})
+
+async function onProbe(row: AccountListItem) {
+  if (probingIds.has(row.id)) return
+  probingIds.add(row.id)
+  try {
+    const result = await accountsAPI.probeUpstreamBilling(row.id)
+    if (result.snapshot) {
+      // 探测成功会把上游倍率写回账号(rate_multiplier 同步),刷新列表展示
+      emit('refresh')
+    } else if (result.error) {
+      ElMessage.error(result.error)
+    }
+  } catch (error: any) {
+    ElMessage.error(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    probingIds.delete(row.id)
+  }
+}
+
+async function onBatchProbe() {
+  if (batchProbing.value) return
+  // 仅 API Key 账号支持上游倍率探测(与原系统一致)
+  const ids = selected.value.filter(row => row.type === 'apikey').map(row => row.id)
+  if (ids.length === 0) {
+    ElMessage.error(t('admin.accounts.upstreamBilling.noEligibleAccounts'))
+    return
+  }
+  if (ids.length > 20) {
+    ElMessage.error(t('admin.accounts.upstreamBilling.batchLimit'))
+    return
+  }
+  batchProbing.value = true
+  ids.forEach(id => probingIds.add(id))
+  try {
+    const results = await accountsAPI.probeUpstreamBillingBatch(ids)
+    const failed = results.filter(result => result.error).length
+    if (failed > 0) {
+      ElMessage.error(t('admin.accounts.upstreamBilling.batchPartial', { success: results.length - failed, failed }))
+    } else {
+      ElMessage.success(t('admin.accounts.upstreamBilling.batchCompleted', { count: results.length }))
+    }
+    if (results.some(result => result.snapshot)) emit('refresh')
+  } catch (error: any) {
+    ElMessage.error(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    ids.forEach(id => probingIds.delete(id))
+    batchProbing.value = false
+  }
 }
 
 // Refreshes and pagination replace the current page data. Clear the selection
@@ -578,6 +615,27 @@ async function setAccountSchedulable(account: AccountListItem, schedulable: bool
 
 function onRowCommand(command: string | number | object, account: AccountListItem) {
   emit('row-action', String(command), account)
+}
+
+function openOriginalActionMenu(account: AccountListItem, event: MouseEvent) {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  if (rowMenuOpen.value && rowMenuAccount.value?.id === account.id) {
+    rowMenuOpen.value = false
+    return
+  }
+  rowMenuAccount.value = account
+  rowMenuAnchor.value = target.getBoundingClientRect()
+  rowMenuOpen.value = true
+}
+
+function runOriginalMenuAction(command: string) {
+  const account = rowMenuAccount.value
+  rowMenuOpen.value = false
+  if (!account) return
+  if (command === 'test') emit('test', account)
+  else if (command === 'stats') emit('stats', account)
+  else emit('row-action', command, account)
 }
 
 function changeCurrentPage(value: number) {
@@ -790,6 +848,118 @@ function platformDisplayName(platform: string) {
 <style scoped>
 .accounts-card {
   position: relative;
+}
+
+/* —— 表格精修:通过 el-table CSS 变量统一控制层级与分隔线 —— */
+.resource-pool-table {
+  --el-table-border-color: rgba(15, 23, 42, 0.06);
+  --el-table-header-bg-color: #fcfcfd;
+  --el-table-header-text-color: #64748b;
+  --el-table-text-color: #334155;
+  --el-table-row-hover-bg-color: #f8fafc;
+  font-size: 13px;
+}
+
+:global(.dark) .resource-pool-table {
+  /* 固定列 sticky 需要不透明底色,与 accounts-card 的 dark-900 一致 */
+  --el-bg-color: #0f172a;
+  --el-table-bg-color: #0f172a;
+  --el-table-tr-bg-color: #0f172a;
+  --el-table-border-color: rgba(148, 163, 184, 0.14);
+  --el-table-header-bg-color: #0f172a;
+  --el-table-header-text-color: #94a3b8;
+  --el-table-text-color: #cbd5e1;
+  --el-table-row-hover-bg-color: #1e293b;
+}
+
+:deep(.el-table th.el-table__cell) {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+:deep(.el-table .el-table__cell) {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+:deep(.action-button) {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 36px;
+  height: 42px;
+  padding: 2px 4px;
+  line-height: 1.15;
+  color: var(--el-text-color-regular);
+}
+
+/* Element Plus 默认给相邻按钮加 margin-left: 12px,间距统一由 .action-cell 的 gap 控制 */
+:deep(.action-button + .action-button) {
+  margin-left: 0;
+}
+
+/* el-button 会把插槽内容包进一个内层 span,图标/文字的竖排要作用在这一层 */
+:deep(.action-button > span) {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+:deep(.action-button:hover) {
+  color: var(--el-color-primary);
+}
+
+:deep(.action-button.delete-action:hover) {
+  color: var(--el-color-danger);
+}
+
+:deep(.action-button-icon) {
+  margin: 0;
+  font-size: 18px;
+}
+
+:deep(.action-button-label) {
+  display: block;
+  white-space: nowrap;
+}
+
+/* 探测按钮(倍率列):单个/批量 */
+.probe-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 0.375rem;
+  color: #94a3b8;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.probe-trigger:hover:not(:disabled) {
+  background-color: rgba(241, 245, 249, 0.9);
+  color: var(--el-color-primary);
+}
+
+:global(.dark) .probe-trigger:hover:not(:disabled) {
+  background-color: rgba(30, 41, 59, 0.7);
+  color: #60a5fa;
+}
+
+.probe-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--el-color-primary);
 }
 
 .group-tag {
