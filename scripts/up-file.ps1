@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置（与 scripts/build-docker.ps1 保持一致） =====
 $ServerHost = '154.51.40.64'   # 远端服务器地址
+$SshPort    = '9922'           # 远端 SSH 端口
 $RemoteDir  = '/data/docker-img' # 远端镜像存放目录
 # ============================
 
@@ -70,7 +71,7 @@ Write-Host ''
 
 # 4. 上传：ssh 建目录 + scp 上传（各提示一次密码）
 Write-Host "==> 在服务器上创建目录 $RemoteDir（会提示输入密码）"
-& $sshExe -o 'StrictHostKeyChecking=accept-new' "${SshUser}@${ServerHost}" "mkdir -p $RemoteDir"
+& $sshExe -p $SshPort -o 'StrictHostKeyChecking=accept-new' "${SshUser}@${ServerHost}" "mkdir -p $RemoteDir"
 if ($LASTEXITCODE -ne 0) {
     Write-Host '错误：创建远端目录失败（请检查用户名/密码，或对该目录是否有写权限）'
     exit 1
@@ -78,7 +79,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ''
 Write-Host "==> 上传 $TarName -> ${SshUser}@${ServerHost}:$RemoteDir/（会提示输入密码）"
-& $scpExe $TarItem.FullName "${SshUser}@${ServerHost}:${RemoteDir}/"
+& $scpExe -P $SshPort $TarItem.FullName "${SshUser}@${ServerHost}:${RemoteDir}/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host '错误：上传失败'
     exit 1

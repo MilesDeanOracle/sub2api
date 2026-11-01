@@ -10,6 +10,7 @@ set -euo pipefail
 
 # ===== 可按需修改的配置 =====
 SERVER_HOST='154.51.40.64'      # 远端服务器地址
+SSH_PORT='9922'                 # 远端 SSH 端口
 REMOTE_DIR='/data/docker-img'   # 远端镜像存放目录
 IMAGE_NAME='sub2api'            # 镜像名
 # 构建期代理：WSL 内容器直连网络不通（Windows 代理 TUN 不转发 WSL 直连流量），
@@ -82,11 +83,11 @@ echo "==> 镜像已导出：${TAR_PATH}（${TAR_SIZE}）"
 # 6. 上传：ssh 建目录 + scp 上传（各提示一次密码）
 echo ""
 echo "==> 在服务器上创建目录 ${REMOTE_DIR}（会提示输入密码）"
-ssh -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SERVER_HOST}" "mkdir -p ${REMOTE_DIR}"
+ssh -p "${SSH_PORT}" -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SERVER_HOST}" "mkdir -p ${REMOTE_DIR}"
 
 echo ""
 echo "==> 上传 ${TAR_NAME} -> ${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/（会提示输入密码）"
-scp "$TAR_PATH" "${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
+scp -P "${SSH_PORT}" "$TAR_PATH" "${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
 
 echo ""
 echo '==> 完成！可在服务器上加载镜像：'
