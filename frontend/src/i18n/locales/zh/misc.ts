@@ -363,6 +363,7 @@ export default {
       scanWxpayHint: '请使用手机打开微信，扫描二维码完成支付',
       payInNewWindow: '请在新窗口中完成支付',
       payInNewWindowHint: '支付页面已在新窗口打开，请在新窗口中完成支付后返回此页面',
+      inlineCashierHint: '支付页面已在本页内打开，请在此完成支付；如页面显示异常，可点击下方按钮手动打开',
       openPayWindow: '重新打开支付页面',
       expiresIn: '剩余支付时间',
       expired: '订单已过期',

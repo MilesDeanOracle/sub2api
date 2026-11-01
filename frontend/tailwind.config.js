@@ -7,6 +7,8 @@ export default {
       colors: {
         // 主色调 - Teal/Cyan 青色系
         primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
           50: '#f0fdfa',
           100: '#ccfbf1',
           200: '#99f6e4',
@@ -21,6 +23,8 @@ export default {
         },
         // 辅助色 - 深蓝灰
         accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
           50: '#f8fafc',
           100: '#f1f5f9',
           200: '#e2e8f0',
@@ -44,11 +48,23 @@ export default {
           600: '#475569',
           700: '#334155',
           800: '#1e293b',
+          850: '#172033',
           900: '#0f172a',
           950: '#020617'
         }
       },
-      fontFamily: {
+        // ===== shadcn-vue 语义色 token（CSS 变量驱动，取值见 src/style.css）=====
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+        fontFamily: {
         sans: [
           'system-ui',
           '-apple-system',

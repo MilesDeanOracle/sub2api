@@ -21,7 +21,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
 
   // ========== 第一部分：创建分组 ==========
   {
-    element: '#sidebar-group-manage',
+    element: '#sidebar-resource-pools',
     popover: {
       title: t('onboarding.admin.groupManage.title'),
       description: t('onboarding.admin.groupManage.description'),
@@ -93,7 +93,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
 
   // ========== 第二部分：创建账号授权 ==========
   {
-    element: '#sidebar-channel-manage',
+    element: '#sidebar-resource-pools',
     popover: {
       title: t('onboarding.admin.accountManage.title'),
       description: t('onboarding.admin.accountManage.description'),
@@ -232,7 +232,7 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
       const element = step.element as string | undefined
       // 过滤掉分组管理和账号分组选择相关步骤
       return !element || (
-        !element.includes('sidebar-group-manage') &&
+        !element.includes('sidebar-resource-pools') &&
         !element.includes('groups-create-btn') &&
         !element.includes('group-form-') &&
         !element.includes('account-form-groups')

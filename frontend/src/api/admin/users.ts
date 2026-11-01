@@ -404,6 +404,72 @@ export async function resetPlatformQuotaWindow(
   return data
 }
 
+// ==================== 用户详情抽屉（User Drawer） ====================
+
+/** 充值汇总（口径与余额记录的 total_recharged 一致） */
+export interface UserRechargeStats {
+  first_at: string | null
+  last_at: string | null
+  count: number
+  total_amount: number
+}
+
+/** 全生命周期消费汇总 */
+export interface UserLifetimeUsage {
+  total_requests: number
+  total_tokens: number
+  total_actual_cost: number
+  total_account_cost: number
+}
+
+export interface UserOverview {
+  recharge: UserRechargeStats
+  usage: UserLifetimeUsage
+}
+
+export interface UserModelUsageStat {
+  model: string
+  requests: number
+  total_tokens: number
+  actual_cost: number
+  account_cost: number
+  rate_multiplier?: number | null
+  ttft_p95_ms: number | null
+  duration_p95_ms: number | null
+  output_tps_p95: number | null
+}
+
+export interface UserGroupUsageStat {
+  group_id: number
+  group_name: string
+  platform: string
+  requests: number
+  total_tokens: number
+  actual_cost: number
+  account_cost: number
+  rate_multiplier?: number | null
+  ttft_p95_ms: number | null
+  duration_p95_ms: number | null
+  output_tps_p95: number | null
+  models: UserModelUsageStat[]
+}
+
+export interface UserModelUsageStats {
+  groups: UserGroupUsageStat[]
+}
+
+/** 用户充值与消费概览（数字卡片数据） */
+export async function getUserOverview(id: number): Promise<UserOverview> {
+  const { data } = await apiClient.get<UserOverview>(`/admin/users/${id}/overview`)
+  return data
+}
+
+/** 用户按分组/模型的用量统计（含 P95 指标，层级结构） */
+export async function getUserModelStats(id: number): Promise<UserModelUsageStats> {
+  const { data } = await apiClient.get<UserModelUsageStats>(`/admin/users/${id}/model-stats`)
+  return data
+}
+
 export const usersAPI = {
   list,
   getById,
@@ -422,6 +488,8 @@ export const usersAPI = {
   getPlatformQuotas,
   updatePlatformQuotas,
   resetPlatformQuotaWindow,
+  getUserOverview,
+  getUserModelStats,
 }
 
 export default usersAPI

@@ -1329,6 +1329,7 @@ export interface Account {
   proxy?: Proxy
   group_ids?: number[] // Groups this account belongs to
   groups?: Group[] // Preloaded group objects
+  account_groups?: AccountGroupBinding[] // Relationship metadata for full admin responses
 
   // Rate limit & scheduling fields
   schedulable: boolean
@@ -1409,9 +1410,17 @@ export interface Account {
   grok_model_diagnostics?: GrokModelDiagnostics
 }
 
+export interface AccountGroupBinding {
+  account_id: number
+  group_id: number
+  priority: number
+  created_at?: string
+  group?: Group
+}
+
 // The admin account list may return this compact shape when lite=1. Detail
 // operations still use Account from /admin/accounts/:id.
-export type AccountListItem = Omit<Account, 'groups'>
+export type AccountListItem = Omit<Account, 'groups'> & { groups?: Group[] }
 
 export interface AccountSchedulerGroupScore {
   group_id?: number | null
@@ -1601,6 +1610,7 @@ export interface CreateAccountRequest {
   expires_at?: number | null
   auto_pause_on_expired?: boolean
   upstream_billing_probe_enabled?: boolean
+  upstream_billing_rate_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 

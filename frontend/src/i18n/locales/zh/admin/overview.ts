@@ -494,6 +494,33 @@ export default {
 
     // Users Management
     users: {
+      drawer: {
+        title: '用户详情',
+        firstRecharge: '第一次充值时间',
+        lastRecharge: '最后一次充值时间',
+        rechargeCount: '充值次数',
+        rechargeTotal: '充值总金额',
+        balance: '余额',
+        totalSpend: '总花费',
+        modelStats: '分组 / 模型调用统计',
+        colName: '分组 / 模型',
+        colTokens: '请求Token数',
+        colActual: '实际金额',
+        colCost: '成本',
+        colRate: '分组倍率',
+        colRequests: '请求次数',
+        colProfit: '利润',
+        colTtft: '首字P95(毫秒)',
+        colDuration: '总耗时P95(秒)',
+        colTps: '输出 TPS(P95) tok/s',
+        colAvgDuration: '平均耗时(秒)',
+        colAvgTps: '输出速率(tok/s)',
+        groupUnknown: '未分组',
+        noData: '暂无调用记录',
+        never: '—',
+        times: '次',
+        viewHint: '点击用户名查看详情'
+      },
       title: '用户管理',
       description: '管理用户账户和权限',
       createUser: '创建用户',

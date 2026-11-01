@@ -56,6 +56,11 @@ type UsageLogRepository interface {
 	GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int, metric string) ([]usagestats.UserUsageTrendPoint, error)
 	GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error)
 	GetBatchUserUsageStats(ctx context.Context, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchUserUsageStats, error)
+
+	// 用户分析（详情抽屉）：分组/模型级统计与全生命周期消费汇总
+	GetUserModelUsageStats(ctx context.Context, userID int64) ([]usagestats.UserModelUsageStat, error)
+	GetUserGroupUsageStats(ctx context.Context, userID int64) ([]usagestats.UserGroupUsageStat, error)
+	GetUserLifetimeUsage(ctx context.Context, userID int64) (*usagestats.UserLifetimeUsage, error)
 	GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error)
 
 	// User dashboard stats

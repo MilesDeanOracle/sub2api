@@ -72,6 +72,17 @@ type RedeemCodeRepository interface {
 	ListByUserPaginated(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]RedeemCode, *pagination.PaginationResult, error)
 	// SumPositiveBalanceByUser returns the total recharged amount (sum of positive balance values) for a user.
 	SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error)
+	// GetUserRechargeStats returns the user's recharge summary (first/last time, count, total amount).
+	// 充值口径与 SumPositiveBalanceByUser 一致：type 为 balance/admin_balance 且 value > 0 的兑换码记录。
+	GetUserRechargeStats(ctx context.Context, userID int64) (*UserRechargeStats, error)
+}
+
+// UserRechargeStats 用户充值汇总（用于用户详情抽屉的数字卡片）。
+type UserRechargeStats struct {
+	FirstAt     *time.Time `json:"first_at"`
+	LastAt      *time.Time `json:"last_at"`
+	Count       int64      `json:"count"`
+	TotalAmount float64    `json:"total_amount"`
 }
 
 // GenerateCodesRequest 生成兑换码请求

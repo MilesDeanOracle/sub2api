@@ -2905,6 +2905,10 @@ type oauthPendingFlowRedeemCodeRepo struct {
 	client *dbent.Client
 }
 
+func (r *oauthPendingFlowRedeemCodeRepo) GetUserRechargeStats(context.Context, int64) (*service.UserRechargeStats, error) {
+	panic("unexpected GetUserRechargeStats call")
+}
+
 func (r *oauthPendingFlowRedeemCodeRepo) Create(context.Context, *service.RedeemCode) error {
 	panic("unexpected Create call")
 }

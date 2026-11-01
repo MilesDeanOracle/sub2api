@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>资源池管理 · 界面演示</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --ink: #17191f;
+    --text: #232733;
+    --muted: #667085;
+    --faint: #98a2b3;
+    --line: #e6e8ee;
+    --line-strong: #d7dbe3;
+    --accent: #2457d6;
+    --accent-ink: #1e4fc7;
+    --accent-soft: #e8eefc;
+    --good: #067647;
+    --good-soft: #e8f8ef;
+    --warn: #b54708;
+    --warn-soft: #fff6e8;
+    --bad: #b42318;
+    --bad-soft: #fdecec;
+    --shadow: 0 16px 40px rgba(18, 22, 33, .16);
+    --sans: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    background: #fff;
+  }
+  button, input, select, textarea { font-family: inherit; color: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
+  ::selection { background: #d6e2ff; }
+
+  .shell { height: 100%; display: flex; min-height: 0; }
+  .sidenav {
+    width: 216px; flex: none; background: #fbfbfc;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .side-head, .nav-head, .topbar {
+    height: 56px; flex: none; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center;
+  }
+  .side-head { gap: 10px; padding: 0 14px; }
+  .logo {
+    width: 32px; height: 32px; border-radius: 9px; background: #17191f; color: #fff;
+    display: grid; place-items: center; font-weight: 700; flex: none;
+  }
+  .brand { font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .brand-sub { font-size: 11px; color: var(--faint); line-height: 1.3; }
+  .side-links { padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .side-label { padding: 4px 10px 6px; font-size: 12px; color: var(--faint); }
+  .side-link {
+    height: 36px; width: 100%; border: 0; background: transparent; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; padding: 0 10px;
+    color: #3a4150; font-size: 13.5px; text-align: left;
+  }
+  .side-link svg { flex: none; opacity: .75; }
+  .side-link:hover { background: #f0f1f4; }
+  .side-link.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 650; }
+  .side-link.active svg { opacity: 1; }
+  .side-foot {
+    margin-top: auto; border-top: 1px solid var(--line);
+    padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft);
+    color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none;
+  }
+
+  .nav {
+    width: 292px; flex: none; background: #fff; border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .nav-head { gap: 8px; padding: 0 12px; }
+  .nav-head strong { font-size: 14px; }
+  .nav-tools { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .scopes { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .section-label { padding: 2px 16px 6px; font-size: 12px; color: var(--faint); }
+  .pool-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 16px; }
+
+  .workspace { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #fff; }
+  .topbar { justify-content: space-between; gap: 16px; padding: 0 16px; background: #fff; }
+  .top-title { min-width: 0; display: flex; flex-direction: column; }
+  .top-title strong { font-size: 14px; line-height: 1.2; }
+  .top-title span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+  .content { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+
+  .search {
+    display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px;
+    border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--faint);
+  }
+  .search input {
+    border: 0; outline: none; flex: 1; min-width: 0; width: 100%; height: 100%;
+    font: inherit; font-size: 13px; color: var(--ink); background: transparent;
+  }
+  .search input::placeholder { color: var(--faint); }
+  .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36, 87, 214, .15); }
+  .search kbd {
+    font-family: inherit; font-size: 11px; color: var(--faint);
+    border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px;
+    padding: 0 5px; line-height: 16px; background: #fafbfc;
+  }
+  .search input:not(:placeholder-shown) + kbd,
+  .search:focus-within kbd { display: none; }
+
+  .seg { display: flex; padding: 2px; background: #f2f4f7; border-radius: 9px; }
+  .seg button {
+    flex: 1; height: 26px; border: 0; background: transparent; border-radius: 7px;
+    color: #475467; font-size: 12.5px;
+  }
+  .seg button.on { background: #fff; color: var(--ink); font-weight: 650; box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
+  .toolbar .seg { flex: none; }
+  .toolbar .seg button { flex: none; padding: 0 10px; }
+
+  .scope, .pool, .plat {
+    width: 100%; border: 0; background: transparent; border-radius: 8px; color: var(--text);
+    display: flex; align-items: center; gap: 8px; text-align: left;
+  }
+  .scope { height: 36px; padding: 0 8px; font-size: 13.5px; }
+  .scope .label, .pool .nm, .plat .pn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scope svg { color: #667085; flex: none; }
+  .scope:hover, .pool:hover, .plat:hover { background: #f4f6f8; }
+  .scope.on, .pool.on { background: var(--accent-soft); color: var(--accent-ink); }
+  .scope.on { font-weight: 650; }
+  .scope.on svg { color: var(--accent); }
+  .plat { height: 30px; padding: 0 8px; margin-top: 6px; color: #667085; font-size: 12.5px; font-weight: 650; }
+  .plat .chev { transition: transform .15s ease; color: var(--faint); }
+  .plat .chev.collapsed { transform: rotate(-90deg); }
+  .pool { min-height: 34px; padding: 0 4px 0 8px; font-size: 13.5px; position: relative; }
+  .pool.on .nm { font-weight: 650; }
+  .pool .more {
+    width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent;
+    color: #667085; display: grid; place-items: center; opacity: 0; flex: none;
+  }
+  .pool:hover .more, .pool.on .more, .pool .more[aria-expanded="true"] { opacity: 1; }
+  .pool .more:hover { background: rgba(16, 24, 40, .06); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #12b76a; flex: none; }
+  .dot.off { background: #d0d5dd; }
+  .dot.bad { background: #f79009; }
+  .count {
+    min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px;
+    background: #f2f4f7; color: #475467; font-size: 12px; font-weight: 650;
+    display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; flex: none;
+  }
+  .pool.on .count { background: #d9e4ff; color: var(--accent-ink); }
+  .count.bad, .pool.on .count.bad { background: var(--warn-soft); color: var(--warn); }
+  .mini {
+    font-size: 11px; height: 16px; padding: 0 4px; border-radius: 4px;
+    background: #f2f4f7; color: #667085; display: inline-flex; align-items: center; flex: none;
+  }
+  .mini.rate { color: #6d28d9; background: #f4f0ff; }
+  .mark {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; flex: none;
+    background: color-mix(in srgb, var(--c) 14%, white); color: var(--c);
+  }
+  .mark.lg { width: 40px; height: 40px; border-radius: 12px; }
+  .mark.lg svg { width: 18px; height: 18px; }
+
+  .hero { padding: 16px 20px 12px; flex: none; }
+  .hero-id { display: flex; gap: 12px; align-items: flex-start; }
+  .title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hero h2 { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 650; }
+  .hero-desc { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .callout { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; }
+  .callout.warn { background: #fff8ee; color: #93370d; }
+  .callout.mute { background: #eef0f3; color: #475467; }
+  .hero-bar {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px;
+    flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+  }
+  .stats { display: flex; gap: 22px; }
+  .stat { background: none; border: 0; text-align: left; padding: 0; color: inherit; }
+  .stat b { display: block; font-size: 18px; line-height: 1.15; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .stat b.good { color: var(--good); }
+  .stat b.warn { color: var(--warn); }
+  .thin { color: var(--faint); font-weight: 500; font-size: 13px; }
+  .stat.go { cursor: pointer; border-radius: 8px; padding: 2px 6px; margin: -2px -6px; }
+  .stat.go:hover { background: #fff; }
+  .hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .panel {
+    margin: 4px 16px 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  }
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+  }
+  .toolbar .search { flex: 1; min-width: 200px; }
+  .select {
+    height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-strong);
+    background: #fff; display: inline-flex; align-items: center; gap: 6px; color: #344054; font-size: 13px;
+  }
+  .select:hover, .btn.ghost:hover, .icon-btn:hover { background: #f7f8fa; }
+  .result-count { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .table-scroll { flex: 1; min-height: 0; overflow: auto; }
+  .grid {
+    display: grid; align-items: center; column-gap: 10px; padding: 0 12px;
+    grid-template-columns: 32px minmax(220px, 1.7fr) 92px 120px minmax(150px, 1.15fr) 96px;
+    min-width: 860px;
+  }
+  #table.in-pool .grid {
+    grid-template-columns: 32px minmax(200px, 1.55fr) 92px 116px minmax(140px, 1fr) 112px 96px;
+    min-width: 980px;
+  }
+  #table:not(.in-pool) .prio-col { display: none; }
+  .head {
+    height: 40px; position: sticky; top: 0; z-index: 2; background: #fbfbfc;
+    border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 650;
+  }
+  .row { min-height: 64px; border-bottom: 1px solid #eef0f3; }
+  .row:hover { background: #fafbfc; }
+  .row.on { background: #f5f8ff; }
+  .row.on:hover { background: #eef3ff; }
+  .ops { display: flex; justify-content: flex-end; align-items: center; gap: 2px; }
+  .acct { min-width: 0; }
+  .line1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .namebtn {
+    border: 0; background: none; padding: 0; font-size: 14px; font-weight: 650;
+    color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .namebtn:hover { color: var(--accent); }
+  .sub {
+    margin-top: 2px; color: var(--faint); font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .idbtn { border: 0; background: none; padding: 0; color: var(--faint); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .idbtn:hover { color: var(--accent); }
+  .tag {
+    height: 18px; padding: 0 5px; border-radius: 4px; background: #f2f4f7; color: #475467;
+    font-size: 11px; display: inline-flex; align-items: center; flex: none;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px;
+    border-radius: 999px; font-size: 12px; font-weight: 650;
+  }
+  .badge i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.good { color: var(--good); background: var(--good-soft); }
+  .badge.warn { color: var(--warn); background: var(--warn-soft); }
+  .badge.bad { color: var(--bad); background: var(--bad-soft); }
+  .badge.mute { color: #667085; background: #f2f4f7; }
+  .usage-top { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
+  .usage-top b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; margin-top: 6px; background: #eef0f3; border-radius: 99px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+  .bar i.hot { background: #f79009; }
+  .bar i.full { background: #f04438; }
+  .chips-btn {
+    display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%;
+    background: transparent; border: 0; padding: 0; text-align: left;
+  }
+  .chip {
+    height: 22px; padding: 0 6px; border-radius: 6px; background: #f2f4f7; color: #344054;
+    font-size: 12px; max-width: 148px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: inline-flex; align-items: center; flex: none;
+  }
+  .chip.add {
+    width: 22px; padding: 0; justify-content: center; color: var(--accent);
+    background: var(--accent-soft); flex: none; font-weight: 700;
+  }
+  .chip.dashed { background: transparent; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .stepper {
+    display: inline-flex; align-items: center; border: 1px solid var(--line-strong);
+    border-radius: 8px; overflow: hidden; background: #fff;
+  }
+  .stepper button { width: 22px; height: 26px; border: 0; background: #fff; color: #475467; }
+  .stepper button:hover { background: #f4f6f8; }
+  .step-val, .prio-input {
+    width: 32px; height: 26px; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+    background: #fff; text-align: center; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px;
+  }
+  .prio-input { color: var(--ink); }
+  .prio-input:focus { box-shadow: inset 0 0 0 1px var(--accent); }
+
+  .tick {
+    width: 16px; height: 16px; border: 1.5px solid #c5cad6; border-radius: 4px;
+    display: grid; place-items: center; background: #fff;
+  }
+  .tick.on, .tick.mixed { background: var(--accent); border-color: var(--accent); }
+  .tick.mixed::after { content: ""; width: 8px; height: 1.6px; background: #fff; border-radius: 1px; }
+  .tickbtn { width: 28px; height: 28px; border: 0; background: transparent; display: grid; place-items: center; padding: 0; }
+
+  .pager {
+    height: 48px; flex: none; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px;
+    color: var(--muted); font-size: 12px;
+  }
+  .pages { display: flex; align-items: center; gap: 4px; }
+  .pages button, .pager select {
+    min-width: 28px; height: 28px; padding: 0 8px; border-radius: 7px; border: 0; background: transparent; color: #344054; font-size: 12.5px;
+  }
+  .pager select { border: 1px solid var(--line); background: #fff; }
+  .pages button.on { background: var(--accent); color: #fff; }
+  .pages button:hover:not(:disabled):not(.on) { background: #f2f4f7; }
+  .pages button:disabled { color: #d0d5dd; cursor: default; }
+  .pages .gap { padding: 0 2px; }
+
+  .btn, .icon-btn {
+    height: 32px; border-radius: 8px; border: 1px solid transparent; background: #fff;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13px; padding: 0 12px;
+  }
+  .btn.sm { height: 28px; padding: 0 8px; font-size: 12px; }
+  .btn.ghost, .icon-btn { border-color: var(--line-strong); color: #344054; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-ink); }
+  .btn.danger { background: #d92d20; color: #fff; }
+  .btn.danger:hover { background: #b42318; }
+  .btn.link { border: 0; background: transparent; color: var(--accent); height: 28px; padding: 0 8px; }
+  .btn.link:hover { background: var(--accent-soft); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .icon-btn { width: 32px; padding: 0; }
+  .icon-btn.bare { border: 0; background: transparent; }
+  .icon-btn.bare:hover { background: #f2f4f7; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
+    border-radius: 999px; background: #f2f4f7; color: #475467; font-size: 12px; font-weight: 650;
+  }
+  .pill .dot { width: 6px; height: 6px; }
+  .pill.good { background: var(--good-soft); color: var(--good); }
+  .pill.mute { background: #f2f4f7; color: #667085; }
+  .pill.rate { background: #f4f0ff; color: #6d28d9; }
+  .demo-pill { font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 8px; font-weight: 650; }
+
+  .empty { padding: 48px 16px; text-align: center; }
+  .empty h3 { margin: 8px 0 4px; font-size: 15px; font-weight: 650; }
+  .empty p { margin: 0 auto 12px; max-width: 380px; color: var(--muted); font-size: 13px; }
+  .empty-mark {
+    width: 40px; height: 40px; margin: 0 auto; border-radius: 12px; background: #f2f4f7;
+    color: #667085; display: grid; place-items: center;
+  }
+  .empty-actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .mini-empty { padding: 28px 8px; }
+  .mini-empty p { margin-bottom: 8px; }
+
+  .selbar {
+    position: fixed; z-index: 40; left: 50%; bottom: 76px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); flex-wrap: wrap;
+    padding: 8px 8px 8px 14px; background: #1b1e27; color: #fff; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(16, 18, 24, .28);
+  }
+  body.has-sel .table-scroll { padding-bottom: 64px; }
+  body.modal-open .selbar { visibility: hidden; }
+  .sel-count {
+    min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #fff; color: #17191f;
+    display: inline-grid; place-items: center; font-weight: 700; font-size: 12px;
+  }
+  .selbar .vdiv { width: 1px; height: 16px; background: rgba(255,255,255,.16); }
+  .selbar .btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.18); }
+  .selbar .btn.ghost:hover { background: rgba(255,255,255,.08); }
+  .selbar .btn.primary { background: #fff; color: #17191f; }
+  .selbar .btn.primary:hover { background: #f2f4f7; }
+
+  #float { position: fixed; z-index: 70; }
+  .menu, .popover {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .menu { min-width: 180px; padding: 6px; }
+  .menu button {
+    width: 100%; height: 32px; border: 0; background: transparent; border-radius: 7px;
+    padding: 0 10px; text-align: left; font-size: 13px; color: var(--text);
+  }
+  .menu button:hover { background: #f4f6f8; }
+  .menu button.on { color: var(--accent); font-weight: 650; }
+  .menu button.danger, .menu button.danger:hover { color: var(--bad); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px; }
+  .popover { width: 280px; padding: 12px; }
+  .pop-title { font-weight: 650; font-size: 13px; }
+  .pop-sub { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .pop-list { max-height: 240px; overflow: auto; }
+  .pop-foot, .sheet-foot { display: flex; justify-content: flex-end; gap: 8px; }
+  .pop-foot { margin-top: 10px; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(18, 21, 28, .45);
+    display: flex; animation: fade .15s ease;
+  }
+  .overlay.modal { align-items: center; justify-content: center; padding: 24px; }
+  .overlay.drawer { justify-content: flex-end; }
+  .sheet, .drawer-sheet { background: #fff; display: flex; flex-direction: column; min-height: 0; }
+  .sheet { width: min(480px, 100%); max-height: min(760px, calc(100vh - 48px)); border-radius: 16px; box-shadow: var(--shadow); animation: pop .16s ease; }
+  .sheet.w-560 { width: min(560px, 100%); }
+  .drawer-sheet { width: min(460px, 100vw); height: 100%; box-shadow: -12px 0 40px rgba(16, 18, 24, .12); animation: slide .18s ease; }
+  .drawer-sheet.wide { width: min(520px, 100vw); }
+  .sheet-head { padding: 16px 16px 8px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .sheet-head > div { min-width: 0; flex: 1; }
+  .sheet h3 { margin: 0; font-size: 16px; font-weight: 650; }
+  .sheet-head p, .hint { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+  .sheet-body, .drawer-body { overflow: auto; padding: 4px 20px 12px; }
+  .sheet-foot { padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+  .sheet-form, .drawer-sheet form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .field-label { display: block; font-size: 12px; font-weight: 650; color: #344054; margin: 12px 0 6px; }
+  .field, .pager select.field {
+    width: 100%; height: 36px; border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 0 10px; background: #fff; font-size: 14px;
+  }
+  textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+  .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36, 87, 214, .15); }
+  .field:disabled { background: #f7f8fa; color: var(--muted); }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .presets button {
+    height: 26px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line);
+    background: #fff; font-size: 12px;
+  }
+  .presets button.on { background: var(--accent-soft); color: var(--accent); border-color: #c9d7fb; }
+  .checkline { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 13px; }
+  .checkline .grow { flex: 1; min-width: 0; }
+  .split2, .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice {
+    display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; cursor: pointer;
+  }
+  .choice:has(input:checked) { border-color: var(--accent); background: #f7f9ff; }
+  .choice b { display: block; font-size: 13px; }
+  .choice small { display: block; color: var(--muted); font-size: 12px; }
+  .picklist { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow: auto; margin-top: 8px; }
+  .pick {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    padding: 8px; border: 0; border-radius: 8px; background: transparent;
+  }
+  .pick:hover:not(:disabled) { background: #f6f7f9; }
+  .pick:disabled { opacity: .55; cursor: default; }
+  .pick .grow { flex: 1; min-width: 0; }
+  .pick .sub { display: block; color: var(--faint); font-size: 12px; font-weight: 400; }
+  .usage-card { background: #f7f8fa; border-radius: 12px; padding: 12px; margin-bottom: 4px; }
+  .usage-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .usage-metrics b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .usage-metrics span { font-size: 12px; color: var(--muted); }
+  .bars { height: 56px; display: flex; align-items: flex-end; gap: 6px; }
+  .bars span { flex: 1; background: #d5e0fb; border-radius: 4px 4px 2px 2px; min-height: 4px; }
+  .bars span.today { background: var(--accent); }
+  .bar-labels { display: flex; gap: 6px; margin-top: 4px; }
+  .bar-labels i { flex: 1; text-align: center; font-style: normal; font-size: 10px; color: var(--faint); }
+  .result { border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .result.good { background: var(--good-soft); color: var(--good); }
+  .result.warn { background: var(--warn-soft); color: var(--warn); }
+  .result.bad { background: var(--bad-soft); color: var(--bad); }
+  .result.mute { background: #f4f5f7; color: #475467; }
+  .model-row { display: flex; gap: 8px; }
+  .model-row .field { flex: 1; }
+  .edit-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .edit-chips .chip button { border: 0; background: transparent; color: inherit; padding: 0 0 0 4px; font-size: 14px; }
+
+  #toasts { position: fixed; right: 20px; bottom: 20px; z-index: 90; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: #1c1f26; color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18); max-width: 320px;
+  }
+  .toast.bad { background: #7a271a; }
+
+  .pool-scroll::-webkit-scrollbar, .table-scroll::-webkit-scrollbar, .drawer-body::-webkit-scrollbar, .sheet-body::-webkit-scrollbar, .picklist::-webkit-scrollbar, .pop-list::-webkit-scrollbar { width: 10px; height: 10px; }
+  .pool-scroll::-webkit-scrollbar-thumb, .table-scroll::-webkit-scrollbar-thumb, .drawer-body::-webkit-scrollbar-thumb, .sheet-body::-webkit-scrollbar-thumb, .picklist::-webkit-scrollbar-thumb, .pop-list::-webkit-scrollbar-thumb {
+    background: #d7dbe3; border-radius: 99px; border: 2px solid #fff;
+  }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes slide { from { transform: translateX(12px); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  @media (max-width: 1180px) { .sidenav { display: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidenav">
+    <div class="side-head">
+      <div class="logo">S</div>
+      <div>
+        <div class="brand">Sub2API</div>
+        <div class="brand-sub">管理后台</div>
+      </div>
+    </div>
+    <div class="side-links">
+      <div class="side-label">工作台</div>
+      <button type="button" class="side-link" data-act="soon" data-name="仪表盘">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        仪表盘
+      </button>
+      <button type="button" class="side-link" data-act="soon" data-name="用户管理">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a3 3 0 0 1 0 5.75"/></svg>
+        用户管理
+      </button>
+      <button type="button" class="side-link active">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7.5 12 3l9 4.5-9 4.5L3 7.5Z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5 12 21l9-4.5"/></svg>
+        资源池管理
+      </button>
+      <button type="button" class="side-link" data-act="soon" data-name="渠道管理">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+        渠道管理
+      </button>
+      <button type="button" class="side-link" data-act="soon" data-name="IP管理">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg>
+        IP管理
+      </button>
+    </div>
+    <div class="side-foot">
+      <div class="avatar">管</div>
+      <div>
+        <div class="brand">管理员</div>
+        <div class="brand-sub">本地演示</div>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="nav">
+    <div class="nav-head">
+      <strong>资源池</strong>
+      <span class="count" id="nav-count">0</span>
+      <span style="flex:1"></span>
+      <button type="button" class="icon-btn" data-act="create-pool" title="新建资源池" aria-label="新建资源池">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="nav-tools">
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+        <input id="pool-q" type="search" placeholder="搜索资源池" autocomplete="off" />
+      </label>
+      <div class="seg" id="pool-seg">
+        <button type="button" data-act="pool-filter" data-value="all" class="on">全部</button>
+        <button type="button" data-act="pool-filter" data-value="active">运行中</button>
+        <button type="button" data-act="pool-filter" data-value="issue" title="停用，或池内有受限、异常账号">异常</button>
+      </div>
+    </div>
+    <div class="scopes" id="scopes"></div>
+    <div class="section-label">按平台</div>
+    <div class="pool-scroll" id="pool-scroll"><div id="pool-list"></div></div>
+  </aside>
+
+  <section class="workspace">
+    <header class="topbar">
+      <div class="top-title">
+        <strong>资源池管理</strong>
+        <span>维护账号、归属和调度优先级</span>
+      </div>
+      <div class="top-actions">
+        <span class="demo-pill">演示数据</span>
+        <button type="button" class="btn ghost" data-act="refresh">刷新</button>
+        <button type="button" class="btn ghost" data-act="upstream">上游导入</button>
+      </div>
+    </header>
+    <div class="content">
+      <div class="hero" id="hero"></div>
+      <section class="panel">
+        <div class="toolbar">
+          <label class="search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+            <input id="q" type="search" placeholder="搜索名称、备注或 ID" autocomplete="off" />
+            <kbd title="按 / 聚焦搜索">/</kbd>
+          </label>
+          <div class="seg" id="status-seg">
+            <button type="button" data-act="set-status" data-value="">全部</button>
+            <button type="button" data-act="set-status" data-value="active">健康</button>
+            <button type="button" data-act="set-status" data-value="limited">受限</button>
+            <button type="button" data-act="set-status" data-value="error">异常</button>
+            <button type="button" data-act="set-status" data-value="inactive">停用</button>
+          </div>
+          <button type="button" class="select" id="f-platform" data-act="open-platform">
+            <span id="f-platform-label">全部平台</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button type="button" class="select" id="f-type" data-act="open-type">
+            <span id="f-type-label">全部类型</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button type="button" class="btn ghost sm" id="f-reset" data-act="reset-filters" hidden>重置</button>
+          <span class="result-count" id="result-count"></span>
+        </div>
+        <div class="table-scroll" id="table">
+          <div id="thead"></div>
+          <div id="tbody"></div>
+        </div>
+        <div class="pager" id="pager"></div>
+      </section>
+    </div>
+  </section>
+</div>
+
+<div class="selbar" id="selbar" hidden></div>
+<div id="float" hidden></div>
+<div id="overlay" class="overlay" hidden></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+const ICO = {
+  grid: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></svg>',
+  inbox: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13h5l2 3h4l2-3h5"/><path d="M4 13 6.5 5h11L20 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z"/></svg>',
+  more: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>',
+  chev: '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
+  x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  check: '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.2 6.2 4.8 8.8 9.8 3.4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+const platformOrder = ['anthropic', 'openai', 'gemini', 'deepseek', 'grok', 'zhipu', 'kimi'];
+const platforms = {
+  anthropic: { full: 'Anthropic Claude', short: 'A', color: '#c96442' },
+  openai: { full: 'OpenAI', short: 'O', color: '#0e8f6e' },
+  gemini: { full: 'Google Gemini', short: 'G', color: '#3b6cff' },
+  deepseek: { full: 'DeepSeek', short: 'D', color: '#4d6bfe' },
+  grok: { full: 'xAI Grok', short: 'X', color: '#111827' },
+  zhipu: { full: '智谱 GLM', short: '智', color: '#3a4bff' },
+  kimi: { full: 'Moonshot Kimi', short: 'K', color: '#111827' }
+};
+const sampleModel = {
+  anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', gemini: 'gemini-2.5-flash',
+  deepseek: 'deepseek-chat', grok: 'grok-3', zhipu: 'glm-4.5', kimi: 'kimi-latest'
+};
+const typeLabel = { oauth: 'OAuth', apikey: 'API Key', 'setup-token': 'Setup Token', upstream: '上游' };
+const healthMeta = {
+  active: { label: '健康', tone: 'good' },
+  limited: { label: '受限', tone: 'warn' },
+  error: { label: '异常', tone: 'bad' },
+  inactive: { label: '停用', tone: 'mute' }
+};
+
+const pools = [
+  { id: 1, name: 'Claude 主力池', platform: 'anthropic', status: 'active', rate: 1.2, desc: '日常主力调度，优先消耗高优先级账号。', sort: 1, rpm: 120, imageRate: 1, videoRate: 1, strategy: 'priority', routing: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1'] },
+  { id: 2, name: 'Claude 夜间备用', platform: 'anthropic', status: 'active', rate: 1, desc: '低峰兜底，倍率与基准价一致。', sort: 2, rpm: 60, imageRate: 1, videoRate: 1, strategy: 'least', routing: false, models: [] },
+  { id: 3, name: 'GPT 生产池', platform: 'openai', status: 'active', rate: 1.5, desc: '线上默认通道，保持较低并发占用。', sort: 1, rpm: 200, imageRate: 1.2, videoRate: 1, strategy: 'priority', routing: false, models: [] },
+  { id: 4, name: 'GPT 实验池', platform: 'openai', status: 'active', rate: 1, desc: '新模型和小流量验证。', sort: 2, rpm: 30, imageRate: 1, videoRate: 1, strategy: 'least', routing: false, models: [] },
+  { id: 5, name: 'Gemini Flash', platform: 'gemini', status: 'active', rate: 0.8, desc: '低成本批处理，适合长上下文。', sort: 1, rpm: 0, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] },
+  { id: 6, name: 'DeepSeek 经济', platform: 'deepseek', status: 'active', rate: 0.6, desc: '成本敏感任务优先走这个池。', sort: 1, rpm: 0, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] },
+  { id: 7, name: 'Grok 观察池', platform: 'grok', status: 'inactive', rate: 1, desc: '暂时停用，保留账号便于恢复。', sort: 1, rpm: 0, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] },
+  { id: 8, name: '智谱 GLM 默认', platform: 'zhipu', status: 'active', rate: 1, desc: '通用中文任务。', sort: 1, rpm: 80, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] },
+  { id: 9, name: 'Kimi 长文本', platform: 'kimi', status: 'active', rate: 1.1, desc: '超长上下文单独隔离。', sort: 1, rpm: 40, imageRate: 1, videoRate: 1, strategy: 'priority', routing: true, models: ['kimi-latest'] },
+  { id: 10, name: 'Gemini Pro 预留', platform: 'gemini', status: 'active', rate: 1, desc: '预留池，尚未接入账号。', sort: 2, rpm: 0, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] }
+];
+
+function acc(id, name, platform, type, status, current, max, groups, priority, proxy, notes, recover) {
+  return { id, name, platform, type, status, current, max, groups, priority, proxy, notes, recover: recover || '' };
+}
+const accounts = [
+  acc(1, 'claude-prod-01', 'anthropic', 'oauth', 'active', 3, 8, [1], { 1: 1 }, '东京-01', '日常主账号'),
+  acc(2, 'claude-prod-02', 'anthropic', 'oauth', 'active', 6, 8, [1], { 1: 2 }, '东京-01', ''),
+  acc(3, 'claude-prod-03', 'anthropic', 'apikey', 'limited', 0, 4, [1, 2], { 1: 5, 2: 1 }, '', '触发 429', '约 18 分钟后恢复'),
+  acc(4, 'claude-backup-01', 'anthropic', 'oauth', 'active', 1, 6, [2], { 2: 2 }, '新加坡-02', '夜间兜底'),
+  acc(5, 'claude-setup-01', 'anthropic', 'setup-token', 'active', 0, 2, [1], { 1: 8 }, '', '仅用于配置校验'),
+  acc(6, 'claude-up-01', 'anthropic', 'upstream', 'error', 0, 4, [1], { 1: 9 }, '', '上游鉴权失败'),
+  acc(7, 'claude-night-02', 'anthropic', 'oauth', 'inactive', 0, 4, [2], { 2: 6 }, '', '暂停使用'),
+  acc(8, 'gpt-prod-01', 'openai', 'oauth', 'active', 2, 10, [3], { 3: 1 }, '弗吉尼亚-01', '生产主账号'),
+  acc(9, 'gpt-prod-02', 'openai', 'apikey', 'active', 8, 10, [3], { 3: 2 }, '', ''),
+  acc(10, 'gpt-shared-01', 'openai', 'apikey', 'limited', 0, 6, [3, 4], { 3: 4, 4: 1 }, '', 'RPM 已触顶', '约 6 分钟后恢复'),
+  acc(11, 'gpt-exp-01', 'openai', 'oauth', 'active', 1, 4, [4], { 4: 2 }, '', '实验流量'),
+  acc(12, 'gpt-exp-02', 'openai', 'setup-token', 'error', 0, 2, [4], { 4: 5 }, '', '令牌失效'),
+  acc(13, 'gemini-flash-01', 'gemini', 'apikey', 'active', 1, 12, [5], { 5: 1 }, '', ''),
+  acc(14, 'gemini-flash-02', 'gemini', 'oauth', 'active', 0, 8, [5], { 5: 2 }, '香港-02', ''),
+  acc(15, 'gemini-flash-03', 'gemini', 'apikey', 'limited', 4, 4, [5], { 5: 3 }, '', '并发打满', '约 30 分钟后恢复'),
+  acc(16, 'ds-eco-01', 'deepseek', 'apikey', 'active', 5, 20, [6], { 6: 1 }, '', ''),
+  acc(17, 'ds-eco-02', 'deepseek', 'apikey', 'active', 2, 20, [6], { 6: 2 }, '', ''),
+  acc(18, 'ds-eco-03', 'deepseek', 'upstream', 'active', 0, 10, [6], { 6: 3 }, '香港-03', '上游同步'),
+  acc(19, 'ds-eco-04', 'deepseek', 'apikey', 'error', 0, 10, [6], { 6: 8 }, '', '余额不足'),
+  acc(20, 'grok-obs-01', 'grok', 'apikey', 'error', 0, 4, [7], { 7: 1 }, '', '区域不可用'),
+  acc(21, 'grok-obs-02', 'grok', 'oauth', 'inactive', 0, 2, [7], { 7: 2 }, '', ''),
+  acc(22, 'glm-01', 'zhipu', 'apikey', 'active', 1, 8, [8], { 8: 1 }, '', ''),
+  acc(23, 'glm-02', 'zhipu', 'apikey', 'active', 0, 8, [8], { 8: 2 }, '', '备用'),
+  acc(24, 'kimi-long-01', 'kimi', 'apikey', 'active', 2, 6, [9], { 9: 1 }, '', '长文本'),
+  acc(25, 'new-claude-01', 'anthropic', 'oauth', 'active', 0, 4, [], {}, '', '昨天导入，尚未分配'),
+  acc(26, 'new-gpt-01', 'openai', 'apikey', 'active', 0, 4, [], {}, '', '待确认接入哪个池'),
+  acc(27, 'new-ds-01', 'deepseek', 'apikey', 'limited', 0, 4, [], {}, '', '先不要分配', '约 2 小时后恢复'),
+  acc(28, 'claude-prod-04', 'anthropic', 'oauth', 'active', 2, 8, [1], { 1: 3 }, '东京-02', ''),
+  acc(29, 'claude-prod-05', 'anthropic', 'apikey', 'active', 1, 6, [1], { 1: 4 }, '', '财务对账使用'),
+  acc(30, 'claude-prod-06', 'anthropic', 'oauth', 'limited', 0, 4, [1], { 1: 6 }, '', '短时限流', '约 9 分钟后恢复')
+];
+
+const seq = { pool: 11, account: 31 };
+const state = {
+  scope: 'group',
+  groupId: 1,
+  poolQ: '',
+  poolFilter: 'all',
+  collapsed: new Set(),
+  q: '',
+  platform: '',
+  status: '',
+  type: '',
+  page: 1,
+  pageSize: 10,
+  selected: new Set(),
+  anchor: null,
+  editingPriority: null,
+  pick: new Set(),
+  assignQ: '',
+  assignPoolId: null,
+  batchIds: [],
+  onConfirm: null,
+  draftModels: [],
+  probed: false,
+  upPick: new Set()
+};
+let skipPrioBlur = false;
+let connections = [
+  { id: 'c1', base: 'https://api.partner-a.example', token: 'demo-token-partner-a' },
+  { id: 'c2', base: 'https://gateway.internal.example', token: 'demo-token-internal' }
+];
+const upstreamCatalog = [
+  { name: 'Claude Pro', platform: 'anthropic', addable: true, desc: '官方高优先级分组' },
+  { name: 'Claude Team', platform: 'anthropic', addable: true, exists: true, desc: '团队共享额度' },
+  { name: 'GPT-4o 生产', platform: 'openai', addable: true, desc: '生产密钥' },
+  { name: '内部灰度', platform: 'unknown', addable: false, desc: '平台暂不支持' }
+];
+
+const $ = (id) => document.getElementById(id);
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function shortRate(rate) {
+  return Number(rate).toFixed(2).replace(/0$/, '').replace(/\.0$/, '') + 'x';
+}
+function currentPool() { return pools.find((p) => p.id === state.groupId) || null; }
+function poolOf(id) { return pools.find((p) => p.id === id); }
+function members(poolId) { return accounts.filter((a) => a.groups.includes(poolId)); }
+function badCount(list) { return list.filter((a) => a.status === 'limited' || a.status === 'error').length; }
+function mark(platform, large) {
+  const p = platforms[platform];
+  if (!p) return '';
+  return `<span class="mark${large ? ' lg' : ''}" style="--c:${p.color}">${esc(p.short)}</span>`;
+}
+function tick(on, mixed) {
+  if (mixed) return '<span class="tick mixed"></span>';
+  if (on) return `<span class="tick on">${ICO.check}</span>`;
+  return '<span class="tick"></span>';
+}
+function toast(message, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type === 'bad' ? ' bad' : '');
+  el.textContent = message;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+function positionToasts() {
+  const lift = state.selected.size > 0 && $('overlay').hidden;
+  $('toasts').style.bottom = lift ? '136px' : '20px';
+}
+
+function scopeAccounts() {
+  if (state.scope === 'group') return accounts.filter((a) => a.groups.includes(state.groupId));
+  if (state.scope === 'ungrouped') return accounts.filter((a) => a.groups.length === 0);
+  return accounts.slice();
+}
+function currentAccounts() {
+  let list = scopeAccounts();
+  const q = state.q.trim().toLowerCase();
+  if (q) list = list.filter((a) => `${a.name} ${a.notes} ${a.id}`.toLowerCase().includes(q));
+  if (state.platform) list = list.filter((a) => a.platform === state.platform);
+  if (state.status) list = list.filter((a) => a.status === state.status);
+  if (state.type) list = list.filter((a) => a.type === state.type);
+  if (state.scope === 'group') {
+    list.sort((a, b) => (a.priority[state.groupId] || 999) - (b.priority[state.groupId] || 999) || a.name.localeCompare(b.name));
+  } else {
+    const rank = { error: 0, limited: 1, inactive: 2, active: 3 };
+    list.sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name));
+  }
+  return list;
+}
+function hasFilters() {
+  return Boolean(state.q || state.platform || state.status || state.type);
+}
+
+function visiblePools() {
+  const q = state.poolQ.trim().toLowerCase();
+  return pools.filter((p) => {
+    if (q && !`${p.name} ${p.desc} ${platforms[p.platform].full}`.toLowerCase().includes(q)) return false;
+    const list = members(p.id);
+    const bad = badCount(list) > 0;
+    if (state.poolFilter === 'active' && p.status !== 'active') return false;
+    if (state.poolFilter === 'issue' && p.status === 'active' && !bad) return false;
+    return true;
+  }).sort((a, b) => platformOrder.indexOf(a.platform) - platformOrder.indexOf(b.platform) || a.sort - b.sort || a.id - b.id);
+}
+
+function renderNav() {
+  $('nav-count').textContent = String(pools.length);
+  document.querySelectorAll('#pool-seg button').forEach((b) => b.classList.toggle('on', b.dataset.value === state.poolFilter));
+  const all = accounts.length;
+  const free = accounts.filter((a) => a.groups.length === 0).length;
+  $('scopes').innerHTML = `
+    <button type="button" class="scope ${state.scope === 'all' ? 'on' : ''}" data-act="go-all">
+      ${ICO.grid}<span class="label">全部账号</span><span class="count">${all}</span>
+    </button>
+    <button type="button" class="scope ${state.scope === 'ungrouped' ? 'on' : ''}" data-act="go-ungrouped">
+      ${ICO.inbox}<span class="label">未分组</span><span class="count ${free ? 'bad' : ''}">${free}</span>
+    </button>`;
+
+  const list = visiblePools();
+  if (!list.length) {
+    $('pool-list').innerHTML = `<div class="empty mini-empty"><p>${state.poolQ || state.poolFilter !== 'all' ? '没有符合条件的资源池' : '还没有资源池'}</p><button type="button" class="btn ghost sm" data-act="clear-pool-filter">${state.poolQ || state.poolFilter !== 'all' ? '清空条件' : '新建资源池'}</button></div>`;
+    if (!(state.poolQ || state.poolFilter !== 'all')) {
+      $('pool-list').querySelector('button').dataset.act = 'create-pool';
+    }
+    return;
+  }
+  const forceOpen = state.poolQ.trim() !== '';
+  const groups = [];
+  list.forEach((p) => {
+    let bucket = groups.find((g) => g.platform === p.platform);
+    if (!bucket) { bucket = { platform: p.platform, items: [] }; groups.push(bucket); }
+    bucket.items.push(p);
+  });
+  $('pool-list').innerHTML = groups.map((g) => {
+    const open = forceOpen || !state.collapsed.has(g.platform);
+    const rows = g.items.map((p) => {
+      const mem = members(p.id);
+      const bad = badCount(mem);
+      const dot = bad ? 'bad' : p.status === 'active' ? '' : 'off';
+      const active = state.scope === 'group' && state.groupId === p.id;
+      return `<div class="pool ${active ? 'on' : ''}" data-act="open-pool" data-id="${p.id}" role="button" tabindex="0" title="${esc(p.desc)}">
+        <i class="dot ${dot}"></i>
+        <span class="nm">${esc(p.name)}</span>
+        ${p.status !== 'active' ? '<span class="mini">停用</span>' : ''}
+        ${Number(p.rate) !== 1 ? `<span class="mini rate">${shortRate(p.rate)}</span>` : ''}
+        <span class="count ${bad ? 'bad' : ''}" title="${bad ? bad + ' 个账号需要关注' : mem.length + ' 个账号'}">${mem.length}</span>
+        <button type="button" class="more" data-act="pool-menu" data-id="${p.id}" aria-label="资源池操作">${ICO.more}</button>
+      </div>`;
+    }).join('');
+    return `<button type="button" class="plat" data-act="toggle-plat" data-platform="${g.platform}">
+      ${mark(g.platform)}<span class="pn">${esc(platforms[g.platform].full)}</span><span class="count">${g.items.length}</span>
+      ${ICO.chev.replace('class="chev"', `class="chev${open ? '' : ' collapsed'}"`)}
+    </button>${open ? rows : ''}`;
+  }).join('');
+}
+
+function stat(value, label, tone) {
+  return `<div class="stat"><b class="${tone || ''}">${value}</b><span>${label}</span></div>`;
+}
+function renderHero() {
+  const pool = state.scope === 'group' ? currentPool() : null;
+  const list = state.scope === 'group' && !pool ? [] : (state.scope === 'group' ? members(pool.id) : state.scope === 'ungrouped' ? accounts.filter((a) => !a.groups.length) : accounts);
+  const total = list.length;
+  const ok = list.filter((a) => a.status === 'active').length;
+  const bad = badCount(list);
+  const badTone = bad ? 'warn' : '';
+  let title, desc, icon, pills, stats, actions, callout = '';
+  if (pool) {
+    title = pool.name;
+    desc = pool.desc || '还没有描述。编辑资源池时可以补上用途。';
+    icon = mark(pool.platform, true);
+    pills = `
+      <span class="pill ${pool.status === 'active' ? 'good' : 'mute'}"><i class="dot ${pool.status === 'active' ? '' : 'off'}"></i>${pool.status === 'active' ? '启用' : '停用'}</span>
+      <span class="pill">${esc(platforms[pool.platform].full)}</span>
+      <span class="pill rate">${shortRate(pool.rate)}</span>`;
+    const cur = list.reduce((s, a) => s + a.current, 0);
+    const max = list.reduce((s, a) => s + a.max, 0);
+    stats = stat(total, '账号') + stat(ok, '可用', 'good') + stat(bad, '需关注', badTone) + stat(`${cur}<span class="thin">/${max}</span>`, '并发占用');
+    actions = `
+      <button type="button" class="btn ghost" data-act="edit-pool" data-id="${pool.id}">编辑</button>
+      <button type="button" class="btn ghost" data-act="advanced" data-id="${pool.id}">高级配置</button>
+      <button type="button" class="btn ghost" data-act="create-account">新建账号</button>
+      <button type="button" class="btn primary" data-act="add-existing">添加已有账号</button>
+      <button type="button" class="icon-btn" data-act="pool-menu" data-id="${pool.id}" title="更多" aria-label="更多操作">${ICO.more}</button>`;
+    if (pool.status !== 'active') callout = '<div class="callout mute">此资源池已停用。账号会保留，但不会参与调度。</div>';
+  } else if (state.scope === 'ungrouped') {
+    title = '未分组账号';
+    desc = '这些账号还不能被请求路由到。';
+    icon = `<span class="mark lg" style="--c:#b54708">${ICO.inbox}</span>`;
+    pills = '';
+    const plats = new Set(list.map((a) => a.platform)).size;
+    stats = stat(total, '待分配', total ? 'warn' : '') + stat(ok, '可用', 'good') + stat(bad, '需关注', badTone) + stat(plats, '涉及平台');
+    actions = `<button type="button" class="btn primary" data-act="create-account">新建账号</button>`;
+    if (total) callout = '<div class="callout warn">勾选账号后，用屏幕底部的操作条把它们加入资源池。</div>';
+  } else {
+    title = '全部账号';
+    desc = '查看所有渠道账号。异常和受限的会排在前面，方便先处理。';
+    icon = `<span class="mark lg" style="--c:#2457d6">${ICO.grid}</span>`;
+    pills = '';
+    const free = accounts.filter((a) => !a.groups.length).length;
+    stats = stat(total, '账号') + stat(ok, '可用', 'good') + stat(bad, '需关注', badTone)
+      + `<button type="button" class="stat go" data-act="go-ungrouped"><b class="${free ? 'warn' : ''}">${free}</b><span>未分组</span></button>`;
+    actions = `
+      <button type="button" class="btn ghost" data-act="create-pool">新建资源池</button>
+      <button type="button" class="btn primary" data-act="create-account">新建账号</button>`;
+  }
+  $('hero').innerHTML = `
+    <div class="hero-id">${icon}<div style="min-width:0">
+      <div class="title-row"><h2>${esc(title)}</h2>${pills}</div>
+      <p class="hero-desc">${esc(desc)}</p>
+      ${callout}
+    </div></div>
+    <div class="hero-bar"><div class="stats">${stats}</div><div class="hero-actions">${actions}</div></div>`;
+}
+
+function accountCells(a) {
+  const meta = healthMeta[a.status];
+  const tip = a.status === 'limited' ? (a.recover || '频率受限') : a.status === 'error' ? (a.notes || '最近一次调用失败') : '';
+  const pct = a.max ? Math.min(100, Math.round(a.current / a.max * 100)) : 0;
+  const hot = pct >= 100 ? 'full' : pct >= 80 ? 'hot' : '';
+  const names = a.groups.map((id) => poolOf(id)?.name).filter(Boolean);
+  const shown = names.slice(0, 1).map((n) => `<span class="chip">${esc(n)}</span>`).join('');
+  const extra = names.length > 1 ? `<span class="chip">+${names.length - 1}</span>` : '';
+  const empty = names.length ? '' : '<span class="chip dashed">未加入</span>';
+  const bits = [`<button type="button" class="idbtn" data-act="copy" data-value="${a.id}">#${a.id}</button>`];
+  bits.push(`<span>${esc(a.proxy || '直连')}</span>`);
+  if (a.notes) bits.push(`<span title="${esc(a.notes)}">${esc(a.notes)}</span>`);
+  let priority = '';
+  if (state.scope === 'group') {
+    const value = a.priority[state.groupId] || 1;
+    priority = state.editingPriority === a.id
+      ? `<div class="stepper prio-col"><input class="prio-input" data-prio-input="${a.id}" data-act="noop" value="${value}" inputmode="numeric" /></div>`
+      : `<div class="stepper prio-col" title="数字越小越优先">
+          <button type="button" data-act="prio" data-id="${a.id}" data-dir="-1" title="提前调度" aria-label="提前调度">↑</button>
+          <button type="button" class="step-val" data-act="prio-edit" data-id="${a.id}" title="点击直接修改">${value}</button>
+          <button type="button" data-act="prio" data-id="${a.id}" data-dir="1" title="延后调度" aria-label="延后调度">↓</button>
+        </div>`;
+  }
+  return `
+    <button type="button" class="tickbtn" data-act="toggle-row" data-id="${a.id}" aria-label="选择 ${esc(a.name)}">${tick(state.selected.has(a.id))}</button>
+    <div class="acct">
+      <div class="line1">${state.scope === 'group' ? '' : mark(a.platform)}<button type="button" class="namebtn" data-act="open-account" data-id="${a.id}">${esc(a.name)}</button><span class="tag">${typeLabel[a.type]}</span></div>
+      <div class="sub">${bits.join(' · ')}</div>
+    </div>
+    <div><span class="badge ${meta.tone}" ${tip ? `title="${esc(tip)}"` : ''}><i></i>${meta.label}</span></div>
+    <div>
+      <div class="usage-top"><span>并发</span><b>${a.current} / ${a.max}</b></div>
+      <div class="bar"><i class="${hot}" style="width:${pct}%"></i></div>
+    </div>
+    <button type="button" class="chips-btn" data-act="edit-groups" data-id="${a.id}" title="${esc(names.join('、') || '编辑所属资源池')}">${empty}${shown}${extra}<span class="chip add">+</span></button>
+    ${priority}
+    <div class="ops">
+      <button type="button" class="btn link" data-act="test" data-id="${a.id}">测试</button>
+      <button type="button" class="icon-btn bare" data-act="row-menu" data-id="${a.id}" aria-label="更多操作">${ICO.more}</button>
+    </div>`;
+}
+
+function renderTable() {
+  $('table').classList.toggle('in-pool', state.scope === 'group');
+  document.querySelectorAll('#status-seg button').forEach((b) => b.classList.toggle('on', b.dataset.value === state.status));
+  $('f-platform-label').textContent = state.platform ? platforms[state.platform].full : '全部平台';
+  $('f-type-label').textContent = state.type ? typeLabel[state.type] : '全部类型';
+  $('f-reset').hidden = !hasFilters();
+  const base = scopeAccounts();
+  const list = currentAccounts();
+  $('result-count').textContent = hasFilters() ? `匹配 ${list.length} / ${base.length}` : '';
+  const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
+  if (state.page > pages) state.page = pages;
+  const startIdx = (state.page - 1) * state.pageSize;
+  const rows = list.slice(startIdx, startIdx + state.pageSize);
+  const pageIds = rows.map((a) => a.id);
+  const allOn = pageIds.length > 0 && pageIds.every((id) => state.selected.has(id));
+  const some = pageIds.some((id) => state.selected.has(id));
+  $('thead').innerHTML = `<div class="grid head">
+    <button type="button" class="tickbtn" data-act="select-page" aria-label="选择本页">${tick(allOn, some && !allOn)}</button>
+    <span>账号</span><span>健康</span><span>并发</span><span>所属资源池</span>
+    <span class="prio-col" title="数字越小，调度时越优先">优先级</span>
+    <span class="ops">操作</span>
+  </div>`;
+  if (!rows.length) {
+    const filtered = hasFilters();
+    $('tbody').innerHTML = `<div class="empty">
+      <div class="empty-mark">${ICO.inbox}</div>
+      <h3>${filtered ? '没有符合筛选的账号' : (state.scope === 'group' ? '这个资源池还没有账号' : '这里还没有账号')}</h3>
+      <p>${filtered ? '可以放宽条件，或清空后重新找。' : '从已有账号里添加，或新建一个账号直接放进来。'}</p>
+      <div class="empty-actions">
+        ${filtered ? '<button type="button" class="btn ghost" data-act="reset-filters">重置筛选</button>' : `
+          ${state.scope === 'group' ? '<button type="button" class="btn primary" data-act="add-existing">添加已有账号</button>' : ''}
+          <button type="button" class="btn ${state.scope === 'group' ? 'ghost' : 'primary'}" data-act="create-account">新建账号</button>`}
+      </div>
+    </div>`;
+  } else {
+    $('tbody').innerHTML = rows.map((a) => `<div class="grid row ${state.selected.has(a.id) ? 'on' : ''}" data-act="toggle-row" data-id="${a.id}">${accountCells(a)}</div>`).join('');
+    if (state.editingPriority) {
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[data-prio-input]');
+        if (el && document.activeElement !== el) { el.focus(); el.select(); }
+      });
+    }
+  }
+  const start = list.length ? startIdx + 1 : 0;
+  const end = Math.min(list.length, startIdx + state.pageSize);
+  const nums = [...new Set([1, pages, state.page - 1, state.page, state.page + 1])].filter((i) => i >= 1 && i <= pages).sort((a, b) => a - b);
+  let pagesHtml = '';
+  let prev = 0;
+  nums.forEach((i) => {
+    if (prev && i - prev > 1) pagesHtml += '<span class="gap">…</span>';
+    pagesHtml += `<button type="button" data-act="page" data-value="${i}" class="${i === state.page ? 'on' : ''}">${i}</button>`;
+    prev = i;
+  });
+  $('pager').innerHTML = `
+    <span>${start}–${end} 条，共 ${list.length} 条</span>
+    <div class="pages">
+      <select id="page-size" aria-label="每页条数">
+        <option value="10" ${state.pageSize === 10 ? 'selected' : ''}>10 条/页</option>
+        <option value="20" ${state.pageSize === 20 ? 'selected' : ''}>20 条/页</option>
+        <option value="50" ${state.pageSize === 50 ? 'selected' : ''}>50 条/页</option>
+      </select>
+      <button type="button" data-act="page" data-value="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''}>上一页</button>
+      ${pagesHtml}
+      <button type="button" data-act="page" data-value="${state.page + 1}" ${state.page === pages ? 'disabled' : ''}>下一页</button>
+    </div>`;
+  renderSelbar();
+}
+
+function renderSelbar() {
+  const bar = $('selbar');
+  const n = state.selected.size;
+  document.body.classList.toggle('has-sel', n > 0);
+  positionToasts();
+  if (!n) { bar.hidden = true; bar.innerHTML = ''; return; }
+  bar.hidden = false;
+  bar.innerHTML = `
+    <span class="sel-count">${n}</span><span>已选</span><i class="vdiv"></i>
+    <button type="button" class="btn primary" data-act="batch-add">加入资源池</button>
+    ${state.scope === 'group' ? '<button type="button" class="btn ghost" data-act="batch-remove" title="从当前资源池移除，账号仍会保留">移出此池</button>' : ''}
+    <button type="button" class="btn danger" data-act="batch-delete" title="永久删除账号">删除</button>
+    <button type="button" class="btn ghost" data-act="clear-selection">取消</button>`;
+}
+
+function updateAll() {
+  closeFloat();
+  renderNav();
+  renderHero();
+  renderTable();
+}
+function go(scope, groupId) {
+  state.scope = scope;
+  state.groupId = groupId ?? null;
+  state.page = 1;
+  state.selected.clear();
+  state.anchor = null;
+  state.editingPriority = null;
+  updateAll();
+}
+
+function closeFloat() {
+  $('float').hidden = true;
+  $('float').innerHTML = '';
+  document.querySelectorAll('[aria-expanded="true"]').forEach((el) => el.removeAttribute('aria-expanded'));
+}
+function openFloatNear(anchor, html, align) {
+  const float = $('float');
+  float.hidden = false;
+  float.innerHTML = html;
+  const r = anchor.getBoundingClientRect();
+  const w = float.offsetWidth;
+  const h = float.offsetHeight;
+  let left = align === 'right' ? r.right - w : r.left;
+  let top = r.bottom + 6;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+  float.style.left = left + 'px';
+  float.style.top = top + 'px';
+}
+function closeOverlay() {
+  $('overlay').hidden = true;
+  $('overlay').innerHTML = '';
+  $('overlay').className = 'overlay';
+  document.body.classList.remove('modal-open');
+  positionToasts();
+}
+function openOverlay(kind, html) {
+  const overlay = $('overlay');
+  overlay.hidden = false;
+  overlay.className = 'overlay ' + kind;
+  overlay.innerHTML = html;
+  document.body.classList.add('modal-open');
+  positionToasts();
+}
+function ask(opts) {
+  closeFloat();
+  state.onConfirm = opts.ok;
+  openOverlay('modal', `<div class="sheet">
+    <div class="sheet-head"><div><h3>${esc(opts.title)}</h3></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="sheet-body"><p style="margin:8px 0 12px">${esc(opts.text)}</p></div>
+    <div class="sheet-foot">
+      <button type="button" class="btn ghost" data-act="close">取消</button>
+      <button type="button" class="btn ${opts.danger ? 'danger' : 'primary'}" data-act="confirm-ok">${esc(opts.confirm)}</button>
+    </div>
+  </div>`);
+}
+function openAlert(title, text) {
+  closeFloat();
+  openOverlay('modal', `<div class="sheet">
+    <div class="sheet-head"><div><h3>${esc(title)}</h3></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="sheet-body"><p style="margin:8px 0 12px">${esc(text)}</p></div>
+    <div class="sheet-foot"><button type="button" class="btn primary" data-act="close">知道了</button></div>
+  </div>`);
+}
+function menuHtml(items) {
+  return `<div class="menu">${items.map((it) => it === '|' ? '<hr />' : `<button type="button" class="${it.danger ? 'danger' : ''} ${it.on ? 'on' : ''}" data-act="${it.act}" data-id="${it.id ?? ''}" data-value="${esc(it.value ?? '')}">${esc(it.label)}</button>`).join('')}</div>`;
+}
+function toggleMenu(el, html) {
+  const was = el.getAttribute('aria-expanded') === 'true';
+  closeFloat();
+  if (was) return;
+  el.setAttribute('aria-expanded', 'true');
+  openFloatNear(el, html, 'right');
+}
+
+function platformSelect(selected, disabled) {
+  return `<select class="field" name="platform" ${disabled ? 'disabled' : ''}>${platformOrder.map((k) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${esc(platforms[k].full)}</option>`).join('')}</select>`;
+}
+function groupChecks(platform, selected) {
+  const list = pools.filter((p) => p.platform === platform);
+  if (!list.length) return '<p class="hint">这个平台还没有资源池，可以先创建，稍后再分配。</p>';
+  return list.map((p) => `<label class="checkline"><input type="checkbox" name="groups" value="${p.id}" ${selected.includes(p.id) ? 'checked' : ''} /><span class="grow">${esc(p.name)}</span>${p.status !== 'active' ? '<span class="mini">停用</span>' : ''}</label>`).join('');
+}
+function usageOf(a) {
+  const bars = [];
+  let x = a.id * 37 + 11;
+  for (let i = 0; i < 7; i++) { x = (x * 17 + 3) % 97; bars.push(24 + (x % 70)); }
+  return {
+    bars,
+    requests: bars.reduce((s, n) => s + n * 3, 0),
+    rate: a.status === 'error' ? 86.4 : a.status === 'limited' ? 94.1 : 99.2,
+    latency: 160 + (a.id * 17) % 420
+  };
+}
+function openAccount(id) {
+  const a = accounts.find((x) => x.id === Number(id));
+  if (!a) return;
+  closeFloat();
+  const u = usageOf(a);
+  const days = ['24', '25', '26', '27', '28', '29', '30'];
+  openOverlay('drawer', `<div class="drawer-sheet">
+    <div class="sheet-head"><div><h3>${esc(a.name)}</h3><p>出口 ${esc(a.proxy || '直连')} · ${typeLabel[a.type]} · #${a.id}</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <form id="account-form">
+      <input type="hidden" name="mode" value="edit" />
+      <input type="hidden" name="id" value="${a.id}" />
+      <div class="drawer-body">
+        <div class="usage-card">
+          <div class="usage-metrics">
+            <div><b>${u.requests.toLocaleString('zh-CN')}</b><span>近 7 日请求</span></div>
+            <div><b>${u.rate}%</b><span>成功率</span></div>
+            <div><b>${u.latency} ms</b><span>平均延迟</span></div>
+          </div>
+          <div class="bars">${u.bars.map((h, i) => `<span class="${i === 6 ? 'today' : ''}" style="height:${h}%"></span>`).join('')}</div>
+          <div class="bar-labels">${days.map((d) => `<i>${d}</i>`).join('')}</div>
+        </div>
+        <label class="field-label">名称</label>
+        <input class="field" name="name" value="${esc(a.name)}" maxlength="80" required />
+        <div class="split2">
+          <div><label class="field-label">状态</label>
+            <select class="field" name="status">${Object.entries(healthMeta).map(([k, v]) => `<option value="${k}" ${a.status === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+          </div>
+          <div><label class="field-label">并发上限</label>
+            <input class="field" name="max" type="number" min="1" max="999" value="${a.max}" />
+          </div>
+        </div>
+        <p class="hint">当前占用 ${a.current}。演示里不修改实时占用。</p>
+        <label class="field-label">所属资源池</label>
+        <div id="acc-groups">${groupChecks(a.platform, a.groups)}</div>
+        <label class="field-label">备注</label>
+        <textarea class="field" name="notes" rows="3" maxlength="200">${esc(a.notes)}</textarea>
+      </div>
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost" data-act="test" data-id="${a.id}">测试连接</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn ghost" data-act="close">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>`);
+}
+function openCreateAccount() {
+  closeFloat();
+  const pool = state.scope === 'group' ? currentPool() : null;
+  const platform = pool?.platform || 'anthropic';
+  const selected = pool ? [pool.id] : [];
+  openOverlay('drawer', `<div class="drawer-sheet">
+    <div class="sheet-head"><div><h3>新建账号</h3><p>${pool ? '会默认放入「' + esc(pool.name) + '」。' : '创建后可以再分配资源池。'}</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <form id="account-form">
+      <input type="hidden" name="mode" value="create" />
+      <div class="drawer-body">
+        <label class="field-label">名称</label>
+        <input class="field" name="name" placeholder="例如 claude-prod-07" maxlength="80" required />
+        <div class="split2">
+          <div><label class="field-label">平台</label><div id="plat-slot">${platformSelect(platform)}</div></div>
+          <div><label class="field-label">类型</label>
+            <select class="field" name="type">
+              <option value="oauth">OAuth</option><option value="apikey">API Key</option>
+              <option value="setup-token">Setup Token</option><option value="upstream">上游</option>
+            </select>
+          </div>
+        </div>
+        <label class="field-label">并发上限</label>
+        <input class="field" name="max" type="number" min="1" max="999" value="4" />
+        <label class="field-label">放入资源池</label>
+        <div id="acc-groups">${groupChecks(platform, selected)}</div>
+        <label class="field-label">备注</label>
+        <textarea class="field" name="notes" rows="3" maxlength="200" placeholder="可选"></textarea>
+      </div>
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost" data-act="close">取消</button>
+        <button type="submit" class="btn primary">创建</button>
+      </div>
+    </form>
+  </div>`);
+  const sel = document.querySelector('#account-form [name="platform"]');
+  sel.addEventListener('change', () => { $('acc-groups').innerHTML = groupChecks(sel.value, []); });
+}
+function saveAccount(form) {
+  const name = form.name.value.trim();
+  if (!name) { toast('请填写账号名称', 'bad'); return; }
+  const groups = [...form.querySelectorAll('input[name="groups"]:checked')].map((i) => Number(i.value));
+  const max = Math.max(1, Math.min(999, Number(form.max.value) || 1));
+  if (form.mode.value === 'create') {
+    const platform = form.platform.value;
+    const priority = {};
+    groups.forEach((g) => { priority[g] = 1; });
+    accounts.push(acc(seq.account++, name, platform, form.type.value, 'active', 0, max, groups, priority, '', form.notes.value.trim()));
+    toast('账号已创建');
+  } else {
+    const a = accounts.find((x) => x.id === Number(form.id.value));
+    a.name = name;
+    a.max = max;
+    if (a.current > max) a.current = max;
+    a.notes = form.notes.value.trim();
+    a.status = form.status.value;
+    if (a.status !== 'limited') a.recover = '';
+    else if (!a.recover) a.recover = '手动标记为受限';
+    a.groups = groups;
+    groups.forEach((g) => { if (!a.priority[g]) a.priority[g] = 1; });
+    Object.keys(a.priority).forEach((k) => { if (!groups.includes(Number(k))) delete a.priority[k]; });
+    toast('账号已保存');
+  }
+  closeOverlay();
+  updateAll();
+}
+
+function openPoolForm(id) {
+  closeFloat();
+  const pool = id ? poolOf(Number(id)) : null;
+  const rate = pool ? pool.rate : 1;
+  openOverlay('modal', `<div class="sheet">
+    <div class="sheet-head"><div><h3>${pool ? '编辑资源池' : '新建资源池'}</h3><p>${pool ? '平台创建后不能修改。' : '一个资源池只服务一个平台。'}</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <form id="pool-form" data-id="${pool ? pool.id : ''}">
+      <div class="sheet-body">
+        <label class="field-label">名称</label>
+        <input class="field" name="name" maxlength="80" value="${esc(pool?.name || '')}" placeholder="例如 Claude 3.7 主力池" required />
+        <label class="field-label">平台</label>
+        ${platformSelect(pool?.platform || 'anthropic', Boolean(pool))}
+        <label class="field-label">状态</label>
+        <select class="field" name="status">
+          <option value="active" ${!pool || pool.status === 'active' ? 'selected' : ''}>启用</option>
+          <option value="inactive" ${pool && pool.status !== 'active' ? 'selected' : ''}>停用</option>
+        </select>
+        <label class="field-label">计费倍率</label>
+        <input class="field" id="rate-input" name="rate" type="number" min="0" step="0.1" value="${rate}" />
+        <div class="presets">${[0.8, 1, 1.2, 1.5, 2].map((n) => `<button type="button" data-act="set-rate" data-value="${n}" class="${Number(rate) === n ? 'on' : ''}">${Number(n).toFixed(1)}x</button>`).join('')}</div>
+        <p class="hint">池内调用按这个倍率结算。精细的图片、视频倍率和模型路由在高级配置里。</p>
+        <label class="field-label">描述</label>
+        <textarea class="field" name="description" rows="3" maxlength="255" placeholder="用途、调度策略或渠道来源">${esc(pool?.desc || '')}</textarea>
+      </div>
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost" data-act="close">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>`);
+}
+function savePool(form) {
+  const name = form.name.value.trim();
+  if (!name) { toast('请填写资源池名称', 'bad'); return; }
+  let rate = Number(form.rate.value);
+  if (!Number.isFinite(rate) || rate < 0) rate = 1;
+  rate = Math.round(rate * 100) / 100;
+  const desc = form.description.value.trim();
+  const status = form.status.value;
+  const id = form.dataset.id;
+  if (id) {
+    const pool = poolOf(Number(id));
+    Object.assign(pool, { name, desc, status, rate });
+    toast('资源池已保存');
+  } else {
+    const platform = form.platform.value;
+    const next = seq.pool++;
+    pools.push({ id: next, name, platform, status, rate, desc, sort: 50 + next, rpm: 0, imageRate: 1, videoRate: 1, strategy: 'priority', routing: false, models: [] });
+    state.scope = 'group';
+    state.groupId = next;
+    state.page = 1;
+    state.selected.clear();
+    toast('资源池已创建');
+  }
+  closeOverlay();
+  updateAll();
+}
+function openAdvanced(id) {
+  closeFloat();
+  const pool = poolOf(Number(id));
+  if (!pool) return;
+  state.draftModels = pool.models.slice();
+  openOverlay('drawer', `<div class="drawer-sheet wide">
+    <div class="sheet-head"><div><h3>高级配置</h3><p>定价、模型路由和 RPM 放在这里。日常加账号不用进来。</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <form id="advanced-form" data-id="${pool.id}">
+      <div class="drawer-body">
+        <label class="field-label">调度方式</label>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="strategy" value="priority" ${pool.strategy !== 'least' ? 'checked' : ''} /><span><b>按优先级</b><small>数字越小越先调度</small></span></label>
+          <label class="choice"><input type="radio" name="strategy" value="least" ${pool.strategy === 'least' ? 'checked' : ''} /><span><b>最少并发</b><small>优先用当前占用更低的账号</small></span></label>
+        </div>
+        <label class="field-label">RPM 上限</label>
+        <input class="field" name="rpm" type="number" min="0" step="1" value="${pool.rpm || 0}" />
+        <p class="hint">0 表示不限制每分钟请求数。</p>
+        <div class="split2">
+          <div><label class="field-label">文本倍率</label><input class="field" name="rate" type="number" min="0" step="0.1" value="${pool.rate}" /></div>
+          <div><label class="field-label">图片倍率</label><input class="field" name="imageRate" type="number" min="0" step="0.1" value="${pool.imageRate}" /></div>
+        </div>
+        <label class="field-label">视频倍率</label>
+        <input class="field" name="videoRate" type="number" min="0" step="0.1" value="${pool.videoRate}" />
+        <label class="checkline" style="margin-top:14px"><input id="routing-toggle" name="routing" type="checkbox" ${pool.routing ? 'checked' : ''} /><span>只允许指定模型</span></label>
+        <div id="routing-box" ${pool.routing ? '' : 'hidden'}>
+          <div class="edit-chips" id="model-chips"></div>
+          <div class="model-row">
+            <input class="field" id="model-add" placeholder="输入模型名后回车，例如 claude-sonnet-4-5" />
+          </div>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost" data-act="close">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>`);
+  renderModelChips();
+}
+function renderModelChips() {
+  const box = $('model-chips');
+  if (!box) return;
+  box.innerHTML = state.draftModels.length
+    ? state.draftModels.map((m) => `<span class="chip">${esc(m)}<button type="button" data-act="del-model" data-model="${esc(m)}" aria-label="移除">×</button></span>`).join('')
+    : '<span class="hint" style="margin:0">还没有模型。不添加则保存后不会限制。</span>';
+}
+function saveAdvanced(form) {
+  const pool = poolOf(Number(form.dataset.id));
+  const num = (v, fb) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) / 100 : fb; };
+  pool.strategy = form.strategy.value;
+  pool.rpm = Math.max(0, parseInt(form.rpm.value, 10) || 0);
+  pool.rate = num(form.rate.value, pool.rate);
+  pool.imageRate = num(form.imageRate.value, 1);
+  pool.videoRate = num(form.videoRate.value, 1);
+  pool.routing = form.routing.checked;
+  pool.models = state.draftModels.slice();
+  closeOverlay();
+  updateAll();
+  toast('高级配置已保存');
+}
+
+function openAssign() {
+  const pool = currentPool();
+  if (!pool) return;
+  closeFloat();
+  state.pick = new Set();
+  state.assignQ = '';
+  state.assignPoolId = pool.id;
+  openOverlay('modal', `<div class="sheet w-560">
+    <div class="sheet-head"><div><h3>添加到「${esc(pool.name)}」</h3><p>只列出还没进这个池的 ${esc(platforms[pool.platform].full)} 账号。</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="sheet-body">
+      <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+        <input id="assign-q" type="search" placeholder="搜索可添加的账号" autocomplete="off" /></label>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="btn ghost sm" data-act="pick-all">全选当前结果</button></div>
+      <div class="picklist" id="assign-list"></div>
+    </div>
+    <div class="sheet-foot">
+      <span class="hint" style="margin:0;flex:1">已选 <b id="pick-count">0</b> 个</span>
+      <button type="button" class="btn ghost" data-act="close">取消</button>
+      <button type="button" class="btn primary" id="assign-ok" data-act="assign-ok" disabled>添加</button>
+    </div>
+  </div>`);
+  renderAssignList();
+}
+function renderAssignList() {
+  const box = $('assign-list');
+  const pool = poolOf(state.assignPoolId);
+  if (!box || !pool) return;
+  const q = state.assignQ.trim().toLowerCase();
+  const same = accounts.filter((a) => a.platform === pool.platform && (!q || `${a.name} ${a.notes}`.toLowerCase().includes(q)));
+  const rows = same.filter((a) => !a.groups.includes(pool.id));
+  const inside = same.length - rows.length;
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty mini-empty"><p>${inside ? '同平台账号都已经在这个池里了' : '没有可添加的同平台账号'}</p></div>`;
+  } else {
+    box.innerHTML = rows.map((a) => {
+      const on = state.pick.has(a.id);
+      const where = a.groups.length ? (poolOf(a.groups[0])?.name || '其他池') : '未分组';
+      return `<button type="button" class="pick" data-act="pick" data-id="${a.id}">
+        ${tick(on)}
+        <span class="grow"><b>${esc(a.name)}</b><span class="sub">${typeLabel[a.type]} · ${healthMeta[a.status].label} · ${esc(where)}</span></span>
+      </button>`;
+    }).join('') + (inside ? `<p class="hint">另有 ${inside} 个账号已经在这个池里，这里不再列出。</p>` : '');
+  }
+  const count = $('pick-count');
+  const ok = $('assign-ok');
+  if (count) count.textContent = String(state.pick.size);
+  if (ok) ok.disabled = state.pick.size === 0;
+}
+function openBatchAdd() {
+  const selected = accounts.filter((a) => state.selected.has(a.id));
+  if (!selected.length) return;
+  const ps = [...new Set(selected.map((a) => a.platform))];
+  if (ps.length > 1) {
+    openAlert('一次只能加入同一平台', '选中的账号来自多个平台。先用上方的平台筛选，再选择账号加入资源池。');
+    return;
+  }
+  const options = pools.filter((p) => p.platform === ps[0]);
+  if (!options.length) { openAlert('还没有可用的资源池', '请先为这个平台创建一个资源池。'); return; }
+  state.batchIds = selected.map((a) => a.id);
+  const preferred = state.scope === 'group' && currentPool()?.platform === ps[0] ? state.groupId : options[0].id;
+  openOverlay('modal', `<div class="sheet">
+    <div class="sheet-head"><div><h3>加入资源池</h3><p>把 ${selected.length} 个 ${esc(platforms[ps[0]].full)} 账号加入一个池。已在该池的会自动跳过。</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="sheet-body">
+      <label class="field-label">目标资源池</label>
+      <select class="field" id="batch-pool">${options.map((p) => `<option value="${p.id}" ${p.id === preferred ? 'selected' : ''}>${esc(p.name)} · ${members(p.id).length} 个账号</option>`).join('')}</select>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="btn ghost" data-act="close">取消</button>
+      <button type="button" class="btn primary" data-act="batch-ok">加入</button>
+    </div>
+  </div>`);
+}
+function editGroups(id, anchor) {
+  const a = accounts.find((x) => x.id === Number(id));
+  const list = pools.filter((p) => p.platform === a.platform);
+  const body = list.length
+    ? list.map((p) => `<label class="checkline"><input type="checkbox" value="${p.id}" ${a.groups.includes(p.id) ? 'checked' : ''} /><span class="grow">${esc(p.name)}</span>${p.status !== 'active' ? '<span class="mini">停用</span>' : ''}</label>`).join('')
+    : '<p class="hint">这个平台还没有资源池。</p>';
+  openFloatNear(anchor, `<div class="popover">
+    <div class="pop-title">所属资源池</div>
+    <div class="pop-sub">只显示同平台资源池，可以同时加入多个。</div>
+    <div class="pop-list">${body}</div>
+    <div class="pop-foot">
+      <button type="button" class="btn ghost sm" data-act="close-float">取消</button>
+      <button type="button" class="btn primary sm" data-act="save-groups" data-id="${a.id}">完成</button>
+    </div>
+  </div>`, 'left');
+}
+function applyGroups(id, groups) {
+  const a = accounts.find((x) => x.id === Number(id));
+  a.groups = groups;
+  groups.forEach((g) => { if (!a.priority[g]) a.priority[g] = 1; });
+  Object.keys(a.priority).forEach((k) => { if (!groups.includes(Number(k))) delete a.priority[k]; });
+  closeFloat();
+  updateAll();
+  toast('已更新所属资源池');
+}
+function openTest(id) {
+  const a = accounts.find((x) => x.id === Number(id));
+  if (!a) return;
+  closeFloat();
+  const model = sampleModel[a.platform] || 'unknown';
+  const latency = 140 + (a.id * 37) % 380;
+  let result = `<div class="result good"><b>连接成功</b><span>延迟 ${latency} ms · ${esc(model)}</span></div>`;
+  if (a.status === 'limited') result = `<div class="result warn"><b>频率受限</b><span>${esc(a.recover || '请稍后再试')}</span></div>`;
+  if (a.status === 'error') result = `<div class="result bad"><b>连接失败</b><span>${esc(a.notes || '上游返回错误')}</span></div>`;
+  if (a.status === 'inactive') result = `<div class="result mute"><b>已跳过</b><span>账号处于停用状态</span></div>`;
+  openOverlay('modal', `<div class="sheet">
+    <div class="sheet-head"><div><h3>测试 ${esc(a.name)}</h3></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="sheet-body">${result}<p class="hint">演示结果，没有请求真实上游。</p></div>
+    <div class="sheet-foot"><button type="button" class="btn primary" data-act="close">完成</button></div>
+  </div>`);
+}
+function removeIds(ids) {
+  const pool = currentPool();
+  if (!pool || !ids.length) return;
+  ask({
+    title: '移出资源池',
+    text: ids.length === 1
+      ? `将「${accounts.find((a) => a.id === ids[0])?.name || ''}」移出「${pool.name}」。账号和其他资源池里的归属都会保留。`
+      : `将 ${ids.length} 个账号移出「${pool.name}」。账号和其他资源池里的归属都会保留。`,
+    confirm: '移出',
+    ok: () => {
+      ids.forEach((id) => {
+        const a = accounts.find((x) => x.id === id);
+        if (!a) return;
+        a.groups = a.groups.filter((g) => g !== pool.id);
+        delete a.priority[pool.id];
+        state.selected.delete(id);
+      });
+      updateAll();
+      toast('已移出资源池');
+    }
+  });
+}
+function deleteIds(ids) {
+  if (!ids.length) return;
+  const one = ids.length === 1 ? accounts.find((a) => a.id === ids[0]) : null;
+  ask({
+    title: '删除账号',
+    text: one ? `永久删除「${one.name}」。此操作不可恢复。` : `永久删除选中的 ${ids.length} 个账号。此操作不可恢复。`,
+    confirm: '删除',
+    danger: true,
+    ok: () => {
+      ids.forEach((id) => {
+        const i = accounts.findIndex((a) => a.id === id);
+        if (i >= 0) accounts.splice(i, 1);
+        state.selected.delete(id);
+      });
+      updateAll();
+      toast(one ? '账号已删除' : `已删除 ${ids.length} 个账号`);
+    }
+  });
+}
+function applyPrio(id, raw) {
+  if (state.scope !== 'group') { state.editingPriority = null; return; }
+  const a = accounts.find((x) => x.id === Number(id));
+  if (!a) return;
+  const prev = a.priority[state.groupId] || 1;
+  let n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) n = prev;
+  n = Math.max(1, Math.min(9999, n));
+  a.priority[state.groupId] = n;
+  state.editingPriority = null;
+  if (n !== prev) toast('优先级已保存');
+  renderTable();
+}
+async function copyText(text) {
+  const value = String(text);
+  try { await navigator.clipboard.writeText(value); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast('已复制 ' + value);
+}
+
+function connOptions(selected) {
+  return `<option value="">选择已保存的连接，或直接填写</option>` + connections.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${esc(c.base)}</option>`).join('');
+}
+function openUpstream() {
+  closeFloat();
+  openOverlay('drawer', `<div class="drawer-sheet wide">
+    <div class="sheet-head"><div><h3>上游导入</h3><p>凭据只留在这次演示里，刷新页面就会消失，不会送到服务器。</p></div>
+      <button type="button" class="icon-btn bare" data-act="close" aria-label="关闭">${ICO.x}</button></div>
+    <div class="drawer-body">
+      <label class="field-label">已保存的连接</label>
+      <div class="model-row">
+        <select class="field" id="up-conn">${connOptions('')}</select>
+        <button type="button" class="btn ghost" id="del-conn" data-act="del-conn" disabled>删除</button>
+      </div>
+      <label class="field-label">Base URL</label>
+      <input class="field" id="up-url" placeholder="https://upstream.example.com" autocomplete="off" />
+      <label class="field-label">JWT Access Token</label>
+      <input class="field" id="up-token" type="password" placeholder="上游登录后的 Access Token" autocomplete="off" />
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button type="button" class="btn primary" id="probe-btn" data-act="probe">探测分组</button>
+      </div>
+      <div id="up-body"></div>
+    </div>
+  </div>`);
+  renderUpstreamBody();
+}
+function renderUpstreamBody() {
+  const box = $('up-body');
+  if (!box) return;
+  if (!state.probed) { box.innerHTML = '<p class="hint">填写连接信息后点击「探测分组」。</p>'; return; }
+  const prefix = $('up-prefix')?.value ?? 'pool-';
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+      <strong style="font-size:13px">上游分组</strong>
+      <span class="hint" style="margin:0">${upstreamCatalog.length} 个 · 已选 ${state.upPick.size} 个</span>
+    </div>
+    <div class="picklist">
+      ${upstreamCatalog.map((g, i) => {
+        const disabled = !g.addable || g.exists;
+        const label = g.exists ? '已添加' : g.addable ? '可添加' : '不可添加';
+        const tone = g.exists ? 'mute' : g.addable ? 'good' : 'bad';
+        return `<button type="button" class="pick" data-act="up-pick" data-value="${i}" ${disabled ? 'disabled' : ''}>
+          ${tick(g.exists || state.upPick.has(i))}
+          <span class="grow"><b>${esc(g.name)}</b><span class="sub">${esc(g.desc)}</span></span>
+          <span class="badge ${tone}">${label}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <label class="field-label">账号名称前缀</label>
+    <input class="field" id="up-prefix" value="${esc(prefix)}" placeholder="例如 pool-" />
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button type="button" class="btn primary" data-act="import-up" ${state.upPick.size ? '' : 'disabled'}>添加账号</button>
+    </div>`;
+}
+function probeUpstream() {
+  const url = $('up-url').value.trim();
+  const token = $('up-token').value.trim();
+  if (!/^https?:\/\//i.test(url)) { toast('Base URL 需要以 http:// 或 https:// 开头', 'bad'); return; }
+  if (token.length < 8) { toast('请填写 Access Token', 'bad'); return; }
+  const btn = $('probe-btn');
+  btn.disabled = true;
+  btn.textContent = '探测中…';
+  setTimeout(() => {
+    const found = connections.find((c) => c.base === url);
+    if (found) found.token = token;
+    else connections.push({ id: 'c' + Date.now(), base: url, token });
+    const sel = $('up-conn');
+    const current = connections.find((c) => c.base === url);
+    if (sel) sel.innerHTML = connOptions(current.id);
+    const del = $('del-conn');
+    if (del) del.disabled = false;
+    state.probed = true;
+    state.upPick = new Set();
+    if (btn) { btn.disabled = false; btn.textContent = '探测分组'; }
+    renderUpstreamBody();
+    toast('已获取 4 个上游分组，连接保存在本次演示中');
+  }, 500);
+}
+
+function selectedIds() { return [...state.selected]; }
+function onAction(el, e) {
+  const act = el.dataset.act;
+  const id = Number(el.dataset.id);
+  switch (act) {
+    case 'noop': return;
+    case 'soon': toast(el.dataset.name + ' 不在这次界面演示里'); return;
+    case 'refresh': closeFloat(); toast('列表已刷新'); return;
+    case 'go-all': go('all'); return;
+    case 'go-ungrouped': go('ungrouped'); return;
+    case 'open-pool': go('group', id); return;
+    case 'pool-filter': state.poolFilter = el.dataset.value; renderNav(); return;
+    case 'toggle-plat': {
+      const p = el.dataset.platform;
+      if (state.collapsed.has(p)) state.collapsed.delete(p); else state.collapsed.add(p);
+      renderNav(); return;
+    }
+    case 'clear-pool-filter':
+      state.poolQ = ''; state.poolFilter = 'all'; $('pool-q').value = ''; renderNav(); return;
+    case 'create-pool': openPoolForm(null); return;
+    case 'pool-menu':
+      toggleMenu(el, menuHtml([
+        { act: 'edit-pool', id, label: '编辑' },
+        { act: 'advanced', id, label: '高级配置' },
+        { act: 'duplicate-pool', id, label: '复制' },
+        '|',
+        { act: 'delete-pool', id, label: '删除资源池', danger: true }
+      ]));
+      return;
+    case 'edit-pool': openPoolForm(id); return;
+    case 'advanced': openAdvanced(id); return;
+    case 'duplicate-pool': {
+      closeFloat();
+      const pool = poolOf(id);
+      const next = seq.pool++;
+      pools.push({ ...pool, id: next, name: pool.name + ' 副本', models: pool.models.slice(), sort: pool.sort + 1 });
+      go('group', next);
+      toast('已复制资源池，账号不会一起复制');
+      return;
+    }
+    case 'delete-pool': {
+      const pool = poolOf(id);
+      ask({
+        title: '删除资源池',
+        text: `删除「${pool.name}」只会解除归属，账号本身不会删除。`,
+        confirm: '删除',
+        danger: true,
+        ok: () => {
+          accounts.forEach((a) => {
+            a.groups = a.groups.filter((g) => g !== id);
+            delete a.priority[id];
+          });
+          const idx = pools.findIndex((p) => p.id === id);
+          if (idx >= 0) pools.splice(idx, 1);
+          if (state.groupId === id) { state.scope = 'all'; state.groupId = null; }
+          updateAll();
+          toast('资源池已删除');
+        }
+      });
+      return;
+    }
+    case 'set-status': state.status = el.dataset.value; state.page = 1; renderTable(); return;
+    case 'open-platform':
+      openFloatNear(el, menuHtml([{ act: 'set-platform', value: '', label: '全部平台', on: !state.platform }].concat(platformOrder.map((k) => ({ act: 'set-platform', value: k, label: platforms[k].full, on: state.platform === k })))), 'left');
+      return;
+    case 'set-platform': state.platform = el.dataset.value; state.page = 1; closeFloat(); renderTable(); return;
+    case 'open-type':
+      openFloatNear(el, menuHtml([
+        { act: 'set-type', value: '', label: '全部类型', on: !state.type },
+        { act: 'set-type', value: 'oauth', label: 'OAuth', on: state.type === 'oauth' },
+        { act: 'set-type', value: 'apikey', label: 'API Key', on: state.type === 'apikey' },
+        { act: 'set-type', value: 'setup-token', label: 'Setup Token', on: state.type === 'setup-token' },
+        { act: 'set-type', value: 'upstream', label: '上游', on: state.type === 'upstream' }
+      ]), 'left');
+      return;
+    case 'set-type': state.type = el.dataset.value; state.page = 1; closeFloat(); renderTable(); return;
+    case 'reset-filters':
+      state.q = ''; state.platform = ''; state.status = ''; state.type = ''; state.page = 1;
+      $('q').value = ''; renderTable(); return;
+    case 'page': state.page = Number(el.dataset.value); renderTable(); return;
+    case 'select-page': {
+      const list = currentAccounts();
+      const pageIds = list.slice((state.page - 1) * state.pageSize, state.page * state.pageSize).map((a) => a.id);
+      const allOn = pageIds.length && pageIds.every((pid) => state.selected.has(pid));
+      pageIds.forEach((pid) => allOn ? state.selected.delete(pid) : state.selected.add(pid));
+      renderTable(); return;
+    }
+    case 'toggle-row': {
+      if (e.shiftKey) { e.preventDefault(); window.getSelection()?.removeAllRanges(); }
+      const list = currentAccounts().map((a) => a.id);
+      if (e.shiftKey && state.anchor != null) {
+        const a = list.indexOf(state.anchor);
+        const b = list.indexOf(id);
+        if (a >= 0 && b >= 0) {
+          const [s, t] = a < b ? [a, b] : [b, a];
+          for (let i = s; i <= t; i++) state.selected.add(list[i]);
+          renderTable(); return;
+        }
+      }
+      if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+      state.anchor = id;
+      renderTable(); return;
+    }
+    case 'edit-groups': closeFloat(); editGroups(id, el); return;
+    case 'close-float': closeFloat(); return;
+    case 'save-groups': {
+      const groups = [...$('float').querySelectorAll('input[type="checkbox"]:checked')].map((i) => Number(i.value));
+      applyGroups(el.dataset.id, groups); return;
+    }
+    case 'prio': {
+      const a = accounts.find((x) => x.id === id);
+      const cur = a.priority[state.groupId] || 1;
+      a.priority[state.groupId] = Math.max(1, Math.min(9999, cur + Number(el.dataset.dir)));
+      renderTable(); return;
+    }
+    case 'prio-edit': state.editingPriority = id; renderTable(); return;
+    case 'test': openTest(id); return;
+    case 'row-menu':
+      toggleMenu(el, menuHtml([
+        { act: 'open-account', id, label: '查看详情' },
+        { act: 'copy-name', id, label: '复制名称' },
+        { act: 'duplicate-account', id, label: '复制账号' },
+        '|',
+        ...(state.scope === 'group' ? [{ act: 'remove-one', id, label: '移出此池' }, '|'] : []),
+        { act: 'delete-one', id, label: '删除账号', danger: true }
+      ]));
+      return;
+    case 'open-account': openAccount(id); return;
+    case 'copy': copyText(el.dataset.value); return;
+    case 'copy-name': closeFloat(); copyText(accounts.find((a) => a.id === id)?.name || ''); return;
+    case 'duplicate-account': {
+      closeFloat();
+      const a = accounts.find((x) => x.id === id);
+      accounts.push({ ...a, id: seq.account++, name: a.name + '-copy', groups: a.groups.slice(), priority: { ...a.priority }, current: 0 });
+      updateAll(); toast('已复制账号'); return;
+    }
+    case 'remove-one': removeIds([id]); return;
+    case 'delete-one': deleteIds([id]); return;
+    case 'add-existing': openAssign(); return;
+    case 'create-account': openCreateAccount(); return;
+    case 'batch-add': openBatchAdd(); return;
+    case 'batch-remove': removeIds(selectedIds()); return;
+    case 'batch-delete': deleteIds(selectedIds()); return;
+    case 'clear-selection': state.selected.clear(); renderTable(); return;
+    case 'confirm-ok': {
+      const fn = state.onConfirm; state.onConfirm = null; closeOverlay(); if (fn) fn(); return;
+    }
+    case 'close': closeOverlay(); closeFloat(); return;
+    case 'set-rate': {
+      const input = $('rate-input');
+      if (input) input.value = el.dataset.value;
+      el.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el));
+      return;
+    }
+    case 'pick': {
+      if (state.pick.has(id)) state.pick.delete(id); else state.pick.add(id);
+      renderAssignList(); return;
+    }
+    case 'pick-all': {
+      const pool = poolOf(state.assignPoolId);
+      const q = state.assignQ.trim().toLowerCase();
+      const vis = accounts.filter((a) => a.platform === pool.platform && !a.groups.includes(pool.id) && (!q || `${a.name} ${a.notes}`.toLowerCase().includes(q)));
+      const allOn = vis.length && vis.every((a) => state.pick.has(a.id));
+      vis.forEach((a) => allOn ? state.pick.delete(a.id) : state.pick.add(a.id));
+      renderAssignList(); return;
+    }
+    case 'assign-ok': {
+      const poolId = state.assignPoolId;
+      const ids = [...state.pick];
+      ids.forEach((pid) => {
+        const a = accounts.find((x) => x.id === pid);
+        if (!a.groups.includes(poolId)) { a.groups.push(poolId); a.priority[poolId] = 1; }
+      });
+      closeOverlay(); updateAll(); toast(`已添加 ${ids.length} 个账号`); return;
+    }
+    case 'batch-ok': {
+      const poolId = Number($('batch-pool').value);
+      let added = 0, skip = 0;
+      state.batchIds.forEach((pid) => {
+        const a = accounts.find((x) => x.id === pid);
+        if (a.groups.includes(poolId)) { skip++; return; }
+        a.groups.push(poolId); a.priority[poolId] = 1; added++;
+      });
+      state.selected.clear();
+      closeOverlay(); updateAll();
+      toast(skip ? `已加入 ${added} 个，${skip} 个原本就在该池` : `已加入 ${added} 个账号`);
+      return;
+    }
+    case 'probe': probeUpstream(); return;
+    case 'del-conn': {
+      const cid = $('up-conn').value;
+      if (!cid) return;
+      const item = connections.find((c) => c.id === cid);
+      ask({
+        title: '删除保存的连接',
+        text: `删除「${item.base}」。只影响这次演示。`,
+        confirm: '删除',
+        danger: true,
+        ok: () => {
+          connections = connections.filter((c) => c.id !== cid);
+          openUpstream();
+          toast('已删除保存的连接');
+        }
+      });
+      return;
+    }
+    case 'up-pick': {
+      const i = Number(el.dataset.value);
+      if (state.upPick.has(i)) state.upPick.delete(i); else state.upPick.add(i);
+      renderUpstreamBody(); return;
+    }
+    case 'import-up': {
+      const prefix = ($('up-prefix')?.value || '').trim();
+      if (!prefix) { toast('请填写名称前缀', 'bad'); return; }
+      const chosen = [...state.upPick].map((i) => upstreamCatalog[i]).filter((g) => g && g.addable && !g.exists);
+      chosen.forEach((g, i) => {
+        g.exists = true;
+        accounts.push(acc(seq.account++, `${prefix}${g.platform}-${i + 1}`, g.platform, 'upstream', 'active', 0, 4, [], {}, '', `来自上游分组 ${g.name}`));
+      });
+      state.upPick.clear();
+      closeOverlay();
+      go('ungrouped');
+      toast(`已创建 ${chosen.length} 个账号，先放在未分组`);
+      return;
+    }
+    case 'del-model':
+      state.draftModels = state.draftModels.filter((m) => m !== el.dataset.model);
+      renderModelChips(); return;
+    default: return;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (el) { onAction(el, e); return; }
+  if (!$('float').hidden && !e.target.closest('#float')) closeFloat();
+});
+$('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) closeOverlay(); });
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'q') { state.q = e.target.value; state.page = 1; renderTable(); }
+  if (e.target.id === 'pool-q') { state.poolQ = e.target.value; renderNav(); }
+  if (e.target.id === 'assign-q') { state.assignQ = e.target.value; renderAssignList(); }
+  if (e.target.id === 'up-url' || e.target.id === 'up-token') {
+    if (state.probed) { state.probed = false; state.upPick.clear(); renderUpstreamBody(); }
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'page-size') { state.pageSize = Number(e.target.value); state.page = 1; renderTable(); }
+  if (e.target.id === 'routing-toggle') { const box = $('routing-box'); if (box) box.hidden = !e.target.checked; }
+  if (e.target.id === 'up-conn') {
+    const c = connections.find((x) => x.id === e.target.value);
+    $('del-conn').disabled = !c;
+    if (!c) return;
+    $('up-url').value = c.base;
+    $('up-token').value = c.token;
+    state.probed = false;
+    state.upPick.clear();
+    renderUpstreamBody();
+  }
+});
+document.addEventListener('submit', (e) => {
+  if (e.target.id === 'pool-form') { e.preventDefault(); savePool(e.target); }
+  if (e.target.id === 'account-form') { e.preventDefault(); saveAccount(e.target); }
+  if (e.target.id === 'advanced-form') { e.preventDefault(); saveAdvanced(e.target); }
+});
+document.addEventListener('focusout', (e) => {
+  if (!e.target.matches?.('[data-prio-input]')) return;
+  if (skipPrioBlur) { skipPrioBlur = false; return; }
+  const pid = e.target.dataset.prioInput;
+  const value = e.target.value;
+  setTimeout(() => applyPrio(pid, value), 0);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.id === 'model-add' && e.key === 'Enter') {
+    e.preventDefault();
+    const v = e.target.value.trim();
+    if (!v) return;
+    if (!state.draftModels.includes(v)) state.draftModels.push(v);
+    e.target.value = '';
+    renderModelChips();
+    return;
+  }
+  if (e.target.matches?.('[data-prio-input]') && (e.key === 'Enter' || e.key === 'Escape')) {
+    e.preventDefault();
+    skipPrioBlur = true;
+    if (e.key === 'Enter') applyPrio(e.target.dataset.prioInput, e.target.value);
+    else { state.editingPriority = null; renderTable(); }
+    return;
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('pool')) {
+    e.preventDefault();
+    go('group', Number(e.target.dataset.id));
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (!$('float').hidden) { closeFloat(); return; }
+    if (!$('overlay').hidden) { closeOverlay(); return; }
+  }
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    e.preventDefault();
+    $('q').focus();
+  }
+});
+document.addEventListener('contextmenu', (e) => {
+  const pool = e.target.closest('.pool');
+  if (!pool || e.target.closest('.more')) return;
+  e.preventDefault();
+  closeFloat();
+  openFloatNear(pool, menuHtml([
+    { act: 'edit-pool', id: pool.dataset.id, label: '编辑' },
+    { act: 'advanced', id: pool.dataset.id, label: '高级配置' },
+    { act: 'duplicate-pool', id: pool.dataset.id, label: '复制' },
+    '|',
+    { act: 'delete-pool', id: pool.dataset.id, label: '删除资源池', danger: true }
+  ]), 'left');
+  $('float').style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+  $('float').style.top = Math.min(e.clientY, window.innerHeight - 180) + 'px';
+});
+
+updateAll();
+</script>
+</body>
+</html>

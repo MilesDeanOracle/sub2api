@@ -14,6 +14,9 @@ ARG POSTGRES_IMAGE=postgres:18-alpine
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 ARG NPM_CONFIG_REGISTRY=
+# dl-cdn.alpinelinux.org (Fastly) is unreachable from CN networks; TUNA mirror
+# is reachable worldwide. Set APK_MIRROR= to build with the official repos.
+ARG APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
 
 # -----------------------------------------------------------------------------
 # Stage 1: Frontend Builder
@@ -25,11 +28,17 @@ ARG NPM_CONFIG_REGISTRY
 
 WORKDIR /app/frontend
 
-# Install pnpm (pinned to v9 to match CI and keep builds reproducible)
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# Install pnpm pinned to the exact version used for local development — it is
+# what generates pnpm-lock.yaml (overrides are recorded in a format pnpm 9
+# rejects with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH on --frozen-lockfile).
+# npm instead of corepack: corepack's fetcher ignores HTTP(S)_PROXY, so it
+# cannot download pnpm in proxied builds (--network=host + proxy build args).
+RUN npm install -g pnpm@11.12.0
 
 # Install dependencies first (better caching)
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+# pnpm-workspace.yaml carries the pnpm 11 build-script approvals (allowBuilds);
+# without it the frozen install fails on esbuild/vue-demi postinstall scripts.
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/store \
     if [ -n "${NPM_CONFIG_REGISTRY}" ]; then pnpm config set registry "${NPM_CONFIG_REGISTRY}"; fi && \
     pnpm install --frozen-lockfile --prefer-offline
@@ -58,6 +67,7 @@ ARG COMMIT=docker
 ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
+ARG APK_MIRROR
 # Populated by buildx from the --platform target (e.g. linux/amd64).
 ARG TARGETOS
 ARG TARGETARCH
@@ -66,7 +76,10 @@ ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN if [ -n "${APK_MIRROR}" ]; then \
+        sed -i "s|https://dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app/backend
 
@@ -107,13 +120,19 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
+# Inherit the global default; redeclared so this stage sees it
+ARG APK_MIRROR
+
 # Labels
 LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN if [ -n "${APK_MIRROR}" ]; then \
+        sed -i "s|https://dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache \
     ca-certificates \
     tzdata \
     su-exec \
@@ -147,7 +166,9 @@ RUN mkdir -p /app/data && chown sub2api:sub2api /app/data
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+# 兼容路径：部分面板（如 1Panel）更新容器时沿用旧容器配置的
+# 入口点 /docker-entrypoint.sh（根路径），软链接保证两种路径都可启动
+RUN chmod +x /app/docker-entrypoint.sh && ln -s /app/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Expose port (can be overridden by SERVER_PORT env var)
 EXPOSE 8080

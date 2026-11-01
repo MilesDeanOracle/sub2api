@@ -112,7 +112,9 @@ RUN mkdir -p /app/data && chown -R sub2api:sub2api /app
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+# 兼容路径：部分面板（如 1Panel）更新容器时沿用旧容器配置的
+# 入口点 /docker-entrypoint.sh（根路径），软链接保证两种路径都可启动
+RUN chmod +x /app/docker-entrypoint.sh && ln -s /app/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Expose port (can be overridden by SERVER_PORT env var)
 EXPOSE 8080

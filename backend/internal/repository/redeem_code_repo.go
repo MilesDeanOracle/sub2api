@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -406,6 +407,46 @@ func (r *redeemCodeRepository) SumPositiveBalanceByUser(ctx context.Context, use
 		return 0, nil
 	}
 	return result[0].Sum, nil
+}
+
+// GetUserRechargeStats 返回用户充值汇总（首末时间/次数/总额），口径与 SumPositiveBalanceByUser 一致。
+func (r *redeemCodeRepository) GetUserRechargeStats(ctx context.Context, userID int64) (*service.UserRechargeStats, error) {
+	var result []struct {
+		FirstAt sql.NullTime `json:"first_at"`
+		LastAt  sql.NullTime `json:"last_at"`
+		Count   int64        `json:"count"`
+		Sum     float64      `json:"sum"`
+	}
+	err := r.client.RedeemCode.Query().
+		Where(
+			redeemcode.UsedByEQ(userID),
+			redeemcode.ValueGT(0),
+			redeemcode.TypeIn("balance", "admin_balance"),
+		).
+		Aggregate(
+			dbent.As(dbent.Min(redeemcode.FieldUsedAt), "first_at"),
+			dbent.As(dbent.Max(redeemcode.FieldUsedAt), "last_at"),
+			dbent.As(dbent.Count(), "count"),
+			dbent.As(dbent.Sum(redeemcode.FieldValue), "sum"),
+		).
+		Scan(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	out := &service.UserRechargeStats{}
+	if len(result) > 0 {
+		out.Count = result[0].Count
+		out.TotalAmount = result[0].Sum
+		if result[0].FirstAt.Valid {
+			t := result[0].FirstAt.Time
+			out.FirstAt = &t
+		}
+		if result[0].LastAt.Valid {
+			t := result[0].LastAt.Time
+			out.LastAt = &t
+		}
+	}
+	return out, nil
 }
 
 func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {

@@ -4316,6 +4316,7 @@ interface Props {
   show: boolean
   proxies: Proxy[]
   groups: AdminGroup[]
+  defaultGroupIds?: number[]
 }
 
 const props = defineProps<Props>()
@@ -5082,6 +5083,7 @@ watch(
   () => props.show,
   (newVal) => {
     if (newVal) {
+	  form.group_ids = [...(props.defaultGroupIds ?? [])]
       // Load TLS fingerprint profiles
       adminAPI.tlsFingerprintProfiles.list()
         .then(profiles => { tlsFingerprintProfiles.value = profiles.map(p => ({ id: p.id, name: p.name })) })

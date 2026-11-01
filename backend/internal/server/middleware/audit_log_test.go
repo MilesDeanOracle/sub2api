@@ -224,3 +224,8 @@ func TestAuditRecordsEveryMCPOAuthReadWithGrant(t *testing.T) {
 	require.Equal(t, "grant-1", logs[0].Extra["mcp_grant_id"])
 	require.Equal(t, "admin_list_users", logs[0].Extra["mcp_tool"])
 }
+
+func TestUpstreamGroupProbeRouteOmitsEphemeralCredentialsFromAuditBody(t *testing.T) {
+	route := "POST /api/v1/admin/groups/upstream-probe"
+	require.Contains(t, auditBodyOmittedRoutes, route)
+}

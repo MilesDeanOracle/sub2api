@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
 import App from './App.vue'
 import router from './router'
 import i18n, { initI18n } from './i18n'
@@ -7,6 +8,9 @@ import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
 import './style.css'
+import 'element-plus/dist/index.css'
+// 暗色模式变量挂在 html.dark 上，与项目 initThemeClass 的写法一致
+import 'element-plus/theme-chalk/dark/css-vars.css'
 
 function initIOSViewportZoomFix() {
   // iOS Safari 在输入框字号小于 16px 时聚焦会自动放大页面，且失焦后不会恢复。
@@ -54,6 +58,7 @@ async function bootstrap() {
 
   app.use(router)
   app.use(i18n)
+  app.use(ElementPlus)
 
   // 等待路由器完成初始导航后再挂载，避免竞态条件导致的空白渲染
   await router.isReady()

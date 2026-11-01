@@ -484,6 +484,10 @@ func (s *redeemRepoStub) ListByUserPaginated(ctx context.Context, userID int64, 
 	panic("unexpected ListByUserPaginated call")
 }
 
+func (s *redeemRepoStub) GetUserRechargeStats(ctx context.Context, userID int64) (*UserRechargeStats, error) {
+	return &UserRechargeStats{}, nil
+}
+
 func (s *redeemRepoStub) SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error) {
 	panic("unexpected SumPositiveBalanceByUser call")
 }

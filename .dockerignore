@@ -30,6 +30,11 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+# Local build output (backend/Makefile) — a ~113MB binary that otherwise
+# gets tar-streamed into the context over the slow /mnt/e bridge each build
+backend/bin/
+# Vite cache dir accidentally created at repo root
+.vite/
 
 # Node modules (will be installed in container)
 frontend/node_modules/
