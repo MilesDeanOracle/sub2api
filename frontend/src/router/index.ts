@@ -416,18 +416,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/dashboard-element',
-    name: 'AdminDashboardElement',
-    component: () => import('@/views/admin/DashboardViewElement.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Admin Dashboard (Element Plus)',
-      titleKey: 'admin.dashboard.title',
-      descriptionKey: 'admin.dashboard.description'
-    }
-  },
-  {
     path: '/admin/ops',
     name: 'AdminOps',
     component: () => import('@/views/admin/ops/OpsDashboard.vue'),
@@ -464,18 +452,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/users-element',
-    name: 'AdminUsersElement',
-    component: () => import('@/views/admin/UsersViewElement.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'User Management (Element Plus)',
-      titleKey: 'admin.users.title',
-      descriptionKey: 'admin.users.description'
-    }
-  },
-  {
     path: '/admin/resource-pools',
     name: 'AdminResourcePools',
     component: () => import('@/views/admin/ResourcePoolsViewElement.vue'),
@@ -497,6 +473,19 @@ const routes: RouteRecordRaw[] = [
       title: 'Advanced Group Settings',
       titleKey: 'admin.groups.title',
       descriptionKey: 'admin.groups.description',
+      hidden: true
+    }
+  },
+  {
+    path: '/admin/resource-pools/legacy-accounts',
+    name: 'AdminResourcePoolLegacyAccounts',
+    component: () => import('@/views/admin/AccountsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Legacy Account Management',
+      titleKey: 'admin.accounts.title',
+      descriptionKey: 'admin.accounts.description',
       hidden: true
     }
   },
