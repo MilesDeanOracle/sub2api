@@ -14,19 +14,32 @@ $ServerHost = '154.51.40.64'   # 远端服务器地址
 $RemoteDir  = '/data/docker-img' # 远端镜像存放目录
 # ============================
 
-# 1. 参数：tar 文件路径
-if ([string]::IsNullOrWhiteSpace($TarPath)) {
-    Write-Host '用法：make up-file <tar文件路径>（例如 make up-file dist/sub2api-0.2.19-20260101-1200.tar）'
-    Write-Host '      或 make up-file FILE=<tar文件路径>'
-    exit 1
+# 1. 参数：tar 文件路径；缺省或传入目录时，自动选取该目录（默认 dist\）下最新的 *.tar
+if ([string]::IsNullOrWhiteSpace($TarPath) -or $TarPath -eq 'latest') {
+    $TarPath = 'dist'
 }
-if (-not (Test-Path $TarPath -PathType Leaf)) {
-    Write-Host "错误：找不到 tar 文件：$TarPath"
-    exit 1
+if (Test-Path $TarPath -PathType Container) {
+    $picked = Get-ChildItem -Path $TarPath -Filter '*.tar' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $picked) {
+        Write-Host "错误：目录 $TarPath 下没有 .tar 文件（可先运行 make build-docker 生成）"
+        exit 1
+    }
+    Write-Host '==> 未指定文件，自动选择目录内最新 tar'
+    $TarItem = $picked
+} else {
+    if (-not (Test-Path $TarPath -PathType Leaf)) {
+        Write-Host "错误：找不到 tar 文件：$TarPath"
+        Write-Host '用法：make up-file [tar文件路径]（不带参数自动上传 dist/ 下最新的 tar）'
+        Write-Host '      例如：make up-file dist/sub2api-0.2.19-20260101-1200.tar'
+        exit 1
+    }
+    $TarItem = Get-Item $TarPath
 }
-$TarItem = Get-Item $TarPath
 $TarName = $TarItem.Name
 $TarSize = '{0:N1} MB' -f ($TarItem.Length / 1MB)
+
+Write-Host ''
+Write-Host "==> 上传文件：$($TarItem.FullName)（$TarSize）"
 
 # 2. 输入用户名；密码在 ssh/scp 连接时由其自己提示，不在脚本中出现
 $SshUser = Read-Host 'SSH 用户名'
@@ -52,7 +65,6 @@ if (-not (Test-Path $sshExe) -or -not (Test-Path $scpExe)) {
 }
 
 Write-Host ''
-Write-Host "==> 上传文件：$($TarItem.FullName)（$TarSize）"
 Write-Host "==> 目标位置：${SshUser}@${ServerHost}:$RemoteDir/$TarName"
 Write-Host ''
 

@@ -89,10 +89,10 @@ endif
 endif
 
 ifeq ($(OS),Windows_NT)
-up-file: ## 上传已打包的镜像 tar 到服务器（用法：make up-file dist/xxx.tar）
+up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar）
 	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/up-file.ps1 -TarPath "$(TAR_FILE)"
 else
-up-file: ## 上传已打包的镜像 tar 到服务器（用法：make up-file dist/xxx.tar）
+up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar）
 	@bash scripts/up-file.sh "$(TAR_FILE)"
 endif
 
