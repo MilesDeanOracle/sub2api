@@ -164,7 +164,6 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
-    dashboardNew: '仪表盘 (新)',
     announcements: '公告',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
@@ -177,7 +176,6 @@ export default {
     affiliateTransferRecords: '提取记录',
     profile: '个人资料',
     users: '用户管理',
-    usersNew: '用户管理 (新)',
     resourcePools: '资源池管理',
     groups: '分组管理',
     channels: '渠道管理',
@@ -237,15 +235,15 @@ export default {
     actions: {
       createGroup: '新建分组',
       createAccount: '新建账号',
-      probeBatch: '批量探测选中账号',
+      probeBatch: '探测当前视图全部 API Key 账号',
       toggleStatus: '点击切换启用/停用',
       addExisting: '添加已有账号',
-      addToGroup: '加入资源池',
       removeFromCurrent: '移出当前资源池',
       deleteSelected: '删除账号',
       manage: '管理资源池',
       duplicate: '复制',
-      advanced: '高级设置',
+      backToLegacyGroups: '返回旧版分组管理',
+      backToLegacyAccounts: '返回旧版账号管理',
       advancedSettings: '高级配置',
       test: '测试',
       stats: '统计',
@@ -387,7 +385,7 @@ export default {
     },
     advanced: {
       description: '这里保留完整的定价、模型路由、RPM、Composite 及平台专属配置。',
-      back: '返回当前资源池'
+      legacyAccountsHint: '旧版渠道账号表格，含自动刷新、账号工具与批量操作。'
     },
     messages: {
       loadFailed: '资源池账号加载失败',

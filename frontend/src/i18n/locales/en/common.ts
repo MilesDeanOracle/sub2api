@@ -164,7 +164,6 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
-    dashboardNew: 'Dashboard (New)',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',
@@ -177,7 +176,6 @@ export default {
     affiliateTransferRecords: 'Transfer Records',
     profile: 'Profile',
     users: 'Users',
-    usersNew: 'Users (New)',
     resourcePools: 'Resource Pools',
     groups: 'Groups',
     channels: 'Channels',
@@ -237,15 +235,15 @@ export default {
     actions: {
       createGroup: 'New group',
       createAccount: 'New account',
-      probeBatch: 'Probe selected accounts',
+      probeBatch: 'Probe all API key accounts in current view',
       toggleStatus: 'Click to toggle active/paused',
       addExisting: 'Add existing',
-      addToGroup: 'Add to pool',
       removeFromCurrent: 'Remove from current pool',
       deleteSelected: 'Delete accounts',
       manage: 'Manage pool',
       duplicate: 'Duplicate',
-      advanced: 'Advanced settings',
+      backToLegacyGroups: 'Legacy group management',
+      backToLegacyAccounts: 'Legacy account management',
       advancedSettings: 'Advanced config',
       test: 'Test',
       stats: 'Statistics',
@@ -386,7 +384,7 @@ export default {
     },
     advanced: {
       description: 'Complete pricing, model routing, RPM, Composite, and platform-specific settings remain available here.',
-      back: 'Back to current pool'
+      legacyAccountsHint: 'Legacy channel account table with auto refresh, account tools, and bulk actions.'
     },
     messages: {
       loadFailed: 'Failed to load resource-pool accounts',

@@ -18,7 +18,9 @@
             {{ t('resourcePool.assign.title', { name: group?.name ?? '' }) }}
           </h3>
           <p class="text-xs text-gray-400 dark:text-dark-400 m-0 mt-0.5">
-            从全部渠道账号中挑选并批量加入当前资源池
+            {{ group && group.platform !== 'composite'
+              ? `仅展示 ${group.platform} 平台账号，勾选后批量加入当前资源池`
+              : '从全部渠道账号中挑选并批量加入当前资源池' }}
           </p>
         </div>
       </div>
@@ -190,13 +192,18 @@ async function load() {
   if (!props.group) return
   loading.value = true
   try {
+    const groupPlatform = props.group.platform
+    // 只拉取与分组平台匹配的账号(composite 混合分组不限平台)
     const result = await accountsAPI.list(page.value, pageSize, {
       search: search.value || undefined,
+      platform: groupPlatform !== 'composite' ? groupPlatform : undefined,
       lite: '0'
     })
-    // Filter out accounts that already belong to this group
+    // Filter out accounts that already belong to this group or mismatch the platform
     accounts.value = result.items.filter(
-      account => !(account.group_ids ?? []).includes(props.group!.id)
+      account =>
+        (groupPlatform === 'composite' || account.platform === groupPlatform) &&
+        !(account.group_ids ?? []).includes(props.group!.id)
     )
     total.value = Math.max(0, result.total - (result.items.length - accounts.value.length))
   } finally {

@@ -2,7 +2,7 @@
   <!-- Scenario A: Specific Resource Pool Selected -->
   <div
     v-if="group"
-    class="pool-summary-card shrink-0 bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-tr-2xl rounded-tl-none rounded-b-none border-b-0 shadow-sm p-5 transition-all relative overflow-hidden"
+    class="pool-summary-card shrink-0 bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-tr-2xl rounded-tl-none rounded-b-none border-b-0 shadow-sm p-3.5 transition-all relative overflow-hidden"
   >
     <!-- Background subtle gradient accent -->
     <div class="pointer-events-none absolute -right-20 -top-20 w-64 h-64 bg-primary-500/5 dark:bg-primary-500/10 rounded-full blur-3xl" />
@@ -11,7 +11,7 @@
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
       <!-- Left: Platform Avatar + Name + Tags + Description -->
       <div class="flex items-start gap-3.5 min-w-0">
-        <div class="platform-avatar p-2.5 rounded-xl bg-gray-50 dark:bg-dark-800 border border-gray-100 dark:border-dark-700 text-gray-700 dark:text-gray-200 shadow-xs shrink-0 mt-0.5">
+        <div class="platform-avatar p-1.5 rounded-xl bg-gray-50 dark:bg-dark-800 border border-gray-100 dark:border-dark-700 text-gray-700 dark:text-gray-200 shadow-xs shrink-0 mt-0.5">
           <PlatformIcon :platform="group.platform" size="md" />
         </div>
 
@@ -129,22 +129,22 @@
   <!-- Scenario B: Global Scope Selected (All Accounts / Ungrouped Accounts) -->
   <div
     v-else
-    class="pool-summary-card scope-hero shrink-0 bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-tr-2xl rounded-tl-none rounded-b-none border-b-0 shadow-sm p-5 relative overflow-hidden"
+    class="pool-summary-card scope-hero shrink-0 bg-white dark:bg-dark-900 border border-gray-200/80 dark:border-dark-700/80 rounded-tr-2xl rounded-tl-none rounded-b-none border-b-0 shadow-sm p-3 relative overflow-hidden"
   >
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-      <div class="flex items-start gap-3.5">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 relative z-10">
+      <div class="flex items-start gap-3">
         <div
           :class="[
-            'p-3 rounded-xl border shadow-xs shrink-0',
+            'p-1.5 rounded-lg border shadow-xs shrink-0',
             scope === 'ungrouped'
               ? 'bg-amber-50 text-amber-600 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800/60'
               : 'bg-blue-50 text-blue-600 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800/60'
           ]"
         >
-          <el-icon class="text-2xl"><component :is="scope === 'ungrouped' ? Box : Grid" /></el-icon>
+          <el-icon class="text-lg"><component :is="scope === 'ungrouped' ? Box : Grid" /></el-icon>
         </div>
-        <div class="space-y-1">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight m-0">
+        <div class="space-y-0.5">
+          <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight m-0">
             {{ scope === 'ungrouped' ? t('resourcePool.summary.ungroupedTitle') : t('resourcePool.summary.allTitle') }}
           </h2>
           <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl m-0 leading-relaxed">

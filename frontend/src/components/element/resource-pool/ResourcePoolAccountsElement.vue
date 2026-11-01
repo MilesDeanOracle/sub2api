@@ -92,37 +92,40 @@
             {{ t('resourcePool.accounts.selected', { count: selected.length }) }}
           </span>
         </div>
-        <div class="flex items-center gap-2">
-          <el-button
-            size="small"
-            type="primary"
-            class="!rounded-lg"
-            @click="$emit('batch-add', selected)"
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" class="btn btn-danger btn-sm" @click="$emit('batch-delete', selected)">
+            {{ t('admin.accounts.bulkActions.delete') }}
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="$emit('batch-reset-status', selected)">
+            {{ t('admin.accounts.bulkActions.resetStatus') }}
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="$emit('batch-refresh-token', selected)">
+            {{ t('admin.accounts.bulkActions.refreshToken') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="probingSelected"
+            @click="onProbeSelected"
           >
-            <el-icon class="mr-1"><FolderAdd /></el-icon>
-            {{ t('resourcePool.actions.addToGroup') }}
-          </el-button>
-          <el-button
-            v-if="groupId"
-            size="small"
-            type="danger"
-            plain
-            class="!rounded-lg"
-            @click="$emit('batch-remove', selected)"
-          >
-            <el-icon class="mr-1"><Delete /></el-icon>
+            <el-icon v-if="probingSelected" class="is-loading"><Loading /></el-icon>
+            {{ t('admin.accounts.bulkActions.probeUpstreamBilling') }}
+          </button>
+          <button type="button" class="btn btn-success btn-sm" @click="$emit('batch-schedulable', selected, true)">
+            {{ t('admin.accounts.bulkActions.enableScheduling') }}
+          </button>
+          <button type="button" class="btn btn-sm batch-stop-btn" @click="$emit('batch-schedulable', selected, false)">
+            {{ t('admin.accounts.bulkActions.disableScheduling') }}
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" @click="$emit('batch-edit-selected', selected)">
+            {{ t('admin.accounts.bulkActions.edit') }}
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" @click="$emit('batch-edit-filtered')">
+            {{ t('admin.accounts.bulkEdit.submit') }}
+          </button>
+          <button v-if="groupId" type="button" class="btn btn-secondary btn-sm" @click="$emit('batch-remove', selected)">
             {{ t('resourcePool.actions.removeFromCurrent') }}
-          </el-button>
-          <el-button
-            size="small"
-            type="danger"
-            plain
-            class="!rounded-lg"
-            @click="$emit('batch-delete', selected)"
-          >
-            <el-icon class="mr-1"><Delete /></el-icon>
-            {{ t('resourcePool.actions.deleteSelected') }}
-          </el-button>
+          </button>
           <el-button
             size="small"
             text
@@ -144,12 +147,13 @@
         :height="isNarrow ? undefined : '100%'"
         class="resource-pool-table !rounded-xl"
         @selection-change="onSelectionChange"
+        @sort-change="onSortChange"
       >
         <!-- Selection Checkbox -->
         <el-table-column type="selection" width="36" align="center" />
 
         <!-- Name -->
-        <el-table-column :label="t('resourcePool.accounts.name')" :min-width="nameColumnMinWidth" fixed="left">
+        <el-table-column prop="name" sortable="custom" :label="t('resourcePool.accounts.name')" :min-width="nameColumnMinWidth" fixed="left">
           <template #default="{ row }">
             <div class="flex items-center gap-2.5 py-1">
               <PlatformIcon
@@ -164,7 +168,17 @@
               />
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="font-bold text-sm text-gray-900 dark:text-gray-100 truncate" :title="row.name">
+                  <a
+                    v-if="accountBaseUrl(row)"
+                    :href="accountBaseUrl(row)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate hover:text-primary-600 dark:hover:text-primary-400 hover:underline cursor-pointer"
+                    :title="accountBaseUrl(row)"
+                  >
+                    {{ row.name }}
+                  </a>
+                  <span v-else class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate" :title="row.name">
                     {{ row.name }}
                   </span>
                 </div>
@@ -185,9 +199,10 @@
         </el-table-column>
 
         <!-- Billing multiplier + upstream rate probe -->
-        <el-table-column v-if="showRateColumn" :label="t('resourcePool.accounts.multiplier')" width="128" align="center">
+        <el-table-column v-if="showRateColumn" prop="rate_multiplier" sortable="custom" :label="t('resourcePool.accounts.multiplier')" width="150" align="center">
           <template #header>
-            <div class="flex items-center justify-center gap-1">
+            <!-- inline-flex 保证与排序箭头同行,避免箭头被挤换行 -->
+            <div class="inline-flex items-center gap-1">
               <span>{{ t('resourcePool.accounts.multiplier') }}</span>
               <button
                 type="button"
@@ -213,6 +228,17 @@
           </template>
         </el-table-column>
 
+        <!-- Priority (原系统快捷编辑组件) -->
+        <el-table-column prop="priority" sortable="custom" class-name="priority-col" :label="t('admin.accounts.columns.priority')" width="150" align="center">
+          <template #default="{ row }">
+            <AccountPriorityCell
+              :account="row"
+              @updated="account => onPriorityUpdated(row, account)"
+              @error="message => ElMessage.error(message)"
+            />
+          </template>
+        </el-table-column>
+
         <!-- Scheduling -->
         <el-table-column :label="t('resourcePool.accounts.scheduling')" width="68" align="center">
           <template #default="{ row }">
@@ -226,7 +252,7 @@
         </el-table-column>
 
         <!-- Groups -->
-        <el-table-column label="分组" :min-width="groupColumnMinWidth">
+        <el-table-column label="分组" :min-width="groupColumnMinWidth" prop="groups" sortable :sort-by="(row: AccountListItem) => (row.groups ?? []).map(group => group.name).join(',')">
           <template #default="{ row }">
             <ResourcePoolMembershipCell
               :selected-ids="accountGroupIds(row)"
@@ -244,20 +270,21 @@
         </el-table-column>
 
         <!-- Capacity -->
-        <el-table-column v-if="showCapacity" :label="t('resourcePool.accounts.capacity')" min-width="130">
+        <el-table-column v-if="showCapacity" :label="t('resourcePool.accounts.capacity')" width="80">
           <template #default="{ row }">
-            <div class="space-y-1.5 py-0.5 min-w-0">
-              <div class="flex items-center justify-between gap-2 text-[11px]">
-                <span class="text-gray-400 dark:text-dark-400">并发</span>
-                <span class="font-mono font-semibold text-gray-700 dark:text-gray-300 tabular-nums">{{ row.current_concurrency ?? 0 }} / {{ row.concurrency }}</span>
-              </div>
-              <el-progress :percentage="concurrencyPercent(row)" :status="concurrencyStatus(row)" :show-text="false" :stroke-width="4" />
-            </div>
+            <AccountCapacityCell :account="row" />
           </template>
         </el-table-column>
 
-        <!-- Today's stats -->
-        <el-table-column v-if="showTodayStats" :label="t('resourcePool.accounts.todayStats')" min-width="160">
+        <!-- Today's stats(点击列头按用户扣费在当前页内排序) -->
+        <el-table-column
+          v-if="showTodayStats"
+          :label="t('resourcePool.accounts.todayStats')"
+          min-width="160"
+          prop="today_user_cost"
+          sortable
+          :sort-by="(row: AccountListItem) => todayStatsByAccountId[String(row.id)]?.user_cost ?? 0"
+        >
           <template #default="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -362,7 +389,6 @@ import {
   Delete,
   Edit,
   Filter,
-  FolderAdd,
   Link,
   Loading,
   MoreFilled,
@@ -374,10 +400,12 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
 import { Icon } from '@/components/icons'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
+import AccountPriorityCell from '@/components/account/AccountPriorityCell.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import ResourcePoolMembershipCell from './ResourcePoolMembershipCell.vue'
-import type { AccountListItem, AdminGroup, GroupPlatform, WindowStats } from '@/types'
+import type { Account, AccountListItem, AdminGroup, GroupPlatform, WindowStats } from '@/types'
 
 export interface ResourcePoolAccountFilters {
   search: string
@@ -395,17 +423,24 @@ const props = defineProps<{
   filters: ResourcePoolAccountFilters
   groupId?: number
   availableGroups: AdminGroup[]
+  /** 当前视图的列表过滤上下文(分组/异常监控),批量探测按它拉取全量账号 */
+  scopeFilter?: { group?: string; status?: string }
 }>()
 
 const emit = defineEmits<{
   refresh: []
   create: []
   'add-existing': []
-  'batch-add': [accounts: AccountListItem[]]
   'batch-remove': [accounts: AccountListItem[]]
   'batch-delete': [accounts: AccountListItem[]]
+  'batch-reset-status': [accounts: AccountListItem[]]
+  'batch-refresh-token': [accounts: AccountListItem[]]
+  'batch-schedulable': [accounts: AccountListItem[], schedulable: boolean]
+  'batch-edit-selected': [accounts: AccountListItem[]]
+  'batch-edit-filtered': []
   'page-change': [page: number, pageSize: number]
   'filter-change': [filters: ResourcePoolAccountFilters]
+  'sort-change': [prop: string, order: 'ascending' | 'descending' | null]
   'group-click': [groupId: number]
   edit: [account: AccountListItem]
   test: [account: AccountListItem]
@@ -495,9 +530,46 @@ function onSelectionChange(rows: AccountListItem[]) {
   selected.value = rows
 }
 
+// 名称/倍率/优先级为后端排序(sortable="custom"),转发给父组件重查列表
+function onSortChange({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }) {
+  emit('sort-change', String(prop), order)
+}
+
 // —— 探测上游倍率:单个 + 批量,复用原系统 upstream-billing-probe API 与 UpstreamBillingRateCell ——
 const probingIds = reactive(new Set<number>())
 const batchProbing = ref(false)
+const probingSelected = ref(false)
+
+// 工具条"探测上游倍率":仅探测勾选的账号(与原系统一致,单批上限 20)
+async function onProbeSelected() {
+  if (probingSelected.value) return
+  const ids = selected.value.filter(row => row.type === 'apikey').map(row => row.id)
+  if (ids.length === 0) {
+    ElMessage.error(t('admin.accounts.upstreamBilling.noEligibleAccounts'))
+    return
+  }
+  if (ids.length > 20) {
+    ElMessage.error(t('admin.accounts.upstreamBilling.batchLimit'))
+    return
+  }
+  probingSelected.value = true
+  ids.forEach(id => probingIds.add(id))
+  try {
+    const results = await accountsAPI.probeUpstreamBillingBatch(ids)
+    const failed = results.filter(result => result.error).length
+    if (failed > 0) {
+      ElMessage.error(t('admin.accounts.upstreamBilling.batchPartial', { success: results.length - failed, failed }))
+    } else {
+      ElMessage.success(t('admin.accounts.upstreamBilling.batchCompleted', { count: results.length }))
+    }
+    if (results.some(result => result.snapshot)) emit('refresh')
+  } catch (error: any) {
+    ElMessage.error(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    ids.forEach(id => probingIds.delete(id))
+    probingSelected.value = false
+  }
+}
 const upstreamBillingNow = ref(Date.now())
 useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
 const upstreamBillingProbeGloballyEnabled = ref<boolean | undefined>(undefined)
@@ -531,31 +603,48 @@ async function onProbe(row: AccountListItem) {
 
 async function onBatchProbe() {
   if (batchProbing.value) return
-  // 仅 API Key 账号支持上游倍率探测(与原系统一致)
-  const ids = selected.value.filter(row => row.type === 'apikey').map(row => row.id)
-  if (ids.length === 0) {
-    ElMessage.error(t('admin.accounts.upstreamBilling.noEligibleAccounts'))
-    return
-  }
-  if (ids.length > 20) {
-    ElMessage.error(t('admin.accounts.upstreamBilling.batchLimit'))
-    return
-  }
   batchProbing.value = true
-  ids.forEach(id => probingIds.add(id))
+  let success = 0
+  let failed = 0
   try {
-    const results = await accountsAPI.probeUpstreamBillingBatch(ids)
-    const failed = results.filter(result => result.error).length
-    if (failed > 0) {
-      ElMessage.error(t('admin.accounts.upstreamBilling.batchPartial', { success: results.length - failed, failed }))
-    } else {
-      ElMessage.success(t('admin.accounts.upstreamBilling.batchCompleted', { count: results.length }))
+    // 拉取当前视图(分组/筛选)下的全部账号;仅 API Key 账号支持上游倍率探测
+    const result = await accountsAPI.list(1, 1000, {
+      group: props.scopeFilter?.group,
+      search: props.filters.search || undefined,
+      platform: props.filters.platform || undefined,
+      status: props.scopeFilter?.status || props.filters.status || undefined,
+      type: props.filters.type || undefined,
+      lite: '1'
+    })
+    const ids = result.items.filter(row => row.type === 'apikey').map(row => row.id)
+    if (ids.length === 0) {
+      ElMessage.error('当前视图暂无 API Key 账号')
+      return
     }
-    if (results.some(result => result.snapshot)) emit('refresh')
+    // 后端单批上限 20 个,自动分批串行探测
+    for (let index = 0; index < ids.length; index += 20) {
+      const chunk = ids.slice(index, index + 20)
+      chunk.forEach(id => probingIds.add(id))
+      try {
+        const results = await accountsAPI.probeUpstreamBillingBatch(chunk)
+        const chunkFailed = results.filter(result => result.error).length
+        success += results.length - chunkFailed
+        failed += chunkFailed
+      } catch {
+        failed += chunk.length
+      } finally {
+        chunk.forEach(id => probingIds.delete(id))
+      }
+    }
+    if (failed > 0) {
+      ElMessage.error(t('admin.accounts.upstreamBilling.batchPartial', { success, failed }))
+    } else {
+      ElMessage.success(t('admin.accounts.upstreamBilling.batchCompleted', { count: success }))
+    }
+    if (success > 0) emit('refresh')
   } catch (error: any) {
     ElMessage.error(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
   } finally {
-    ids.forEach(id => probingIds.delete(id))
     batchProbing.value = false
   }
 }
@@ -811,16 +900,15 @@ function accountAvailable(account: AccountListItem) {
   return account.status === 'active' && account.schedulable && !account.rate_limit_reset_at && !account.temp_unschedulable_until
 }
 
-function concurrencyPercent(account: AccountListItem) {
-  if (!account.concurrency) return 0
-  return Math.min(100, Math.round(((account.current_concurrency ?? 0) / account.concurrency) * 100))
+function onPriorityUpdated(row: AccountListItem, account: Account) {
+  // 优先级快捷保存成功后局部更新行数据,避免整表刷新
+  row.priority = account.priority
 }
 
-function concurrencyStatus(account: AccountListItem) {
-  const percent = concurrencyPercent(account)
-  if (percent >= 90) return 'exception'
-  if (percent >= 60) return 'warning'
-  return 'success'
+// 悬停账号名称时展示转发端点(credentials 中非敏感字段,列表响应已包含)
+function accountBaseUrl(account: AccountListItem): string | undefined {
+  const baseUrl = account.credentials?.base_url
+  return typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : undefined
 }
 
 function platformDisplayName(platform: string) {
@@ -850,6 +938,18 @@ function platformDisplayName(platform: string) {
   position: relative;
 }
 
+/* 批量停止调度:明确橙色实底(覆盖原系统 btn-warning 的琥珀渐变) */
+.batch-stop-btn {
+  background: linear-gradient(to right, #f97316, #ea580c);
+  color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.25);
+}
+
+.batch-stop-btn:hover {
+  background: linear-gradient(to right, #ea580c, #c2410c);
+  color: #fff;
+}
+
 /* —— 表格精修:通过 el-table CSS 变量统一控制层级与分隔线 —— */
 .resource-pool-table {
   --el-table-border-color: rgba(15, 23, 42, 0.06);
@@ -877,6 +977,18 @@ function platformDisplayName(platform: string) {
   font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  text-align: left;
+}
+
+/* 表头单元格内层容器统一左对齐,覆盖个别列(如居中列)的表头默认对齐 */
+:deep(.el-table th.el-table__cell .cell) {
+  text-align: left;
+}
+
+/* 优先级列表头例外:与列内容一致居中 */
+:deep(.el-table th.el-table__cell.priority-col),
+:deep(.el-table th.el-table__cell.priority-col .cell) {
+  text-align: center;
 }
 
 :deep(.el-table .el-table__cell) {

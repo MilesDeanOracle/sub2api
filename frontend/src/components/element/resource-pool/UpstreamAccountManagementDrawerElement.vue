@@ -453,6 +453,8 @@ async function addSelectedAccounts() {
         platform,
         type: 'apikey',
         credentials,
+        concurrency: 10,
+        priority: 99,
         rate_multiplier: Number.isFinite(group.rate_multiplier) ? Math.max(0, group.rate_multiplier) : 1,
         group_ids: [],
         upstream_billing_probe_enabled: true,

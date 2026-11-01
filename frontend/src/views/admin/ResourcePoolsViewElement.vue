@@ -4,24 +4,33 @@
       <div class="resource-pools-container" :class="{ 'is-narrow': isNarrow }">
         <!-- Page Top Header -->
         <div class="page-top-header flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-gray-200/70 dark:border-dark-800">
-          <div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-600 to-blue-500 text-white flex items-center justify-center shadow-sm shrink-0">
-                <el-icon class="text-lg"><Folder /></el-icon>
-              </div>
-              <div>
-                <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight m-0">
-                  {{ t('resourcePool.title') }}
-                </h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400 m-0 mt-0.5">
-                  {{ t('resourcePool.description') }}
-                </p>
-              </div>
-            </div>
+          <!-- Legacy navigation, pinned to the left -->
+          <div class="flex items-center flex-wrap gap-2">
+            <el-tooltip :content="t('resourcePool.advanced.description')" placement="top">
+              <el-button
+                plain
+                class="!rounded-lg text-xs"
+                @click="goToAdvanced"
+              >
+                <el-icon class="mr-1"><Back /></el-icon>
+                {{ t('resourcePool.actions.backToLegacyGroups') }}
+              </el-button>
+            </el-tooltip>
+
+            <el-tooltip :content="t('resourcePool.advanced.legacyAccountsHint')" placement="top">
+              <el-button
+                plain
+                class="!rounded-lg text-xs"
+                @click="goToLegacyAccounts"
+              >
+                <el-icon class="mr-1"><Back /></el-icon>
+                {{ t('resourcePool.actions.backToLegacyAccounts') }}
+              </el-button>
+            </el-tooltip>
           </div>
 
           <!-- Quick Metrics & Top Actions -->
-          <div class="flex items-center flex-wrap gap-2">
+          <div class="flex items-center flex-wrap gap-2 sm:ml-auto">
             <!-- Header Mini Badges -->
             <div class="hidden xl:flex items-center gap-2 mr-2 text-xs">
               <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-dark-800 text-gray-600 dark:text-gray-300 font-medium border border-gray-200/60 dark:border-dark-700">
@@ -52,18 +61,6 @@
                 @click="refreshWorkspace"
               >
                 <el-icon><Refresh /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <!-- Advanced Config Link -->
-            <el-tooltip :content="t('resourcePool.advanced.description')" placement="top">
-              <el-button
-                plain
-                class="!rounded-lg text-xs"
-                @click="goToAdvanced"
-              >
-                <el-icon class="mr-1"><Setting /></el-icon>
-                {{ t('resourcePool.actions.advanced') }}
               </el-button>
             </el-tooltip>
 
@@ -171,15 +168,21 @@
               :filters="filters"
               :groupId="selectedGroupId"
               :available-groups="groups"
+              :scope-filter="scopeFilter"
               @refresh="loadAccounts"
               @create="showCreateAccount = true"
               @add-existing="showAssign = true"
-              @batch-add="openBatchGroup"
               @batch-remove="batchRemove"
               @batch-delete="batchDelete"
+              @batch-reset-status="batchResetStatus"
+              @batch-refresh-token="batchRefreshToken"
+              @batch-schedulable="batchToggleSchedulable"
+              @batch-edit-selected="openBulkEditSelected"
+              @batch-edit-filtered="openBulkEditFiltered"
               @membership-changed="relationshipChanged"
               @page-change="changePage"
               @filter-change="changeFilters"
+              @sort-change="changeSort"
               @group-click="groupId => applySelection({ scope: 'group', groupId })"
               @edit="openAccountModal('edit', $event)"
               @test="openAccountModal('test', $event)"
@@ -275,64 +278,24 @@
           </form>
         </BaseDialog>
 
-        <!-- Batch Add to Group Dialog -->
-        <el-dialog
-          v-model="batchGroupVisible"
-          :title="t('resourcePool.actions.addToGroup')"
-          width="480px"
-          class="!rounded-2xl"
-          destroy-on-close
-        >
-          <div class="space-y-3">
-            <p class="text-xs text-gray-500 dark:text-gray-400 m-0">
-              请选择要将选中的 {{ batchAccounts.length }} 个账号加入的目标资源池：
-            </p>
-            <el-select
-              v-model="batchTargetGroupId"
-              filterable
-              class="w-full"
-              :placeholder="t('resourcePool.assign.chooseGroup')"
-            >
-              <el-option
-                v-for="group in groups"
-                :key="group.id"
-                :label="`${platformLabel(group.platform)} / ${group.name}`"
-                :value="group.id"
-              >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <PlatformIcon :platform="group.platform" size="xs" />
-                    <span>{{ group.name }}</span>
-                  </div>
-                  <span class="text-xs text-gray-400">{{ group.account_count ?? 0 }} 账号</span>
-                </div>
-              </el-option>
-            </el-select>
-          </div>
-
-          <template #footer>
-            <div class="flex items-center justify-end gap-2">
-              <el-button @click="batchGroupVisible = false">
-                {{ t('common.cancel') }}
-              </el-button>
-              <el-button
-                type="primary"
-                :loading="batchMutating"
-                :disabled="!batchTargetGroupId"
-                class="!rounded-lg shadow-sm"
-                @click="confirmBatchAdd"
-              >
-                {{ t('common.confirm') }}
-              </el-button>
-            </div>
-          </template>
-        </el-dialog>
-
         <!-- Assign Existing Accounts Dialog -->
         <AssignAccountsToGroupDialogElement
           v-model="showAssign"
           :group="selectedGroup"
           @changed="relationshipChanged"
+        />
+
+        <!-- Bulk Edit Accounts Modal(原系统弹窗,直接搬用) -->
+        <BulkEditAccountModal
+          :show="showBulkEdit"
+          :account-ids="bulkEditIds"
+          :selected-platforms="bulkEditPlatforms"
+          :selected-types="bulkEditTypes"
+          :target="bulkEditTarget ?? undefined"
+          :proxies="proxies"
+          :groups="groups"
+          @close="showBulkEdit = false"
+          @updated="handleBulkUpdated"
         />
 
         <UpstreamAccountManagementDrawerElement
@@ -412,20 +375,18 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import enUs from 'element-plus/es/locale/lang/en'
 import {
+  Back,
   CirclePlus,
   Connection,
-  Folder,
   Menu,
   Plus,
-  Refresh,
-  Setting
+  Refresh
 } from '@element-plus/icons-vue'
 import { accountsAPI, groupsAPI, proxiesAPI } from '@/api/admin'
-import type { Account, AccountListItem, AdminGroup, ClaudeModel, GroupPlatform, Proxy as AccountProxy } from '@/types'
+import type { Account, AccountListItem, AccountPlatform, AccountType, AdminGroup, ClaudeModel, GroupPlatform, Proxy as AccountProxy } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
-import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ResourcePoolNavigatorElement from '@/components/element/resource-pool/ResourcePoolNavigatorElement.vue'
 import ResourcePoolSummaryElement from '@/components/element/resource-pool/ResourcePoolSummaryElement.vue'
 import ResourcePoolAccountsElement, { type ResourcePoolAccountFilters } from '@/components/element/resource-pool/ResourcePoolAccountsElement.vue'
@@ -435,6 +396,7 @@ import GroupRateMultipliersModal from '@/components/admin/group/GroupRateMultipl
 import GroupRPMOverridesModal from '@/components/admin/group/GroupRPMOverridesModal.vue'
 import CreateAccountModal from '@/components/account/CreateAccountModal.vue'
 import EditAccountModal from '@/components/account/EditAccountModal.vue'
+import BulkEditAccountModal from '@/components/account/BulkEditAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
@@ -465,10 +427,25 @@ const scope = ref<'all' | 'ungrouped' | 'issues' | 'group'>('all')
 const selectedGroupId = ref<number>()
 const page = ref(1)
 const pageSize = ref(20)
+// 后端排序(名称/倍率/优先级);分组列为表格内本地排序,不进入查询
+const sortBy = ref<'name' | 'rate_multiplier' | 'priority' | ''>('')
+const sortOrder = ref<'asc' | 'desc'>('asc')
 const filters = reactive<ResourcePoolAccountFilters>({ search: '', platform: '', status: '', type: '' })
 
 const showAssign = ref(false)
 const showUpstreamAccounts = ref(false)
+// 原系统批量编辑弹窗:selected 模式针对勾选账号,filtered 模式针对当前筛选结果
+const showBulkEdit = ref(false)
+const bulkEditIds = ref<number[]>([])
+const bulkEditPlatforms = ref<AccountPlatform[]>([])
+const bulkEditTypes = ref<AccountType[]>([])
+const bulkEditTarget = ref<{
+  mode: 'selected' | 'filtered'
+  filters?: Record<string, unknown>
+  previewCount?: number
+  selectedPlatforms?: AccountPlatform[]
+  selectedTypes?: AccountType[]
+} | null>(null)
 const showCreateAccount = ref(false)
 const showEditAccount = ref(false)
 const showTestAccount = ref(false)
@@ -495,11 +472,6 @@ const groupForm = reactive({
 })
 const originalGroupsView = ref<{ openCreateModal: () => void; openEditModal: (group: AdminGroup) => void } | null>(null)
 
-const batchGroupVisible = ref(false)
-const batchTargetGroupId = ref<number>()
-const batchAccounts = ref<AccountListItem[]>([])
-const batchMutating = ref(false)
-
 const platforms: GroupPlatform[] = [
   'anthropic',
   'openai',
@@ -519,6 +491,11 @@ const platforms: GroupPlatform[] = [
 const groupPlatformOptions = computed(() => platforms.map(platform => ({ value: platform, label: platformLabel(platform) })))
 const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value) ?? null)
 const selectionKey = computed(() => (scope.value === 'group' ? `group:${selectedGroupId.value}` : scope.value))
+// 供批量探测等操作按当前视图拉取全量账号
+const scopeFilter = computed(() => ({
+  group: accountGroupFilter({ scope: scope.value, groupId: selectedGroupId.value }),
+  status: scope.value === 'issues' ? 'rate_limited' : undefined
+}))
 const currentTitle = computed(() => {
   return selectedGroup.value?.name ?? (scope.value === 'ungrouped' ? t('resourcePool.navigator.ungrouped') : scope.value === 'issues' ? '限流与异常监控' : t('resourcePool.navigator.allAccounts'))
 })
@@ -576,6 +553,8 @@ async function loadAccounts() {
       platform: filters.platform || undefined,
       status: scope.value === 'issues' ? 'rate_limited' : filters.status || undefined,
       type: filters.type || undefined,
+      sort_by: sortBy.value || undefined,
+      sort_order: sortBy.value ? sortOrder.value : undefined,
       lite: '0'
     })
     accounts.value = result.items
@@ -619,6 +598,20 @@ async function changeFilters(next: ResourcePoolAccountFilters) {
   page.value = 1
   await syncRoute()
   await loadAccounts()
+}
+
+function changeSort(prop: string, order: 'ascending' | 'descending' | null) {
+  if (prop === 'name' || prop === 'rate_multiplier' || prop === 'priority') {
+    if (order === null) {
+      sortBy.value = ''
+      sortOrder.value = 'asc'
+    } else {
+      sortBy.value = prop
+      sortOrder.value = order === 'descending' ? 'desc' : 'asc'
+    }
+    page.value = 1
+    void loadAccounts()
+  }
 }
 
 function resetGroupForm(group?: AdminGroup) {
@@ -668,6 +661,10 @@ async function goToAdvanced() {
     path: '/admin/resource-pools/advanced-groups',
     query: returnId ? { return_group_id: returnId } : undefined
   })
+}
+
+function goToLegacyAccounts() {
+  void router.push('/admin/resource-pools/legacy-accounts')
 }
 
 async function handleGroupAction(command: string, payload?: number | boolean) {
@@ -835,54 +832,6 @@ async function handleAccountAction(command: string, account: AccountListItem) {
   }
 }
 
-function openBatchGroup(selected: AccountListItem[]) {
-  batchAccounts.value = selected
-  batchTargetGroupId.value = selectedGroupId.value
-  batchGroupVisible.value = true
-}
-
-async function confirmBatchAdd() {
-  if (!batchTargetGroupId.value) return
-  batchMutating.value = true
-  let success = 0
-  let failed = 0
-
-  for (const account of batchAccounts.value) {
-    try {
-      const risk = await accountsAPI.checkMixedChannelRisk({
-        platform: account.platform,
-        group_ids: [batchTargetGroupId.value],
-        account_id: account.id
-      })
-      let confirmRisk = false
-      if (risk.has_risk) {
-        await ElMessageBox.confirm(
-          t('resourcePool.assign.mixedWarning', { name: account.name }),
-          t('resourcePool.assign.riskTitle'),
-          {
-            type: 'warning',
-            confirmButtonText: t('resourcePool.assign.continue'),
-            cancelButtonText: t('common.cancel')
-          }
-        )
-        confirmRisk = true
-      }
-      await accountsAPI.setGroupMembership(account.id, batchTargetGroupId.value, {
-        priority: 1,
-        confirm_mixed_channel_risk: confirmRisk
-      })
-      success++
-    } catch {
-      failed++
-    }
-  }
-
-  batchMutating.value = false
-  batchGroupVisible.value = false
-  await relationshipChanged()
-  ElMessage.info(t('resourcePool.assign.partial', { success, failed }))
-}
-
 async function removeAccounts(selected: AccountListItem[]) {
   if (!selectedGroupId.value) return
   let success = 0
@@ -933,6 +882,98 @@ async function batchDelete(selected: AccountListItem[]) {
 
 async function relationshipChanged() {
   await Promise.all([loadGroups(), loadCounts(), loadAccounts()])
+}
+
+// —— 原系统批量操作:重置状态 / 刷新令牌 / 调度开关 / 批量编辑 ——
+async function batchResetStatus(selected: AccountListItem[]) {
+  await ElMessageBox.confirm(
+    t('admin.accounts.bulkActions.resetStatus'),
+    t('common.confirm'),
+    { type: 'warning' }
+  )
+  const result = await accountsAPI.batchClearError(selected.map(account => account.id))
+  if (result.failed > 0) {
+    ElMessage.warning(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
+  } else {
+    ElMessage.success(t('admin.accounts.bulkActions.resetStatusSuccess', { count: result.success }))
+  }
+  await relationshipChanged()
+}
+
+async function batchRefreshToken(selected: AccountListItem[]) {
+  await ElMessageBox.confirm(
+    t('admin.accounts.bulkActions.refreshToken'),
+    t('common.confirm'),
+    { type: 'warning' }
+  )
+  const result = await accountsAPI.batchRefresh(selected.map(account => account.id))
+  if (result.failed > 0) {
+    ElMessage.warning(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
+  } else {
+    ElMessage.success(t('admin.accounts.bulkActions.refreshTokenSuccess', { count: result.success }))
+  }
+  await relationshipChanged()
+}
+
+async function batchToggleSchedulable(selected: AccountListItem[], schedulable: boolean) {
+  const result = await accountsAPI.bulkUpdate(selected.map(account => account.id), { schedulable })
+  if (result.failed > 0) {
+    ElMessage.warning(t('admin.accounts.bulkActions.bulkSchedulablePartial', { success: result.success, failed: result.failed }))
+  } else {
+    ElMessage.success(
+      schedulable
+        ? t('admin.accounts.bulkActions.bulkSchedulableEnabled', { count: result.success })
+        : t('admin.accounts.bulkActions.bulkSchedulableDisabled', { count: result.success })
+    )
+  }
+  await relationshipChanged()
+}
+
+function applyBulkEditSelection(accounts: AccountListItem[]) {
+  bulkEditIds.value = accounts.map(account => account.id)
+  bulkEditPlatforms.value = Array.from(new Set(accounts.map(account => account.platform)))
+  bulkEditTypes.value = Array.from(new Set(accounts.map(account => account.type)))
+}
+
+function openBulkEditSelected(selected: AccountListItem[]) {
+  if (selected.length === 0) return
+  applyBulkEditSelection(selected)
+  bulkEditTarget.value = null
+  showBulkEdit.value = true
+}
+
+async function openBulkEditFiltered() {
+  // 与账号列表一致的筛选上下文快照(原系统 filtered 模式)
+  const filterSnapshot = {
+    platform: filters.platform || '',
+    type: filters.type || '',
+    status: scope.value === 'issues' ? 'rate_limited' : (filters.status || ''),
+    group: accountGroupFilter({ scope: scope.value, groupId: selectedGroupId.value }) ?? '',
+    search: filters.search || '',
+    privacy_mode: '',
+    sort_by: '',
+    sort_order: 'asc' as const
+  }
+  const preview = await accountsAPI.list(1, 100, filterSnapshot)
+  const platforms = Array.from(new Set(preview.items.map(account => account.platform)))
+  const types = Array.from(new Set(preview.items.map(account => account.type)))
+  bulkEditTarget.value = {
+    mode: 'filtered',
+    filters: filterSnapshot,
+    previewCount: preview.total,
+    selectedPlatforms: platforms,
+    selectedTypes: types
+  }
+  bulkEditIds.value = []
+  bulkEditPlatforms.value = platforms
+  bulkEditTypes.value = types
+  showBulkEdit.value = true
+}
+
+async function handleBulkUpdated() {
+  showBulkEdit.value = false
+  bulkEditTarget.value = null
+  await relationshipChanged()
 }
 
 async function accountCreated() {
