@@ -918,12 +918,12 @@ async function batchRefreshToken(selected: AccountListItem[]) {
 async function batchToggleSchedulable(selected: AccountListItem[], schedulable: boolean) {
   const result = await accountsAPI.bulkUpdate(selected.map(account => account.id), { schedulable })
   if (result.failed > 0) {
-    ElMessage.warning(t('admin.accounts.bulkActions.bulkSchedulablePartial', { success: result.success, failed: result.failed }))
+    ElMessage.warning(t('admin.accounts.bulkSchedulablePartial', { success: result.success, failed: result.failed }))
   } else {
     ElMessage.success(
       schedulable
-        ? t('admin.accounts.bulkActions.bulkSchedulableEnabled', { count: result.success })
-        : t('admin.accounts.bulkActions.bulkSchedulableDisabled', { count: result.success })
+        ? t('admin.accounts.bulkSchedulableEnabled', { count: result.success })
+        : t('admin.accounts.bulkSchedulableDisabled', { count: result.success })
     )
   }
   await relationshipChanged()
