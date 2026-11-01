@@ -1,4 +1,4 @@
-.PHONY: help dev dev-local build build-backend build-frontend build-docker test test-backend test-frontend test-frontend-critical
+.PHONY: help dev dev-local build build-backend build-frontend build-docker up-file test test-backend test-frontend test-frontend-critical
 
 # 裸 make 仍保持编译行为（help 现在是第一个目标，需显式声明默认目标）
 .DEFAULT_GOAL := build
@@ -77,6 +77,23 @@ build-docker: ## 用 WSL Docker 打包镜像并上传到服务器 /data/docker-i
 else
 build-docker: ## 用 Docker 打包镜像并上传到服务器 /data/docker-img（输入用户名密码后上传）
 	@bash scripts/build-docker.sh
+endif
+
+# make up-file <tar路径>：把目标后面的 tar 路径取出来（等价写法：make up-file FILE=<tar路径>）
+# 需生成一条空规则吞掉这个多余 goal，否则 make 会把 tar 路径当作目标去构建
+ifeq ($(firstword $(MAKECMDGOALS)),up-file)
+TAR_FILE := $(if $(FILE),$(FILE),$(word 2,$(MAKECMDGOALS)))
+ifneq ($(TAR_FILE),)
+$(eval $(TAR_FILE):;@:)
+endif
+endif
+
+ifeq ($(OS),Windows_NT)
+up-file: ## 上传已打包的镜像 tar 到服务器（用法：make up-file dist/xxx.tar）
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/up-file.ps1 -TarPath "$(TAR_FILE)"
+else
+up-file: ## 上传已打包的镜像 tar 到服务器（用法：make up-file dist/xxx.tar）
+	@bash scripts/up-file.sh "$(TAR_FILE)"
 endif
 
 build: build-backend build-frontend ## 编译前后端（后端 + 前端）
