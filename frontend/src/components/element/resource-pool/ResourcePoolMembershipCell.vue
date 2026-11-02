@@ -53,6 +53,7 @@
       <div v-if="menuOpen" class="fixed inset-0 z-[1999]" @click="closeMenu"></div>
       <div
         v-if="menuOpen"
+        ref="menuRef"
         data-testid="membership-menu"
         class="fixed z-[2000] w-96 max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] bg-white dark:bg-dark-900 border border-slate-200 dark:border-dark-700 rounded-xl shadow-lg overflow-hidden flex flex-col"
         :style="menuStyle"
@@ -84,18 +85,18 @@
             :class="isSelected(group.id)
               ? 'bg-primary-500/10 text-primary-700 dark:text-primary-300 font-medium'
               : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-dark-800'"
-            class="w-full h-8 flex items-center justify-between gap-2 px-2.5 rounded-lg text-xs text-left transition-colors"
+            class="grid w-full min-h-8 grid-cols-[minmax(0,1fr)_minmax(0,max-content)_minmax(0,max-content)_0.875rem] items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors"
             @click="toggleOption(group.id)"
           >
             <div class="flex items-center gap-2 min-w-0 flex-1">
               <PlatformIcon :platform="group.platform" size="xs" class="shrink-0" />
-              <span class="truncate" :title="group.name">{{ group.name }}</span>
+              <span class="min-w-0 whitespace-normal break-all" :title="group.name">{{ group.name }}</span>
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-[10px] text-orange-600 dark:text-orange-400">
-              {{ formatGroupMultiplier(group.rate_multiplier) }}
+            <span class="min-w-0 whitespace-normal break-all text-right font-mono text-[10px] text-orange-600 dark:text-orange-400">
+              {{ group.rate_multiplier ?? 1 }}x
             </span>
-            <span class="w-12 shrink-0 text-right font-mono text-[10px] text-blue-600 dark:text-blue-400" title="当前账号倍率">
-              {{ Number(accountMultiplier ?? 1).toFixed(2) }}x
+            <span class="min-w-0 whitespace-normal break-all text-right font-mono text-[10px] text-blue-600 dark:text-blue-400" title="当前账号倍率">
+              {{ accountMultiplier ?? 1 }}x
             </span>
             <svg v-if="isSelected(group.id)" class="w-3.5 h-3.5 text-primary-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
@@ -118,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Search } from '@element-plus/icons-vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
@@ -146,6 +147,7 @@ const menuOpen = ref(false)
 const menuChanged = ref(false)
 const menuSearch = ref('')
 const triggerRef = ref<HTMLButtonElement | null>(null)
+const menuRef = ref<HTMLDivElement | null>(null)
 const menuStyle = ref<Record<string, string>>({})
 const filteredCompatibleGroups = computed(() => {
   const query = menuSearch.value.trim().toLocaleLowerCase()
@@ -166,31 +168,26 @@ function displayGroupName(id: number) {
   return characters.length > 20 ? `${characters.slice(0, 20).join('')}…` : name
 }
 
-function formatGroupMultiplier(value?: number) {
-  const multiplier = Number(value ?? 1)
-  return `${multiplier < 0.01 ? multiplier.toFixed(3) : multiplier.toFixed(2)}x`
-}
-
 function isSelected(id: number) {
   return props.selectedIds.includes(id)
 }
 
-function toggleMenu() {
+async function toggleMenu() {
   if (menuOpen.value) {
     closeMenu()
     return
   }
-  const rect = triggerRef.value?.getBoundingClientRect()
-  if (rect) {
-    const left = Math.min(rect.left, window.innerWidth - 384 - 8)
-    const visibleRows = Math.min(10, Math.max(1, filteredCompatibleGroups.value.length))
-    const estimatedHeight = 96 + visibleRows * 32
-    const top = Math.min(rect.bottom + 6, Math.max(8, window.innerHeight - estimatedHeight - 8))
-    menuStyle.value = { left: `${Math.max(8, left)}px`, top: `${top}px` }
-  }
   menuChanged.value = false
   menuSearch.value = ''
   menuOpen.value = true
+  await nextTick()
+  const rect = triggerRef.value?.getBoundingClientRect()
+  const menuRect = menuRef.value?.getBoundingClientRect()
+  if (rect && menuRect) {
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuRect.width - 8))
+    const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuRect.height - 8))
+    menuStyle.value = { left: `${left}px`, top: `${top}px` }
+  }
 }
 
 function closeMenu() {

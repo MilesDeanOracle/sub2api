@@ -9,7 +9,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 const groups = [
-  { id: 1, name: 'Claude 主池', description: null, platform: 'anthropic', status: 'active', account_count: 3, sort_order: 1 },
+  { id: 1, name: 'Claude 主池', description: null, platform: 'anthropic', status: 'active', rate_multiplier: 0.00123456789, account_count: 3, sort_order: 1 },
   { id: 2, name: 'Codex 备用池', description: null, platform: 'openai', status: 'inactive', account_count: 2, sort_order: 1 }
 ] as AdminGroup[]
 
@@ -39,6 +39,7 @@ describe('ResourcePoolNavigatorElement', () => {
     expect(wrapper.text()).toContain('resourcePool.navigator.allAccounts')
     expect(wrapper.text()).toContain('resourcePool.navigator.ungrouped')
     expect(wrapper.text()).toContain('Claude 主池')
+    expect(wrapper.get('[data-testid="pool-group-1"]').text()).toContain('0.00123456789x')
     expect(wrapper.text()).toContain('Codex 备用池')
     expect(wrapper.text()).toContain('9')
   })

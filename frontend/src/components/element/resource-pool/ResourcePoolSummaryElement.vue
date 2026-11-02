@@ -36,11 +36,11 @@
             >
             <span
               v-else
-              class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40 cursor-text select-none"
+              class="inline-flex max-w-full items-center break-all px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40 cursor-text select-none"
               title="双击修改倍率"
               @dblclick="startRateEdit"
             >
-              {{ t('resourcePool.summary.multiplier') }}: {{ Number(group.rate_multiplier || 1).toFixed(2) }}x
+              {{ t('resourcePool.summary.multiplier') }}: {{ group.rate_multiplier ?? 1 }}x
             </span>
 
             <!-- Status Pill（点击快捷切换启用/停用） -->

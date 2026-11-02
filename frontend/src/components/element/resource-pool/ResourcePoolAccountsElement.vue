@@ -156,16 +156,24 @@
         <el-table-column prop="name" sortable="custom" :label="t('resourcePool.accounts.name')" :min-width="nameColumnMinWidth" fixed="left">
           <template #default="{ row }">
             <div class="flex items-center gap-2.5 py-1">
-              <PlatformIcon
-                :platform="row.platform"
-                size="md"
-                class="shrink-0"
-                :class="!row.schedulable
-                  ? 'text-gray-900 dark:text-gray-100'
-                  : accountAvailable(row)
-                    ? 'text-emerald-500'
-                    : 'text-red-500'"
-              />
+              <el-tooltip placement="right" :show-after="200">
+                <span class="inline-flex shrink-0 cursor-help" tabindex="0">
+                  <PlatformIcon
+                    :platform="row.platform"
+                    size="md"
+                    :class="!row.schedulable
+                      ? 'text-gray-900 dark:text-gray-100'
+                      : accountAvailable(row)
+                        ? 'text-emerald-500'
+                        : 'text-red-500'"
+                  />
+                </span>
+                <template #content>
+                  <div class="max-h-[50vh] max-w-[min(360px,80vw)] space-y-1 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed">
+                    <div v-for="(reason, index) in accountStatusReasons(row)" :key="index">{{ reason }}</div>
+                  </div>
+                </template>
+              </el-tooltip>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <a
@@ -397,6 +405,7 @@ import {
 } from '@element-plus/icons-vue'
 import { accountsAPI } from '@/api/admin'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { formatDateTime } from '@/utils/format'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
 import { Icon } from '@/components/icons'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
@@ -898,6 +907,52 @@ async function saveGroupChanges() {
 
 function accountAvailable(account: AccountListItem) {
   return account.status === 'active' && account.schedulable && !account.rate_limit_reset_at && !account.temp_unschedulable_until
+}
+
+function accountStatusReasons(account: AccountListItem): string[] {
+  const reasons: string[] = []
+  if (!account.schedulable) reasons.push(t('admin.accounts.schedulableDisabled'))
+  if (account.status === 'inactive') reasons.push(t('admin.accounts.status.inactive'))
+  if (account.status === 'error') {
+    reasons.push(t('admin.accounts.status.error'))
+    if (account.error_message?.trim()) reasons.push(account.error_message.trim())
+  }
+  if (account.rate_limit_reset_at) {
+    reasons.push(t('admin.accounts.status.rateLimitedUntil', {
+      time: formatDateTime(account.rate_limit_reset_at)
+    }))
+  }
+  if (account.temp_unschedulable_until) {
+    reasons.push(t('admin.accounts.status.tempUnschedulable'))
+    const reason = account.temp_unschedulable_reason?.trim()
+    if (reason) {
+      // 临时停调原因可能是旧版纯文本，也可能是后端序列化的 TempUnschedState。
+      let description = reason
+      try {
+        const state: unknown = JSON.parse(reason)
+        if (state && typeof state === 'object') {
+          const details = state as Record<string, unknown>
+          const lines: string[] = []
+          if (typeof details.status_code === 'number' && details.status_code > 0) {
+            lines.push(`${t('admin.accounts.tempUnschedulable.errorCode')}: ${details.status_code}`)
+          }
+          if (typeof details.error_message === 'string' && details.error_message.trim()) {
+            lines.push(details.error_message.trim())
+          } else if (typeof details.matched_keyword === 'string' && details.matched_keyword.trim()) {
+            lines.push(`${t('admin.accounts.tempUnschedulable.keywords')}: ${details.matched_keyword.trim()}`)
+          }
+          if (lines.length) description = lines.join('\n')
+        }
+      } catch {
+        // 非 JSON 的旧版原因直接显示原文。
+      }
+      reasons.push(description)
+    }
+    reasons.push(t('admin.accounts.status.tempUnschedulableUntil', {
+      time: formatDateTime(account.temp_unschedulable_until)
+    }))
+  }
+  return reasons.length ? [...new Set(reasons)] : [t('admin.accounts.status.active')]
 }
 
 function onPriorityUpdated(row: AccountListItem, account: Account) {

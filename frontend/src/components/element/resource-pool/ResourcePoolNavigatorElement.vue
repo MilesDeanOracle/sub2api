@@ -160,7 +160,7 @@
                   @click="$emit('select', { scope: 'group', groupId: group.id })"
                 >
                   <!-- Left: Status Dot + Name + Multiplier Tag -->
-                  <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                  <div class="flex flex-wrap items-center gap-2 min-w-0 flex-1 pr-2">
                     <!-- Status Indicator with Ring -->
                     <span
                       :class="group.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-slate-400'"
@@ -171,8 +171,8 @@
                       {{ group.name }}
                     </span>
 
-                    <Badge v-if="group.rate_multiplier && group.rate_multiplier !== 1" variant="multiplier">
-                      {{ Number(group.rate_multiplier).toFixed(1) }}x
+                    <Badge variant="multiplier" class="min-w-0 max-w-full whitespace-normal break-all">
+                      {{ group.rate_multiplier ?? 1 }}x
                     </Badge>
                   </div>
 

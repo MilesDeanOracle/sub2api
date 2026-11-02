@@ -10,7 +10,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 const allGroups = [
-  { id: 1, name: 'Claude 主池', platform: 'anthropic', status: 'active', rate_multiplier: 0.001, sort_order: 1 },
+  { id: 1, name: 'Claude 主池', platform: 'anthropic', status: 'active', rate_multiplier: 0.001234, sort_order: 1 },
   { id: 2, name: 'Claude 备用池', platform: 'anthropic', status: 'active', sort_order: 2 },
   { id: 3, name: 'GPT 极速池', platform: 'openai', status: 'active', sort_order: 1 }
 ] as AdminGroup[]
@@ -85,7 +85,7 @@ describe('ResourcePoolMembershipCell', () => {
   })
 
   it('opens the teleported menu listing only compatible groups and toggles memberships', async () => {
-    const wrapper = mountCell([1], { accountMultiplier: 1.5 })
+    const wrapper = mountCell([1], { accountMultiplier: 1.23456789 })
     await wrapper.get('[data-testid="membership-trigger"]').trigger('click')
 
     const menu = bodyMenu()
@@ -94,8 +94,8 @@ describe('ResourcePoolMembershipCell', () => {
     // 仅列出同平台（anthropic）资源池，不含 openai
     expect(options).toHaveLength(2)
     expect(menu!.textContent).not.toContain('GPT 极速池')
-    expect(menu!.textContent).toContain('0.001x')
-    expect(menu!.textContent).toContain('1.50x')
+    expect(menu!.textContent).toContain('0.001234x')
+    expect(menu!.querySelector('[title="当前账号倍率"]')?.textContent?.trim()).toBe('1.23456789x')
     expect(menu!.querySelector('[title="当前账号倍率"]')?.className).toContain('text-blue-600')
 
     // 勾选加入池 2
