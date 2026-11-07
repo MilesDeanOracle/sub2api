@@ -74,6 +74,7 @@
               <PaymentMethodSelector
                 :methods="methodOptions"
                 :selected="selectedMethod"
+                :quick-buttons="checkout.recharge_quick_buttons"
                 @select="selectedMethod = $event"
               />
             </div>
@@ -177,6 +178,7 @@
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
                   :selected="selectedMethod"
+                  :quick-buttons="checkout.recharge_quick_buttons"
                   @select="selectedMethod = $event"
                 />
               </div>
@@ -533,6 +535,7 @@ const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
   plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
   recharge_bonus_tiers: [], recharge_bonus_mode: 'bonus', recharge_bonus_notice: '',
+  recharge_quick_buttons: [],
 })
 
 const renderedHelpText = computed(() => DOMPurify.sanitize(

@@ -8408,6 +8408,9 @@
             </div>
           </div>
 
+          <!-- 充值页快捷跳转按钮（独立卡片，独立接口保存） -->
+          <RechargeQuickButtonEditor v-if="form.payment_enabled" />
+
           <!-- 充值优惠阶梯（独立卡片，与服务商管理同级） -->
           <RechargeBonusTierEditor
             v-if="form.payment_enabled"
@@ -8993,6 +8996,7 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
+import RechargeQuickButtonEditor from "@/components/admin/settings/RechargeQuickButtonEditor.vue";
 import {
   normalizeRechargeBonusMode,
   normalizeRechargeBonusTiers,

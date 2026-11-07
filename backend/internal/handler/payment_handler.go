@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,15 +19,17 @@ import (
 
 // PaymentHandler handles user-facing payment requests.
 type PaymentHandler struct {
-	paymentService *service.PaymentService
-	configService  *service.PaymentConfigService
+	paymentService     *service.PaymentService
+	configService      *service.PaymentConfigService
+	quickButtonService *service.RechargeQuickButtonService
 }
 
 // NewPaymentHandler creates a new PaymentHandler.
-func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService) *PaymentHandler {
+func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, quickButtonService *service.RechargeQuickButtonService) *PaymentHandler {
 	return &PaymentHandler{
-		paymentService: paymentService,
-		configService:  configService,
+		paymentService:     paymentService,
+		configService:      configService,
+		quickButtonService: quickButtonService,
 	}
 }
 
@@ -120,6 +123,8 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 
 	// Fetch plans with group info
 	plans, _ := h.configService.ListPlansForSale(ctx)
+	// Recharge quick buttons (served from the in-memory cache, enabled only)
+	quickButtons := h.buildCheckoutQuickButtons(ctx)
 	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
@@ -157,7 +162,24 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		StripePublishableKey:          cfg.StripePublishableKey,
 		AlipayForceQRCode:             cfg.AlipayForceQRCode,
 		AlipayMobilePrecreateDeepLink: alipayMobilePrecreateDeepLink,
+		QuickButtons:                  quickButtons,
 	})
+}
+
+// buildCheckoutQuickButtons maps the enabled in-memory quick buttons to the checkout payload.
+func (h *PaymentHandler) buildCheckoutQuickButtons(ctx context.Context) []checkoutQuickButton {
+	buttons := h.quickButtonService.ListEnabled(ctx)
+	if len(buttons) == 0 {
+		return nil
+	}
+	out := make([]checkoutQuickButton, 0, len(buttons))
+	for _, b := range buttons {
+		out = append(out, checkoutQuickButton{
+			ID: b.ID, Label: b.Label, IconURL: b.IconURL,
+			URL: b.URL, OpenMethod: b.OpenMethod,
+		})
+	}
+	return out
 }
 
 type checkoutInfoResponse struct {
@@ -177,6 +199,16 @@ type checkoutInfoResponse struct {
 	StripePublishableKey          string                          `json:"stripe_publishable_key"`
 	AlipayForceQRCode             bool                            `json:"alipay_force_qrcode"`
 	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link"`
+	QuickButtons                  []checkoutQuickButton           `json:"recharge_quick_buttons,omitempty"`
+}
+
+// checkoutQuickButton 充值页支付方式网格后面的快捷跳转按钮。
+type checkoutQuickButton struct {
+	ID         int64  `json:"id"`
+	Label      string `json:"label"`
+	IconURL    string `json:"icon_url"`
+	URL        string `json:"url"`
+	OpenMethod string `json:"open_method"`
 }
 
 type checkoutPlan struct {
