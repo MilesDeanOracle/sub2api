@@ -102,6 +102,13 @@ func RegisterPaymentRoutes(
 		adminGroup.GET("/config", adminPaymentHandler.GetConfig)
 		adminGroup.PUT("/config", adminPaymentHandler.UpdateConfig)
 
+		// Recharge Quick Buttons (in-memory cached; PUT replaces all and refreshes the cache)
+		quickButtons := adminGroup.Group("/quick-buttons")
+		{
+			quickButtons.GET("", adminPaymentHandler.ListQuickButtons)
+			quickButtons.PUT("", adminPaymentHandler.UpdateQuickButtons)
+		}
+
 		// Orders
 		adminOrders := adminGroup.Group("/orders")
 		{

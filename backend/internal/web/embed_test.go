@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,14 +207,22 @@ func TestNonceHTMLPlaceholder(t *testing.T) {
 
 // mockSettingsProvider implements PublicSettingsProvider for testing
 type mockSettingsProvider struct {
-	settings any
-	err      error
-	called   int
+	settings    any
+	err         error
+	called      int
+	pageEnabled bool
 }
 
 func (m *mockSettingsProvider) GetPublicSettingsForInjection(ctx context.Context) (any, error) {
 	m.called++
 	return m.settings, m.err
+}
+
+func (m *mockSettingsProvider) GetPublicTransitRuntime(ctx context.Context) service.PublicTransitRuntime {
+	return service.PublicTransitRuntime{
+		APIEnabled:  true,
+		PageEnabled: m.pageEnabled,
+	}
 }
 
 func TestFrontendServer_InjectSettings(t *testing.T) {
@@ -518,19 +527,20 @@ func TestFrontendServer_Middleware(t *testing.T) {
 		server, err := NewFrontendServer(provider)
 		require.NoError(t, err)
 
-		apiPaths := []string{
-			"/api/v1/users",
-			"/models",
-			"/v1/models",
-			"/v1beta/chat",
-			"/backend-api/codex/responses",
-			"/backend-api/codex/responses/compact",
-			"/antigravity/test",
-			"/setup/init",
-			"/health",
-			"/.well-known/oauth-protected-resource",
-			"/.well-known/oauth-protected-resource/api/v1/mcp",
-			"/.well-known/oauth-authorization-server",
+	apiPaths := []string{
+		"/api/v1/users",
+		"/models",
+		"/.well-known/ai-transit.json",
+		"/v1/models",
+		"/v1beta/chat",
+		"/backend-api/codex/responses",
+		"/backend-api/codex/responses/compact",
+		"/antigravity/test",
+		"/setup/init",
+		"/health",
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/api/v1/mcp",
+		"/.well-known/oauth-authorization-server",
 			"/responses",
 			"/responses/compact",
 			"/chat/completions",
@@ -641,6 +651,50 @@ func TestFrontendServer_Middleware(t *testing.T) {
 				assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
 			})
 		}
+	})
+
+	t.Run("blocks_public_transit_page_when_disabled", func(t *testing.T) {
+		provider := &mockSettingsProvider{
+			settings:    map[string]string{"test": "value"},
+			pageEnabled: false,
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		router := gin.New()
+		router.Use(server.Middleware())
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, service.PublicTransitPagePath, nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "Public transit page is disabled")
+	})
+
+	t.Run("serves_public_transit_page_when_enabled", func(t *testing.T) {
+		provider := &mockSettingsProvider{
+			settings:    map[string]string{"test": "value"},
+			pageEnabled: true,
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(middleware.CSPNonceKey, "test-nonce")
+			c.Next()
+		})
+		router.Use(server.Middleware())
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, service.PublicTransitPagePath, nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
 	})
 
 	t.Run("serves_static_files", func(t *testing.T) {
@@ -823,6 +877,7 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 		apiPaths := []string{
 			"/api/users",
 			"/models",
+			"/.well-known/ai-transit.json",
 			"/v1/models",
 			"/v1beta/chat",
 			"/backend-api/codex/responses",

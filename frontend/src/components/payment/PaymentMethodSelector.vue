@@ -38,6 +38,23 @@
           </span>
         </span>
       </button>
+      <button
+        v-for="btn in quickButtons"
+        :key="`quick-${btn.id}`"
+        type="button"
+        :title="quickButtonLabel(btn)"
+        class="relative flex h-[60px] min-w-0 flex-col items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-gray-700 transition-all hover:border-primary-400 hover:shadow-sm dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-primary-500"
+        @click="openQuickButton(btn)"
+      >
+        <span class="flex w-full min-w-0 items-center justify-center gap-2">
+          <img :src="btn.icon_url || paymentIcon" :alt="quickButtonLabel(btn)" class="h-7 w-7 shrink-0 object-contain" />
+          <span class="flex min-w-0 flex-col items-start leading-none">
+            <span class="block w-full truncate text-base font-semibold">
+              {{ quickButtonLabel(btn) }}
+            </span>
+          </span>
+        </span>
+      </button>
     </div>
   </div>
 </template>
@@ -45,7 +62,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { METHOD_ORDER, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from './providerConfig'
+import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from './providerConfig'
+import type { RechargeQuickButton } from '@/types/payment'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 import stripeIcon from '@/assets/icons/stripe.svg'
@@ -62,6 +80,8 @@ export interface PaymentMethodOption {
 const props = defineProps<{
   methods: PaymentMethodOption[]
   selected: string
+  /** 支付方式网格末尾的快捷跳转按钮（后端内存缓存下发，未配置则不渲染） */
+  quickButtons?: RechargeQuickButton[]
 }>()
 
 const emit = defineEmits<{
@@ -104,5 +124,19 @@ function methodSelectedClass(type: string): string {
   if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
   if (type === 'airwallex') return 'border-[#FF6B3D] bg-orange-50 text-gray-900 shadow-sm dark:border-[#FF8E3C] dark:bg-orange-950 dark:text-gray-100'
   return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
+}
+
+function quickButtonLabel(btn: RechargeQuickButton): string {
+  return btn.label || t('payment.quickButton')
+}
+
+function openQuickButton(btn: RechargeQuickButton): void {
+  if (btn.open_method === 'popup') {
+    const win = window.open(btn.url, 'rechargeQuickButton', getPaymentPopupFeatures())
+    // 弹窗被拦截时回退当前页跳转，与支付弹窗的处理保持一致
+    if (!win || win.closed) window.location.href = btn.url
+    return
+  }
+  window.open(btn.url, '_blank', 'noopener,noreferrer')
 }
 </script>

@@ -186,6 +186,15 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'modelPlaza.title'
     }
   },
+  {
+    path: '/public/transit',
+    name: 'PublicTransit',
+    component: () => import('@/views/public/PublicTransitView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Public Transit'
+    }
+  },
 
   // ==================== User Routes ====================
   {
@@ -669,6 +678,18 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'admin.promptAudit.title',
       descriptionKey: 'admin.promptAudit.description',
       requiresRiskControl: true
+    }
+  },
+  {
+    path: '/admin/operations',
+    name: 'AdminOperations',
+    component: () => import('@/views/admin/OperationsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Operations Management',
+      titleKey: 'operations.title',
+      descriptionKey: 'operations.description'
     }
   },
   {

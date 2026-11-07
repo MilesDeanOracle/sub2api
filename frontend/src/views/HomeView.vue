@@ -49,6 +49,14 @@
             <Icon name="grid" size="md" />
             <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
           </router-link>
+          <router-link
+            v-if="publicTransitEnabled"
+            to="/public/transit"
+            class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+            :title="t('publicTransit.nav')"
+          >
+            <span class="hidden sm:inline">{{ t('publicTransit.nav') }}</span>
+          </router-link>
           <button
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-dark-400 dark:hover:bg-dark-800"
             :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
@@ -190,6 +198,16 @@
           {{ t('home.immersion.exploreModels') }}
           <span>＋</span>
         </router-link>
+        <router-link
+          v-if="publicTransitEnabled"
+          to="/public/transit"
+          class="inline-flex h-12 items-center gap-2 rounded-xl border px-7 text-base font-medium transition-all hover:-translate-y-0.5"
+          :class="isDark
+            ? 'border-white/20 text-white/85 hover:border-white/40 hover:bg-white/5'
+            : 'border-slate-900/15 text-slate-700 hover:border-slate-900/30 hover:bg-slate-900/5'"
+        >
+          {{ t('publicTransit.nav') }}
+        </router-link>
       </div>
 
       <!-- 支持的模型 -->
@@ -249,6 +267,10 @@ const homeContent = computed(() => appStore.cachedPublicSettings?.home_content |
 const hasHomeContent = computed(() => homeContent.value.trim().length > 0)
 const compactHomeEnabled = computed(() => appStore.cachedPublicSettings?.compact_home_enabled === true)
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
+const publicTransitEnabled = computed(() =>
+  appStore.cachedPublicSettings?.public_transit_enabled === true &&
+  appStore.cachedPublicSettings?.public_transit_page_enabled === true
+)
 
 // Check if homeContent is a URL (for iframe display)
 const isHomeContentUrl = computed(() => {

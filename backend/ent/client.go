@@ -41,6 +41,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/rechargequickbutton"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
@@ -115,6 +116,8 @@ type Client struct {
 	PromoCodeUsage *PromoCodeUsageClient
 	// Proxy is the client for interacting with the Proxy builders.
 	Proxy *ProxyClient
+	// RechargeQuickButton is the client for interacting with the RechargeQuickButton builders.
+	RechargeQuickButton *RechargeQuickButtonClient
 	// RedeemCode is the client for interacting with the RedeemCode builders.
 	RedeemCode *RedeemCodeClient
 	// SecuritySecret is the client for interacting with the SecuritySecret builders.
@@ -178,6 +181,7 @@ func (c *Client) init() {
 	c.PromoCode = NewPromoCodeClient(c.config)
 	c.PromoCodeUsage = NewPromoCodeUsageClient(c.config)
 	c.Proxy = NewProxyClient(c.config)
+	c.RechargeQuickButton = NewRechargeQuickButtonClient(c.config)
 	c.RedeemCode = NewRedeemCodeClient(c.config)
 	c.SecuritySecret = NewSecuritySecretClient(c.config)
 	c.Setting = NewSettingClient(c.config)
@@ -309,6 +313,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		PromoCode:                     NewPromoCodeClient(cfg),
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
 		Proxy:                         NewProxyClient(cfg),
+		RechargeQuickButton:           NewRechargeQuickButtonClient(cfg),
 		RedeemCode:                    NewRedeemCodeClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
@@ -367,6 +372,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		PromoCode:                     NewPromoCodeClient(cfg),
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
 		Proxy:                         NewProxyClient(cfg),
+		RechargeQuickButton:           NewRechargeQuickButtonClient(cfg),
 		RedeemCode:                    NewRedeemCodeClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
@@ -416,9 +422,9 @@ func (c *Client) Use(hooks ...Hook) {
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
@@ -436,9 +442,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
@@ -500,6 +506,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PromoCodeUsage.mutate(ctx, m)
 	case *ProxyMutation:
 		return c.Proxy.mutate(ctx, m)
+	case *RechargeQuickButtonMutation:
+		return c.RechargeQuickButton.mutate(ctx, m)
 	case *RedeemCodeMutation:
 		return c.RedeemCode.mutate(ctx, m)
 	case *SecuritySecretMutation:
@@ -4654,6 +4662,139 @@ func (c *ProxyClient) mutate(ctx context.Context, m *ProxyMutation) (Value, erro
 	}
 }
 
+// RechargeQuickButtonClient is a client for the RechargeQuickButton schema.
+type RechargeQuickButtonClient struct {
+	config
+}
+
+// NewRechargeQuickButtonClient returns a client for the RechargeQuickButton from the given config.
+func NewRechargeQuickButtonClient(c config) *RechargeQuickButtonClient {
+	return &RechargeQuickButtonClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `rechargequickbutton.Hooks(f(g(h())))`.
+func (c *RechargeQuickButtonClient) Use(hooks ...Hook) {
+	c.hooks.RechargeQuickButton = append(c.hooks.RechargeQuickButton, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `rechargequickbutton.Intercept(f(g(h())))`.
+func (c *RechargeQuickButtonClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RechargeQuickButton = append(c.inters.RechargeQuickButton, interceptors...)
+}
+
+// Create returns a builder for creating a RechargeQuickButton entity.
+func (c *RechargeQuickButtonClient) Create() *RechargeQuickButtonCreate {
+	mutation := newRechargeQuickButtonMutation(c.config, OpCreate)
+	return &RechargeQuickButtonCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RechargeQuickButton entities.
+func (c *RechargeQuickButtonClient) CreateBulk(builders ...*RechargeQuickButtonCreate) *RechargeQuickButtonCreateBulk {
+	return &RechargeQuickButtonCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RechargeQuickButtonClient) MapCreateBulk(slice any, setFunc func(*RechargeQuickButtonCreate, int)) *RechargeQuickButtonCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RechargeQuickButtonCreateBulk{err: fmt.Errorf("calling to RechargeQuickButtonClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RechargeQuickButtonCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RechargeQuickButtonCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RechargeQuickButton.
+func (c *RechargeQuickButtonClient) Update() *RechargeQuickButtonUpdate {
+	mutation := newRechargeQuickButtonMutation(c.config, OpUpdate)
+	return &RechargeQuickButtonUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RechargeQuickButtonClient) UpdateOne(_m *RechargeQuickButton) *RechargeQuickButtonUpdateOne {
+	mutation := newRechargeQuickButtonMutation(c.config, OpUpdateOne, withRechargeQuickButton(_m))
+	return &RechargeQuickButtonUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RechargeQuickButtonClient) UpdateOneID(id int64) *RechargeQuickButtonUpdateOne {
+	mutation := newRechargeQuickButtonMutation(c.config, OpUpdateOne, withRechargeQuickButtonID(id))
+	return &RechargeQuickButtonUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RechargeQuickButton.
+func (c *RechargeQuickButtonClient) Delete() *RechargeQuickButtonDelete {
+	mutation := newRechargeQuickButtonMutation(c.config, OpDelete)
+	return &RechargeQuickButtonDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RechargeQuickButtonClient) DeleteOne(_m *RechargeQuickButton) *RechargeQuickButtonDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RechargeQuickButtonClient) DeleteOneID(id int64) *RechargeQuickButtonDeleteOne {
+	builder := c.Delete().Where(rechargequickbutton.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RechargeQuickButtonDeleteOne{builder}
+}
+
+// Query returns a query builder for RechargeQuickButton.
+func (c *RechargeQuickButtonClient) Query() *RechargeQuickButtonQuery {
+	return &RechargeQuickButtonQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRechargeQuickButton},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RechargeQuickButton entity by its id.
+func (c *RechargeQuickButtonClient) Get(ctx context.Context, id int64) (*RechargeQuickButton, error) {
+	return c.Query().Where(rechargequickbutton.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RechargeQuickButtonClient) GetX(ctx context.Context, id int64) *RechargeQuickButton {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RechargeQuickButtonClient) Hooks() []Hook {
+	return c.hooks.RechargeQuickButton
+}
+
+// Interceptors returns the client interceptors.
+func (c *RechargeQuickButtonClient) Interceptors() []Interceptor {
+	return c.inters.RechargeQuickButton
+}
+
+func (c *RechargeQuickButtonClient) mutate(ctx context.Context, m *RechargeQuickButtonMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RechargeQuickButtonCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RechargeQuickButtonUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RechargeQuickButtonUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RechargeQuickButtonDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RechargeQuickButton mutation op: %q", m.Op())
+	}
+}
+
 // RedeemCodeClient is a client for the RedeemCode schema.
 type RedeemCodeClient struct {
 	config
@@ -6847,10 +6988,10 @@ type (
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Hook
+		PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode, SecuritySecret,
+		Setting, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog,
+		User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -6859,10 +7000,10 @@ type (
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Interceptor
+		PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode, SecuritySecret,
+		Setting, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog,
+		User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

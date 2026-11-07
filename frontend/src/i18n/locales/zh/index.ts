@@ -7,8 +7,11 @@ import channelMonitorV2 from './channelMonitorV2'
 import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
+import operations from './operations'
+import publicTransit from './publicTransit'
 
 export default {
+  operations,
   adminAccessKeys,
   mcp,
   ...landing,
@@ -18,4 +21,5 @@ export default {
   ...batchImage,
   admin,
   ...misc,
+  ...publicTransit,
 }

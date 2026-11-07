@@ -724,9 +724,171 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 	return results, nil
 }
 
-// GetAllGroupUsageSummary 返回所有分组在服务端配置时区内的今日、昨日与当前保留记录累计金额。
-func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	return r.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+// GetAllGroupUsageSummary 返回所有分组在服务端配置时区内的今日、昨日与当前保留记录累计金额，
+// 并叠加滚动窗口的缓存读写指标（供公开快照 / 管理端摘要展示）。
+// TODO(perf): 缓存指标直查 usage_logs，当行数超过 ~1M 时考虑引入短期缓存或预聚合表。
+func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayStart, since24h, since7d time.Time) ([]usagestats.GroupUsageSummary, error) {
+	results, err := r.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheRows, err := r.getGroupCacheTokenTotals(ctx, todayStart, since24h, since7d)
+	if err != nil {
+		return nil, err
+	}
+	for i := range results {
+		window, ok := cacheRows[results[i].GroupID]
+		if !ok {
+			continue
+		}
+		results[i].TodayInputTokens = window.today.inputTokens
+		results[i].TodayCacheCreationTokens = window.today.cacheCreationTokens
+		results[i].TodayCacheReadTokens = window.today.cacheReadTokens
+		results[i].TodayCacheHitRate = cacheHitRate(window.today.inputTokens, window.today.cacheCreationTokens, window.today.cacheReadTokens)
+		results[i].Last24hInputTokens = window.last24h.inputTokens
+		results[i].Last24hCacheCreationTokens = window.last24h.cacheCreationTokens
+		results[i].Last24hCacheReadTokens = window.last24h.cacheReadTokens
+		results[i].Last24hCacheHitRate = cacheHitRate(window.last24h.inputTokens, window.last24h.cacheCreationTokens, window.last24h.cacheReadTokens)
+		results[i].Last7dInputTokens = window.last7d.inputTokens
+		results[i].Last7dCacheCreationTokens = window.last7d.cacheCreationTokens
+		results[i].Last7dCacheReadTokens = window.last7d.cacheReadTokens
+		results[i].Last7dCacheHitRate = cacheHitRate(window.last7d.inputTokens, window.last7d.cacheCreationTokens, window.last7d.cacheReadTokens)
+		results[i].TotalInputTokens = window.total.inputTokens
+		results[i].TotalCacheCreationTokens = window.total.cacheCreationTokens
+		results[i].TotalCacheReadTokens = window.total.cacheReadTokens
+		results[i].TotalCacheHitRate = cacheHitRate(window.total.inputTokens, window.total.cacheCreationTokens, window.total.cacheReadTokens)
+	}
+	return results, nil
+}
+
+type groupCacheTokenWindow struct {
+	inputTokens         int64
+	cacheCreationTokens int64
+	cacheReadTokens     int64
+}
+
+type groupCacheTokenTotals struct {
+	today   groupCacheTokenWindow
+	last24h groupCacheTokenWindow
+	last7d  groupCacheTokenWindow
+	total   groupCacheTokenWindow
+}
+
+// getGroupCacheTokenTotals 一次查询拉取各分组的今日 / 24h / 7d / 全量缓存 token 聚合。
+func (r *usageLogRepository) getGroupCacheTokenTotals(ctx context.Context, todayStart, since24h, since7d time.Time) (map[int64]groupCacheTokenTotals, error) {
+	const query = `
+		SELECT
+			ul.group_id,
+			COALESCE(SUM(ul.input_tokens), 0) AS total_input_tokens,
+			COALESCE(SUM(ul.cache_creation_tokens), 0) AS total_cache_creation_tokens,
+			COALESCE(SUM(ul.cache_read_tokens), 0) AS total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.input_tokens ELSE 0 END), 0) AS today_input_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.cache_creation_tokens ELSE 0 END), 0) AS today_cache_creation_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.cache_read_tokens ELSE 0 END), 0) AS today_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.input_tokens ELSE 0 END), 0) AS last_24h_input_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.cache_creation_tokens ELSE 0 END), 0) AS last_24h_cache_creation_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.cache_read_tokens ELSE 0 END), 0) AS last_24h_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $3 THEN ul.input_tokens ELSE 0 END), 0) AS last_7d_input_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $3 THEN ul.cache_creation_tokens ELSE 0 END), 0) AS last_7d_cache_creation_tokens,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $3 THEN ul.cache_read_tokens ELSE 0 END), 0) AS last_7d_cache_read_tokens
+		FROM usage_logs ul
+		GROUP BY ul.group_id
+	`
+	rows, err := r.sql.QueryContext(ctx, query, todayStart, since24h, since7d)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[int64]groupCacheTokenTotals)
+	for rows.Next() {
+		var groupID int64
+		var totals groupCacheTokenTotals
+		if err := rows.Scan(
+			&groupID,
+			&totals.total.inputTokens,
+			&totals.total.cacheCreationTokens,
+			&totals.total.cacheReadTokens,
+			&totals.today.inputTokens,
+			&totals.today.cacheCreationTokens,
+			&totals.today.cacheReadTokens,
+			&totals.last24h.inputTokens,
+			&totals.last24h.cacheCreationTokens,
+			&totals.last24h.cacheReadTokens,
+			&totals.last7d.inputTokens,
+			&totals.last7d.cacheCreationTokens,
+			&totals.last7d.cacheReadTokens,
+		); err != nil {
+			return nil, err
+		}
+		out[groupID] = totals
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetGroupCacheUsageSummary returns rolling cache usage windows for every group.
+func (r *usageLogRepository) GetGroupCacheUsageSummary(ctx context.Context, since24h, since7d time.Time) ([]usagestats.GroupCacheUsageSummary, error) {
+	query := `
+		SELECT
+			g.id AS group_id,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.input_tokens ELSE 0 END), 0) AS input_24h,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.cache_creation_tokens ELSE 0 END), 0) AS cache_creation_24h,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $1 THEN ul.cache_read_tokens ELSE 0 END), 0) AS cache_read_24h,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.input_tokens ELSE 0 END), 0) AS input_7d,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.cache_creation_tokens ELSE 0 END), 0) AS cache_creation_7d,
+			COALESCE(SUM(CASE WHEN ul.created_at >= $2 THEN ul.cache_read_tokens ELSE 0 END), 0) AS cache_read_7d,
+			COALESCE(SUM(ul.input_tokens), 0) AS input_total,
+			COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_total,
+			COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_total
+		FROM groups g
+		LEFT JOIN usage_logs ul ON ul.group_id = g.id
+		GROUP BY g.id
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, since24h, since7d)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []usagestats.GroupCacheUsageSummary
+	for rows.Next() {
+		var row usagestats.GroupCacheUsageSummary
+		if err := rows.Scan(
+			&row.GroupID,
+			&row.Last24h.InputTokens,
+			&row.Last24h.CacheCreationTokens,
+			&row.Last24h.CacheReadTokens,
+			&row.Last7d.InputTokens,
+			&row.Last7d.CacheCreationTokens,
+			&row.Last7d.CacheReadTokens,
+			&row.Total.InputTokens,
+			&row.Total.CacheCreationTokens,
+			&row.Total.CacheReadTokens,
+		); err != nil {
+			return nil, err
+		}
+		row.Last24h.CacheHitRate = cacheHitRate(row.Last24h.InputTokens, row.Last24h.CacheCreationTokens, row.Last24h.CacheReadTokens)
+		row.Last7d.CacheHitRate = cacheHitRate(row.Last7d.InputTokens, row.Last7d.CacheCreationTokens, row.Last7d.CacheReadTokens)
+		row.Total.CacheHitRate = cacheHitRate(row.Total.InputTokens, row.Total.CacheCreationTokens, row.Total.CacheReadTokens)
+		results = append(results, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func cacheHitRate(inputTokens, cacheCreationTokens, cacheReadTokens int64) float64 {
+	totalPromptTokens := inputTokens + cacheCreationTokens + cacheReadTokens
+	if totalPromptTokens <= 0 || cacheReadTokens <= 0 {
+		return 0
+	}
+	return float64(cacheReadTokens) / float64(totalPromptTokens) * 100
 }
 
 // resolveModelDimensionExpression maps model source type to a safe SQL expression.

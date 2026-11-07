@@ -13,15 +13,17 @@ import (
 
 // PaymentHandler handles admin payment management.
 type PaymentHandler struct {
-	paymentService *service.PaymentService
-	configService  *service.PaymentConfigService
+	paymentService     *service.PaymentService
+	configService      *service.PaymentConfigService
+	quickButtonService *service.RechargeQuickButtonService
 }
 
 // NewPaymentHandler creates a new admin PaymentHandler.
-func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService) *PaymentHandler {
+func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, quickButtonService *service.RechargeQuickButtonService) *PaymentHandler {
 	return &PaymentHandler{
-		paymentService: paymentService,
-		configService:  configService,
+		paymentService:     paymentService,
+		configService:      configService,
+		quickButtonService: quickButtonService,
 	}
 }
 
@@ -502,4 +504,30 @@ func (h *PaymentHandler) UpdateConfig(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"message": "updated"})
+}
+
+// --- Recharge Quick Buttons ---
+
+// ListQuickButtons returns the recharge quick buttons (admin view, served from the in-memory cache).
+// GET /api/v1/admin/payment/quick-buttons
+func (h *PaymentHandler) ListQuickButtons(c *gin.Context) {
+	response.Success(c, h.quickButtonService.ListAll(c.Request.Context()))
+}
+
+// UpdateQuickButtons replaces all recharge quick buttons and refreshes the in-memory cache.
+// PUT /api/v1/admin/payment/quick-buttons
+func (h *PaymentHandler) UpdateQuickButtons(c *gin.Context) {
+	var req struct {
+		QuickButtons []service.UpdateRechargeQuickButton `json:"quick_buttons" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	items, err := h.quickButtonService.ReplaceAll(c.Request.Context(), req.QuickButtons)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, items)
 }

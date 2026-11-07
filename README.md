@@ -18,6 +18,11 @@ English | [中文](README_CN.md) | [日本語](README_JA.md)
 
 </div>
 
+> Public transit snapshot distribution: this branch adds a machine-readable
+> public pricing, group, cache, and availability export for Sub2API stations.
+> See [README_PUBLIC_TRANSIT_CN.md](README_PUBLIC_TRANSIT_CN.md) for the
+> station-owner integration guide.
+
 ## ⚠️ Important Notice
 
 Please read the following carefully before using this project:

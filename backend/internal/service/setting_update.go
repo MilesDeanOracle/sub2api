@@ -441,6 +441,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyModelPlazaDescription] = settings.ModelPlazaDescription
 	updates[SettingKeyPluginManagementEnabled] = strconv.FormatBool(settings.PluginManagementEnabled)
 
+	// Public transit feature switch
+	updates[SettingKeyPublicTransitEnabled] = strconv.FormatBool(settings.PublicTransitEnabled)
+	updates[SettingKeyPublicTransitPageEnabled] = strconv.FormatBool(settings.PublicTransitEnabled && settings.PublicTransitPageEnabled)
+
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
 

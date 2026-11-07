@@ -23,6 +23,29 @@ export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' 
 
 export type OrderType = 'balance' | 'subscription'
 
+/** 充值页快捷跳转按钮的打开方式：popup 弹窗窗口 / new_tab 新标签页 */
+export type RechargeQuickButtonOpenMethod = 'popup' | 'new_tab'
+
+/** 充值页支付方式网格后面的快捷跳转按钮（配置由后端内存缓存下发） */
+export interface RechargeQuickButton {
+  id: number
+  label: string
+  icon_url: string
+  url: string
+  open_method: RechargeQuickButtonOpenMethod
+}
+
+/** 管理端可编辑的快捷按钮字段 */
+export interface AdminRechargeQuickButton {
+  id?: number
+  label: string
+  icon_url: string
+  url: string
+  open_method: RechargeQuickButtonOpenMethod
+  enabled: boolean
+  sort_order?: number
+}
+
 // ==================== Configuration ====================
 
 /** 充值赠送档位：支付金额 ≥ min_amount 时在到账基数上赠送 bonus_percent% */
@@ -90,6 +113,8 @@ export interface CheckoutInfoResponse {
   alipay_force_qrcode?: boolean
   /** When true, official Alipay mobile orders use precreate plus an Alipay app deep link */
   alipay_mobile_precreate_deep_link?: boolean
+  /** 支付方式网格后面的快捷跳转按钮；缺失/空数组 = 不展示 */
+  recharge_quick_buttons?: RechargeQuickButton[]
 }
 
 // ==================== Orders ====================

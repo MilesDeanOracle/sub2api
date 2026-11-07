@@ -978,11 +978,13 @@ var ProviderSet = wire.NewSet(
 	NewGroupCapacityService,
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
+	NewPublicTransitService,
 	NewModelPricingResolver,
 	NewModelPlazaService,
 	NewContentModerationService,
 	NewAffiliateService,
 	ProvidePaymentConfigService,
+	ProvideRechargeQuickButtonService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
 	ProvideBalanceNotifyService,
@@ -1006,6 +1008,16 @@ func ProvideUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache
 // payment.EncryptionKey type instead of raw []byte, avoiding Wire ambiguity.
 func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey) *PaymentConfigService {
 	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
+}
+
+// ProvideRechargeQuickButtonService 创建充值页快捷按钮服务，
+// 并在启动时把 recharge_quick_buttons 表加载进内存缓存（用户侧读路径不触库）。
+func ProvideRechargeQuickButtonService(entClient *dbent.Client) *RechargeQuickButtonService {
+	svc := NewRechargeQuickButtonService(entClient)
+	if err := svc.WarmCache(context.Background()); err != nil {
+		logger.LegacyPrintf("service.recharge_quick_button", "Warning: warm recharge quick button cache failed: %v", err)
+	}
+	return svc
 }
 
 // ProvideBalanceNotifyService creates BalanceNotifyService

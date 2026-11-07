@@ -1454,6 +1454,31 @@ var (
 			},
 		},
 	}
+	// RechargeQuickButtonsColumns holds the columns for the "recharge_quick_buttons" table.
+	RechargeQuickButtonsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "label", Type: field.TypeString, Size: 50, Default: ""},
+		{Name: "icon_url", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "url", Type: field.TypeString, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "open_method", Type: field.TypeString, Size: 20, Default: "new_tab"},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// RechargeQuickButtonsTable holds the schema information for the "recharge_quick_buttons" table.
+	RechargeQuickButtonsTable = &schema.Table{
+		Name:       "recharge_quick_buttons",
+		Columns:    RechargeQuickButtonsColumns,
+		PrimaryKey: []*schema.Column{RechargeQuickButtonsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "rechargequickbutton_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{RechargeQuickButtonsColumns[5]},
+			},
+		},
+	}
 	// RedeemCodesColumns holds the columns for the "redeem_codes" table.
 	RedeemCodesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2117,6 +2142,7 @@ var (
 		PromoCodesTable,
 		PromoCodeUsagesTable,
 		ProxiesTable,
+		RechargeQuickButtonsTable,
 		RedeemCodesTable,
 		SecuritySecretsTable,
 		SettingsTable,
@@ -2232,6 +2258,9 @@ func init() {
 	ProxiesTable.ForeignKeys[0].RefTable = ProxiesTable
 	ProxiesTable.Annotation = &entsql.Annotation{
 		Table: "proxies",
+	}
+	RechargeQuickButtonsTable.Annotation = &entsql.Annotation{
+		Table: "recharge_quick_buttons",
 	}
 	RedeemCodesTable.ForeignKeys[0].RefTable = GroupsTable
 	RedeemCodesTable.ForeignKeys[1].RefTable = UsersTable

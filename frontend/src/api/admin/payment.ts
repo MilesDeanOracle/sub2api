@@ -5,6 +5,7 @@
 
 import { apiClient } from '../client'
 import type {
+  AdminRechargeQuickButton,
   DashboardStats,
   PaymentOrder,
   PaymentChannel,
@@ -72,6 +73,20 @@ export const adminPaymentAPI = {
   /** Update payment configuration */
   updateConfig(data: UpdatePaymentConfigRequest) {
     return apiClient.put('/admin/payment/config', data)
+  },
+
+  // ==================== Recharge Quick Buttons ====================
+
+  /** Get recharge quick buttons (served from the backend in-memory cache) */
+  getQuickButtons() {
+    return apiClient.get<AdminRechargeQuickButton[]>('/admin/payment/quick-buttons')
+  },
+
+  /** Replace all recharge quick buttons (whole-list update) */
+  updateQuickButtons(buttons: AdminRechargeQuickButton[]) {
+    return apiClient.put<AdminRechargeQuickButton[]>('/admin/payment/quick-buttons', {
+      quick_buttons: buttons
+    })
   },
 
   // ==================== Dashboard ====================

@@ -326,6 +326,7 @@ export default {
     customAmount: '自定义金额',
     enterAmount: '输入金额',
     paymentMethod: '支付方式',
+    quickButton: '快捷入口',
     fee: '手续费',
     actualPay: '实付金额',
     createOrder: '确认支付',

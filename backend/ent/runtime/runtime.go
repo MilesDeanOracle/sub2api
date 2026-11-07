@@ -31,6 +31,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/rechargequickbutton"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
@@ -1743,6 +1744,46 @@ func init() {
 	proxyDescExpiryWarnDays := proxyFields[10].Descriptor()
 	// proxy.DefaultExpiryWarnDays holds the default value on creation for the expiry_warn_days field.
 	proxy.DefaultExpiryWarnDays = proxyDescExpiryWarnDays.Default.(int)
+	rechargequickbuttonFields := schema.RechargeQuickButton{}.Fields()
+	_ = rechargequickbuttonFields
+	// rechargequickbuttonDescLabel is the schema descriptor for label field.
+	rechargequickbuttonDescLabel := rechargequickbuttonFields[0].Descriptor()
+	// rechargequickbutton.DefaultLabel holds the default value on creation for the label field.
+	rechargequickbutton.DefaultLabel = rechargequickbuttonDescLabel.Default.(string)
+	// rechargequickbutton.LabelValidator is a validator for the "label" field. It is called by the builders before save.
+	rechargequickbutton.LabelValidator = rechargequickbuttonDescLabel.Validators[0].(func(string) error)
+	// rechargequickbuttonDescIconURL is the schema descriptor for icon_url field.
+	rechargequickbuttonDescIconURL := rechargequickbuttonFields[1].Descriptor()
+	// rechargequickbutton.DefaultIconURL holds the default value on creation for the icon_url field.
+	rechargequickbutton.DefaultIconURL = rechargequickbuttonDescIconURL.Default.(string)
+	// rechargequickbuttonDescURL is the schema descriptor for url field.
+	rechargequickbuttonDescURL := rechargequickbuttonFields[2].Descriptor()
+	// rechargequickbutton.URLValidator is a validator for the "url" field. It is called by the builders before save.
+	rechargequickbutton.URLValidator = rechargequickbuttonDescURL.Validators[0].(func(string) error)
+	// rechargequickbuttonDescOpenMethod is the schema descriptor for open_method field.
+	rechargequickbuttonDescOpenMethod := rechargequickbuttonFields[3].Descriptor()
+	// rechargequickbutton.DefaultOpenMethod holds the default value on creation for the open_method field.
+	rechargequickbutton.DefaultOpenMethod = rechargequickbuttonDescOpenMethod.Default.(string)
+	// rechargequickbutton.OpenMethodValidator is a validator for the "open_method" field. It is called by the builders before save.
+	rechargequickbutton.OpenMethodValidator = rechargequickbuttonDescOpenMethod.Validators[0].(func(string) error)
+	// rechargequickbuttonDescEnabled is the schema descriptor for enabled field.
+	rechargequickbuttonDescEnabled := rechargequickbuttonFields[4].Descriptor()
+	// rechargequickbutton.DefaultEnabled holds the default value on creation for the enabled field.
+	rechargequickbutton.DefaultEnabled = rechargequickbuttonDescEnabled.Default.(bool)
+	// rechargequickbuttonDescSortOrder is the schema descriptor for sort_order field.
+	rechargequickbuttonDescSortOrder := rechargequickbuttonFields[5].Descriptor()
+	// rechargequickbutton.DefaultSortOrder holds the default value on creation for the sort_order field.
+	rechargequickbutton.DefaultSortOrder = rechargequickbuttonDescSortOrder.Default.(int)
+	// rechargequickbuttonDescCreatedAt is the schema descriptor for created_at field.
+	rechargequickbuttonDescCreatedAt := rechargequickbuttonFields[6].Descriptor()
+	// rechargequickbutton.DefaultCreatedAt holds the default value on creation for the created_at field.
+	rechargequickbutton.DefaultCreatedAt = rechargequickbuttonDescCreatedAt.Default.(func() time.Time)
+	// rechargequickbuttonDescUpdatedAt is the schema descriptor for updated_at field.
+	rechargequickbuttonDescUpdatedAt := rechargequickbuttonFields[7].Descriptor()
+	// rechargequickbutton.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	rechargequickbutton.DefaultUpdatedAt = rechargequickbuttonDescUpdatedAt.Default.(func() time.Time)
+	// rechargequickbutton.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	rechargequickbutton.UpdateDefaultUpdatedAt = rechargequickbuttonDescUpdatedAt.UpdateDefault.(func() time.Time)
 	redeemcodeFields := schema.RedeemCode{}.Fields()
 	_ = redeemcodeFields
 	// redeemcodeDescCode is the schema descriptor for code field.

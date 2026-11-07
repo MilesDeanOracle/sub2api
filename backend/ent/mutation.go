@@ -39,6 +39,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/rechargequickbutton"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
@@ -90,6 +91,7 @@ const (
 	TypePromoCode                     = "PromoCode"
 	TypePromoCodeUsage                = "PromoCodeUsage"
 	TypeProxy                         = "Proxy"
+	TypeRechargeQuickButton           = "RechargeQuickButton"
 	TypeRedeemCode                    = "RedeemCode"
 	TypeSecuritySecret                = "SecuritySecret"
 	TypeSetting                       = "Setting"
@@ -38973,6 +38975,746 @@ func (m *ProxyMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Proxy edge %s", name)
+}
+
+// RechargeQuickButtonMutation represents an operation that mutates the RechargeQuickButton nodes in the graph.
+type RechargeQuickButtonMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	label         *string
+	icon_url      *string
+	url           *string
+	open_method   *string
+	enabled       *bool
+	sort_order    *int
+	addsort_order *int
+	created_at    *time.Time
+	updated_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*RechargeQuickButton, error)
+	predicates    []predicate.RechargeQuickButton
+}
+
+var _ ent.Mutation = (*RechargeQuickButtonMutation)(nil)
+
+// rechargequickbuttonOption allows management of the mutation configuration using functional options.
+type rechargequickbuttonOption func(*RechargeQuickButtonMutation)
+
+// newRechargeQuickButtonMutation creates new mutation for the RechargeQuickButton entity.
+func newRechargeQuickButtonMutation(c config, op Op, opts ...rechargequickbuttonOption) *RechargeQuickButtonMutation {
+	m := &RechargeQuickButtonMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRechargeQuickButton,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withRechargeQuickButtonID sets the ID field of the mutation.
+func withRechargeQuickButtonID(id int64) rechargequickbuttonOption {
+	return func(m *RechargeQuickButtonMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *RechargeQuickButton
+		)
+		m.oldValue = func(ctx context.Context) (*RechargeQuickButton, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().RechargeQuickButton.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRechargeQuickButton sets the old RechargeQuickButton of the mutation.
+func withRechargeQuickButton(node *RechargeQuickButton) rechargequickbuttonOption {
+	return func(m *RechargeQuickButtonMutation) {
+		m.oldValue = func(context.Context) (*RechargeQuickButton, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m RechargeQuickButtonMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m RechargeQuickButtonMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *RechargeQuickButtonMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *RechargeQuickButtonMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().RechargeQuickButton.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetLabel sets the "label" field.
+func (m *RechargeQuickButtonMutation) SetLabel(s string) {
+	m.label = &s
+}
+
+// Label returns the value of the "label" field in the mutation.
+func (m *RechargeQuickButtonMutation) Label() (r string, exists bool) {
+	v := m.label
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabel returns the old "label" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldLabel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabel: %w", err)
+	}
+	return oldValue.Label, nil
+}
+
+// ResetLabel resets all changes to the "label" field.
+func (m *RechargeQuickButtonMutation) ResetLabel() {
+	m.label = nil
+}
+
+// SetIconURL sets the "icon_url" field.
+func (m *RechargeQuickButtonMutation) SetIconURL(s string) {
+	m.icon_url = &s
+}
+
+// IconURL returns the value of the "icon_url" field in the mutation.
+func (m *RechargeQuickButtonMutation) IconURL() (r string, exists bool) {
+	v := m.icon_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIconURL returns the old "icon_url" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldIconURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIconURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIconURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIconURL: %w", err)
+	}
+	return oldValue.IconURL, nil
+}
+
+// ResetIconURL resets all changes to the "icon_url" field.
+func (m *RechargeQuickButtonMutation) ResetIconURL() {
+	m.icon_url = nil
+}
+
+// SetURL sets the "url" field.
+func (m *RechargeQuickButtonMutation) SetURL(s string) {
+	m.url = &s
+}
+
+// URL returns the value of the "url" field in the mutation.
+func (m *RechargeQuickButtonMutation) URL() (r string, exists bool) {
+	v := m.url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURL returns the old "url" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURL: %w", err)
+	}
+	return oldValue.URL, nil
+}
+
+// ResetURL resets all changes to the "url" field.
+func (m *RechargeQuickButtonMutation) ResetURL() {
+	m.url = nil
+}
+
+// SetOpenMethod sets the "open_method" field.
+func (m *RechargeQuickButtonMutation) SetOpenMethod(s string) {
+	m.open_method = &s
+}
+
+// OpenMethod returns the value of the "open_method" field in the mutation.
+func (m *RechargeQuickButtonMutation) OpenMethod() (r string, exists bool) {
+	v := m.open_method
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenMethod returns the old "open_method" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldOpenMethod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenMethod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenMethod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenMethod: %w", err)
+	}
+	return oldValue.OpenMethod, nil
+}
+
+// ResetOpenMethod resets all changes to the "open_method" field.
+func (m *RechargeQuickButtonMutation) ResetOpenMethod() {
+	m.open_method = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *RechargeQuickButtonMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *RechargeQuickButtonMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *RechargeQuickButtonMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (m *RechargeQuickButtonMutation) SetSortOrder(i int) {
+	m.sort_order = &i
+	m.addsort_order = nil
+}
+
+// SortOrder returns the value of the "sort_order" field in the mutation.
+func (m *RechargeQuickButtonMutation) SortOrder() (r int, exists bool) {
+	v := m.sort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSortOrder returns the old "sort_order" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldSortOrder(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSortOrder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSortOrder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSortOrder: %w", err)
+	}
+	return oldValue.SortOrder, nil
+}
+
+// AddSortOrder adds i to the "sort_order" field.
+func (m *RechargeQuickButtonMutation) AddSortOrder(i int) {
+	if m.addsort_order != nil {
+		*m.addsort_order += i
+	} else {
+		m.addsort_order = &i
+	}
+}
+
+// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
+func (m *RechargeQuickButtonMutation) AddedSortOrder() (r int, exists bool) {
+	v := m.addsort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSortOrder resets all changes to the "sort_order" field.
+func (m *RechargeQuickButtonMutation) ResetSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *RechargeQuickButtonMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *RechargeQuickButtonMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *RechargeQuickButtonMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *RechargeQuickButtonMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *RechargeQuickButtonMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the RechargeQuickButton entity.
+// If the RechargeQuickButton object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RechargeQuickButtonMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *RechargeQuickButtonMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the RechargeQuickButtonMutation builder.
+func (m *RechargeQuickButtonMutation) Where(ps ...predicate.RechargeQuickButton) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the RechargeQuickButtonMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RechargeQuickButtonMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RechargeQuickButton, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *RechargeQuickButtonMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RechargeQuickButtonMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (RechargeQuickButton).
+func (m *RechargeQuickButtonMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *RechargeQuickButtonMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.label != nil {
+		fields = append(fields, rechargequickbutton.FieldLabel)
+	}
+	if m.icon_url != nil {
+		fields = append(fields, rechargequickbutton.FieldIconURL)
+	}
+	if m.url != nil {
+		fields = append(fields, rechargequickbutton.FieldURL)
+	}
+	if m.open_method != nil {
+		fields = append(fields, rechargequickbutton.FieldOpenMethod)
+	}
+	if m.enabled != nil {
+		fields = append(fields, rechargequickbutton.FieldEnabled)
+	}
+	if m.sort_order != nil {
+		fields = append(fields, rechargequickbutton.FieldSortOrder)
+	}
+	if m.created_at != nil {
+		fields = append(fields, rechargequickbutton.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, rechargequickbutton.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *RechargeQuickButtonMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case rechargequickbutton.FieldLabel:
+		return m.Label()
+	case rechargequickbutton.FieldIconURL:
+		return m.IconURL()
+	case rechargequickbutton.FieldURL:
+		return m.URL()
+	case rechargequickbutton.FieldOpenMethod:
+		return m.OpenMethod()
+	case rechargequickbutton.FieldEnabled:
+		return m.Enabled()
+	case rechargequickbutton.FieldSortOrder:
+		return m.SortOrder()
+	case rechargequickbutton.FieldCreatedAt:
+		return m.CreatedAt()
+	case rechargequickbutton.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *RechargeQuickButtonMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case rechargequickbutton.FieldLabel:
+		return m.OldLabel(ctx)
+	case rechargequickbutton.FieldIconURL:
+		return m.OldIconURL(ctx)
+	case rechargequickbutton.FieldURL:
+		return m.OldURL(ctx)
+	case rechargequickbutton.FieldOpenMethod:
+		return m.OldOpenMethod(ctx)
+	case rechargequickbutton.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case rechargequickbutton.FieldSortOrder:
+		return m.OldSortOrder(ctx)
+	case rechargequickbutton.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case rechargequickbutton.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown RechargeQuickButton field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RechargeQuickButtonMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case rechargequickbutton.FieldLabel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabel(v)
+		return nil
+	case rechargequickbutton.FieldIconURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIconURL(v)
+		return nil
+	case rechargequickbutton.FieldURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURL(v)
+		return nil
+	case rechargequickbutton.FieldOpenMethod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenMethod(v)
+		return nil
+	case rechargequickbutton.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case rechargequickbutton.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSortOrder(v)
+		return nil
+	case rechargequickbutton.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case rechargequickbutton.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RechargeQuickButton field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *RechargeQuickButtonMutation) AddedFields() []string {
+	var fields []string
+	if m.addsort_order != nil {
+		fields = append(fields, rechargequickbutton.FieldSortOrder)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *RechargeQuickButtonMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case rechargequickbutton.FieldSortOrder:
+		return m.AddedSortOrder()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RechargeQuickButtonMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case rechargequickbutton.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSortOrder(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RechargeQuickButton numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *RechargeQuickButtonMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *RechargeQuickButtonMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *RechargeQuickButtonMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown RechargeQuickButton nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *RechargeQuickButtonMutation) ResetField(name string) error {
+	switch name {
+	case rechargequickbutton.FieldLabel:
+		m.ResetLabel()
+		return nil
+	case rechargequickbutton.FieldIconURL:
+		m.ResetIconURL()
+		return nil
+	case rechargequickbutton.FieldURL:
+		m.ResetURL()
+		return nil
+	case rechargequickbutton.FieldOpenMethod:
+		m.ResetOpenMethod()
+		return nil
+	case rechargequickbutton.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case rechargequickbutton.FieldSortOrder:
+		m.ResetSortOrder()
+		return nil
+	case rechargequickbutton.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case rechargequickbutton.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown RechargeQuickButton field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *RechargeQuickButtonMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *RechargeQuickButtonMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *RechargeQuickButtonMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *RechargeQuickButtonMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *RechargeQuickButtonMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *RechargeQuickButtonMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *RechargeQuickButtonMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown RechargeQuickButton unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *RechargeQuickButtonMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown RechargeQuickButton edge %s", name)
 }
 
 // RedeemCodeMutation represents an operation that mutates the RedeemCode nodes in the graph.
