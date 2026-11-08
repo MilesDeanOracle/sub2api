@@ -816,7 +816,16 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers, s
 		monitors.PUT("/:id", h.Admin.ChannelMonitor.Update)
 		monitors.DELETE("/:id", h.Admin.ChannelMonitor.Delete)
 		monitors.POST("/:id/run", h.Admin.ChannelMonitor.Run)
+		monitors.POST("/:id/run/stream", h.Admin.ChannelMonitor.RunStream)
 		monitors.GET("/:id/history", h.Admin.ChannelMonitor.History)
+		monitors.GET("/:id/probe-anomalies", h.Admin.ChannelMonitor.ProbeAnomalies)
+	}
+
+	// 全局探测异常列表：单独开一个 group，避免与 /channel-monitors/:id 路由冲突。
+	globalAnomalies := admin.Group("/channel-monitor-probe-anomalies")
+	globalAnomalies.Use(guard)
+	{
+		globalAnomalies.GET("", h.Admin.ChannelMonitor.GlobalProbeAnomalies)
 	}
 
 	templates := admin.Group("/channel-monitor-templates")

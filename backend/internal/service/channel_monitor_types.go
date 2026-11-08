@@ -144,6 +144,98 @@ type CheckResult struct {
 	Quota *domain.MonitorQuotaSnapshot
 }
 
+// ---- V1 探测重试周期（channel-monitor-v1-probe-retry） ----
+
+// 探测周期的触发方式（ProbeCycle.Trigger / ProbeAnomaly.Trigger）。
+const (
+	ProbeTriggerScheduled = "scheduled" // 调度器周期触发
+	ProbeTriggerManual    = "manual"    // 管理员「立即检测」
+)
+
+// 探测异常记录的落库结论（ProbeAnomaly.Resolution）。
+const (
+	// ProbeAnomalyResolutionSubstituted 重试后仍失败但写入了「上一次正常结果」的复制行。
+	ProbeAnomalyResolutionSubstituted = "substituted"
+	// ProbeAnomalyResolutionRealWritten 重试后仍失败且写入了真实失败结果。
+	ProbeAnomalyResolutionRealWritten = "real_written"
+)
+
+// real_written 的具体原因（ProbeAnomaly.Reason；substituted 时为空串）。
+const (
+	// ProbeAnomalyReasonNoReference 找不到可复制的参考行（新建监控、从未成功过）。
+	ProbeAnomalyReasonNoReference = "no_reference"
+	// ProbeAnomalyReasonTooManyConsecutive 连续异常周期数超过复制上限。
+	ProbeAnomalyReasonTooManyConsecutive = "too_many_consecutive"
+)
+
+// ChannelMonitorHistoryRef 复制行参考行的简明信息（不含 message 等大字段）。
+type ChannelMonitorHistoryRef struct {
+	ID            int64
+	LatencyMs     *int
+	PingLatencyMs *int
+	CheckedAt     time.Time
+}
+
+// ProbeAnomalyRow 探测异常记录入库行（service 向 repository 提交）。
+// HistoryRowIndex 指向同事务内 FinalizePersist.History 的下标，
+// 事务内插入历史行拿到自增 id 后回填 WrittenHistoryID。
+type ProbeAnomalyRow struct {
+	MonitorID          int64
+	Model              string
+	Trigger            string // scheduled / manual
+	TriggerStatus      string // 首次失败状态：error / failed
+	Resolution         string // substituted / real_written
+	Reason             string // real_written 时：no_reference / too_many_consecutive
+	ConsecutiveSeq     int
+	Attempts           []domain.MonitorProbeAttempt
+	ReferenceHistoryID *int64
+	ReferenceCheckedAt *time.Time
+	HistoryRowIndex    int
+	CycleStartedAt     time.Time
+	CycleFinishedAt    time.Time
+}
+
+// ProbeCyclePersist 一次探测周期的落库集合：历史行（每模型一行）+ 异常记录
+// （仅失败策略落空的模型）+ last_checked_at。repository 在同一事务内写入。
+type ProbeCyclePersist struct {
+	MonitorID int64
+	CheckedAt time.Time
+	History   []*ChannelMonitorHistoryRow
+	Anomalies []*ProbeAnomalyRow
+}
+
+// ProbeAnomaly 探测异常记录查询返回行。
+type ProbeAnomaly struct {
+	ID                 int64
+	MonitorID          int64
+	MonitorName        string // 列表查询 JOIN channel_monitors 填充；单条查询可为空
+	Model              string
+	Trigger            string
+	TriggerStatus      string
+	Resolution         string
+	Reason             string
+	ConsecutiveSeq     int
+	AttemptCount       int
+	Attempts           []domain.MonitorProbeAttempt
+	ReferenceHistoryID *int64
+	ReferenceCheckedAt *time.Time
+	WrittenHistoryID   int64
+	CycleStartedAt     time.Time
+	CycleFinishedAt    time.Time
+	CreatedAt          time.Time
+}
+
+// ProbeAnomalyListParams 异常列表查询过滤参数（全局列表专用 MonitorID；单监控接口固定）。
+type ProbeAnomalyListParams struct {
+	MonitorID  int64
+	Model      string
+	Resolution string
+	From       *time.Time
+	To         *time.Time
+	Page       int
+	PageSize   int
+}
+
 // UserMonitorView 用户只读视图：监控概览（含主模型最近状态 + 7d 可用率 + 附加模型最近状态）。
 type UserMonitorView struct {
 	ID                   int64
@@ -219,6 +311,11 @@ type ChannelMonitorHistoryEntry struct {
 	Message       string
 	CheckedAt     time.Time
 	Quota         *domain.MonitorQuotaSnapshot
+	// Substituted / AnomalyID：管理员历史接口 LEFT JOIN
+	// channel_monitor_probe_anomalies 得出的计算字段，标记该行是否为
+	// 「上一次正常结果」的复制行及关联的异常记录；用户侧接口不填充。
+	Substituted bool
+	AnomalyID   *int64
 }
 
 // ChannelMonitorLatest 最近一次检测的简明信息（用于 UserMonitorView 聚合）。

@@ -770,6 +770,56 @@ var (
 			},
 		},
 	}
+	// ChannelMonitorProbeAnomaliesColumns holds the columns for the "channel_monitor_probe_anomalies" table.
+	ChannelMonitorProbeAnomaliesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "model", Type: field.TypeString, Size: 200},
+		{Name: "trigger", Type: field.TypeString, Size: 20},
+		{Name: "trigger_status", Type: field.TypeString, Size: 20},
+		{Name: "resolution", Type: field.TypeString, Size: 20},
+		{Name: "reason", Type: field.TypeString, Size: 50, Default: ""},
+		{Name: "consecutive_seq", Type: field.TypeInt},
+		{Name: "attempt_count", Type: field.TypeInt16},
+		{Name: "attempts", Type: field.TypeJSON},
+		{Name: "reference_history_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "reference_checked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "written_history_id", Type: field.TypeInt64},
+		{Name: "cycle_started_at", Type: field.TypeTime},
+		{Name: "cycle_finished_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "monitor_id", Type: field.TypeInt64},
+	}
+	// ChannelMonitorProbeAnomaliesTable holds the schema information for the "channel_monitor_probe_anomalies" table.
+	ChannelMonitorProbeAnomaliesTable = &schema.Table{
+		Name:       "channel_monitor_probe_anomalies",
+		Columns:    ChannelMonitorProbeAnomaliesColumns,
+		PrimaryKey: []*schema.Column{ChannelMonitorProbeAnomaliesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_monitor_probe_anomalies_channel_monitors_probe_anomalies",
+				Columns:    []*schema.Column{ChannelMonitorProbeAnomaliesColumns[15]},
+				RefColumns: []*schema.Column{ChannelMonitorsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelmonitorprobeanomaly_monitor_id_model_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelMonitorProbeAnomaliesColumns[15], ChannelMonitorProbeAnomaliesColumns[1], ChannelMonitorProbeAnomaliesColumns[14]},
+			},
+			{
+				Name:    "channelmonitorprobeanomaly_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelMonitorProbeAnomaliesColumns[14]},
+			},
+			{
+				Name:    "channelmonitorprobeanomaly_written_history_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelMonitorProbeAnomaliesColumns[11]},
+			},
+		},
+	}
 	// ChannelMonitorRequestTemplatesColumns holds the columns for the "channel_monitor_request_templates" table.
 	ChannelMonitorRequestTemplatesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2129,6 +2179,7 @@ var (
 		ChannelMonitorsTable,
 		ChannelMonitorDailyRollupsTable,
 		ChannelMonitorHistoriesTable,
+		ChannelMonitorProbeAnomaliesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
 		ErrorPassthroughRulesTable,
@@ -2211,6 +2262,10 @@ func init() {
 	ChannelMonitorHistoriesTable.ForeignKeys[0].RefTable = ChannelMonitorsTable
 	ChannelMonitorHistoriesTable.Annotation = &entsql.Annotation{
 		Table: "channel_monitor_histories",
+	}
+	ChannelMonitorProbeAnomaliesTable.ForeignKeys[0].RefTable = ChannelMonitorsTable
+	ChannelMonitorProbeAnomaliesTable.Annotation = &entsql.Annotation{
+		Table: "channel_monitor_probe_anomalies",
 	}
 	ChannelMonitorRequestTemplatesTable.Annotation = &entsql.Annotation{
 		Table: "channel_monitor_request_templates",

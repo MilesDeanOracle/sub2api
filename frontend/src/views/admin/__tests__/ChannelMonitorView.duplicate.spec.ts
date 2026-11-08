@@ -119,7 +119,7 @@ function mountView() {
         Toggle: true,
         MonitorFormDialog: true,
         MonitorTemplateManagerDialog: true,
-        MonitorRunResultDialog: true,
+        MonitorRunLogDialog: true,
         MonitorPrimaryModelCell: true,
       },
     },

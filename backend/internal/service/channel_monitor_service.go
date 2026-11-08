@@ -33,6 +33,24 @@ type ChannelMonitorRepository interface {
 	InsertHistoryBatch(ctx context.Context, rows []*ChannelMonitorHistoryRow) error
 	DeleteHistoryBefore(ctx context.Context, before time.Time) (int64, error)
 
+	// ---------- V1 探测重试（channel-monitor-v1-probe-retry） ----------
+
+	// FindOperationalReference 取 (monitor_id, model) 最新一条 operational 历史行
+	// 作为复制行的参考行；无符合行时返回 nil。
+	FindOperationalReference(ctx context.Context, monitorID int64, model string) (*ChannelMonitorHistoryRef, error)
+	// FindLatestProbeAnomaly 取 (monitor_id, model) 最新一条探测异常记录；无记录返回 nil。
+	FindLatestProbeAnomaly(ctx context.Context, monitorID int64, model string) (*ProbeAnomaly, error)
+	// FindLatestHistoryEntry 取 (monitor_id, model) 最新一条历史行（任意状态）；无行返回 nil。
+	FindLatestHistoryEntry(ctx context.Context, monitorID int64, model string) (*ChannelMonitorHistoryEntry, error)
+	// PersistProbeCycle 在同一事务内写入历史行 + 探测异常记录并 MarkChecked，
+	// 返回各历史行的自增 id（顺序与 persist.History 一致）。
+	PersistProbeCycle(ctx context.Context, persist *ProbeCyclePersist) ([]int64, error)
+	// ListProbeAnomalies 分页查询探测异常记录（params.MonitorID>0 时限定单监控），
+	// 返回记录列表 + 总数；行内 MonitorName 由 JOIN 填充。
+	ListProbeAnomalies(ctx context.Context, params ProbeAnomalyListParams) ([]*ProbeAnomaly, int64, error)
+	// DeleteProbeAnomaliesBefore 物理删 created_at < before 的异常记录，返回删除行数。
+	DeleteProbeAnomaliesBefore(ctx context.Context, before time.Time) (int64, error)
+
 	// 历史记录
 	ListHistory(ctx context.Context, monitorID int64, model string, limit int) ([]*ChannelMonitorHistoryEntry, error)
 
@@ -633,6 +651,258 @@ func (s *ChannelMonitorService) RunCheck(ctx context.Context, id int64) ([]*Chec
 	return results, nil
 }
 
+// ---------- V1 探测重试周期（channel-monitor-v1-probe-retry） ----------
+
+// LoadForProbe 加载并解密监控，做功能开关 / 解密失败校验，供探测周期取配置快照。
+// 周期开始时调用一次，后续重试复用同一份快照（配置变更由 Schedule 重建任务兜底）。
+func (s *ChannelMonitorService) LoadForProbe(ctx context.Context, id int64) (*ChannelMonitor, error) {
+	rt := s.probeRuntime(ctx)
+	if !rt.Enabled {
+		return nil, ErrChannelMonitorDisabled
+	}
+	if !rt.ActiveProbesAllowed() {
+		return nil, ErrChannelMonitorActiveProbesRetired
+	}
+	m, err := s.Get(ctx, id) // 已解密 APIKey
+	if err != nil {
+		return nil, err
+	}
+	if defaultCheckMode(m.CheckMode) != MonitorCheckModeQuota && m.APIKeyDecryptFailed {
+		return nil, ErrChannelMonitorAPIKeyDecryptFailed
+	}
+	return m, nil
+}
+
+// RunCheckWithRetry 手动「立即检测」入口：在请求 goroutine 内同步执行完整重试周期
+// （probe / quota_probe），结束后返回最终结果；quota 模式不重试，保持 RunCheck 行为。
+//
+// 周期 ctx 从请求 ctx 派生：网关 / 前端超时或用户关闭页面导致请求断开时，
+// 本次周期直接丢弃——不落库、不写异常记录（「这次不算」）。
+func (s *ChannelMonitorService) RunCheckWithRetry(ctx context.Context, id int64) ([]*CheckResult, error) {
+	return s.RunCheckWithRetryStream(ctx, id, nil)
+}
+
+// RunCheckWithRetryStream 是 RunCheckWithRetry 的事件版：探测过程中的每次尝试、
+// 退避等待通过 observe 回调吐出（供 SSE 流式接口渲染探测日志），行为与返回值
+// 与 RunCheckWithRetry 完全一致（quota 模式无周期事件，只有最终结果）。
+func (s *ChannelMonitorService) RunCheckWithRetryStream(ctx context.Context, id int64, observe *ProbeRunEventObserver) ([]*CheckResult, error) {
+	m, err := s.LoadForProbe(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if defaultCheckMode(m.CheckMode) == MonitorCheckModeQuota {
+		return s.RunCheck(ctx, id)
+	}
+
+	cycleCtx, cancel := context.WithTimeout(ctx, monitorProbeCycleDeadline)
+	defer cancel()
+
+	cycle := newProbeCycle(m.ID, ProbeTriggerManual, time.Now(), probeModelsOf(m))
+	if err := driveProbeCycle(cycleCtx, cycle, func(attemptCtx context.Context, due []string) []*CheckResult {
+		return s.ProbeModels(attemptCtx, m, due)
+	}, observe); err != nil {
+		return nil, err
+	}
+	return s.FinalizeProbeCycle(ctx, m, cycle)
+}
+
+// probeModelsOf 周期参与的模型列表：primary 在前，extra 依次在后。
+func probeModelsOf(m *ChannelMonitor) []string {
+	return append([]string{m.PrimaryModel}, m.ExtraModels...)
+}
+
+// ProbeRunEventObserver 探测周期事件回调（手动「立即检测」流式接口消费，
+// 见 ChannelMonitorHandler.RunStream）。字段为 nil 时跳过对应事件。
+type ProbeRunEventObserver struct {
+	// OnCycleStart 周期开始（参与模型清单）。
+	OnCycleStart func(models []string, startedAt time.Time)
+	// OnAttempt 单次尝试结束（attempt 为该模型第 attempt.Seq 次尝试的明细）。
+	OnAttempt func(model string, attempt domain.MonitorProbeAttempt)
+	// OnWait 进入退避等待（下一次尝试的等待时长）。
+	OnWait func(delay time.Duration)
+}
+
+func (o *ProbeRunEventObserver) cycleStart(models []string, startedAt time.Time) {
+	if o != nil && o.OnCycleStart != nil {
+		o.OnCycleStart(models, startedAt)
+	}
+}
+
+func (o *ProbeRunEventObserver) attempt(model string, a domain.MonitorProbeAttempt) {
+	if o != nil && o.OnAttempt != nil {
+		o.OnAttempt(model, a)
+	}
+}
+
+func (o *ProbeRunEventObserver) wait(delay time.Duration) {
+	if o != nil && o.OnWait != nil {
+		o.OnWait(delay)
+	}
+}
+
+// emitRecordedAttempts 按本轮结果顺序发出尝试事件（seq 取该模型已记录的尝试数）。
+func emitRecordedAttempts(cycle *ProbeCycle, results []*CheckResult, observe *ProbeRunEventObserver) {
+	if observe == nil || observe.OnAttempt == nil {
+		return
+	}
+	for _, r := range results {
+		if r == nil {
+			continue
+		}
+		st, ok := cycle.Models[r.Model]
+		if !ok || len(st.Attempts) == 0 {
+			continue
+		}
+		last := st.Attempts[len(st.Attempts)-1]
+		if last != r {
+			continue // 该结果未记录（如 operational 后的重复结果），不发事件
+		}
+		details := buildAttemptDetails(st.Attempts)
+		observe.attempt(r.Model, details[len(details)-1])
+	}
+}
+
+// driveProbeCycle 同步驱动重试轮次：每轮探测到点模型、按退避等待，直到全部 Done
+// 或 ctx 结束。probe 回调负责真正的探测（调用方决定是否派生单次尝试超时）。
+// 返回 ctx 的错误（取消 / 截止）时周期作废，已完成的探测结果全部丢弃。
+// observe 可为 nil（无事件消费方）。
+func driveProbeCycle(ctx context.Context, cycle *ProbeCycle, probe func(ctx context.Context, due []string) []*CheckResult, observe *ProbeRunEventObserver) error {
+	observe.cycleStart(cycle.ModelNames(), cycle.StartedAt)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if cycle.AllDone() {
+			return nil
+		}
+		due := cycle.DueModels(time.Now())
+		if len(due) > 0 {
+			attemptCtx, cancel := context.WithTimeout(ctx, monitorRequestTimeout+monitorPingTimeout+monitorRunOneBuffer)
+			results := probe(attemptCtx, due)
+			cancel()
+			// 尝试被周期结束截断（取消 / 截止）：截断产生的失败不算尝试，整体作废。
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			cycle.RecordRound(results, time.Now())
+			emitRecordedAttempts(cycle, results, observe)
+			if cycle.AllDone() {
+				return nil
+			}
+		}
+		delay, ok := cycle.NextWakeDelay(time.Now())
+		if !ok {
+			return nil
+		}
+		observe.wait(delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+// FinalizeProbeCycle 根据整个周期的尝试记录做最终决策并落库（§4.3）：
+// 单事务写入历史行 + 异常记录，最后 MarkChecked；返回与写入行对应的检测结果。
+// quota_probe 模式在此时抓取一次配额快照（有 5min 缓存）挂到主模型行。
+func (s *ChannelMonitorService) FinalizeProbeCycle(ctx context.Context, m *ChannelMonitor, cycle *ProbeCycle) ([]*CheckResult, error) {
+	finishedAt := time.Now()
+	persist := &ProbeCyclePersist{MonitorID: m.ID, CheckedAt: finishedAt}
+
+	quotaProbe := defaultCheckMode(m.CheckMode) == MonitorCheckModeQuotaProbe
+	var quotaSnapshot *domain.MonitorQuotaSnapshot
+	if quotaProbe {
+		quotaSnapshot = s.fetchQuotaSnapshot(ctx, m)
+	}
+
+	lookup := func(model string) (*ChannelMonitorHistoryRef, int, error) {
+		ref, err := s.repo.FindOperationalReference(ctx, m.ID, model)
+		if err != nil {
+			return nil, 0, err
+		}
+		seq, err := s.computeConsecutiveSeq(ctx, m.ID, model)
+		if err != nil {
+			return nil, 0, err
+		}
+		return ref, seq, nil
+	}
+	plans, err := planProbeCycle(cycle, m.ID, finishedAt, lookup)
+	if err != nil {
+		return nil, fmt.Errorf("plan probe cycle: %w", err)
+	}
+
+	results := make([]*CheckResult, 0, len(plans))
+	for _, plan := range plans {
+		if quotaProbe && plan.Row.Model == m.PrimaryModel {
+			plan.Row.Quota = quotaSnapshot
+			if quotaSnapshot != nil && !quotaSnapshot.Success && strings.TrimSpace(plan.Row.Message) == "" {
+				plan.Row.Message = truncateMessage("quota fetch failed: " + quotaSnapshot.Error)
+			}
+		}
+		if plan.Anomaly != nil {
+			plan.Anomaly.HistoryRowIndex = len(persist.History)
+		}
+		persist.History = append(persist.History, plan.Row)
+		if plan.Anomaly != nil {
+			persist.Anomalies = append(persist.Anomalies, plan.Anomaly)
+		}
+		results = append(results, &CheckResult{
+			Model:         plan.Row.Model,
+			Status:        plan.Row.Status,
+			LatencyMs:     plan.Row.LatencyMs,
+			PingLatencyMs: plan.Row.PingLatencyMs,
+			Message:       plan.Row.Message,
+			CheckedAt:     plan.Row.CheckedAt,
+			Quota:         plan.Row.Quota,
+		})
+	}
+
+	if _, err := s.repo.PersistProbeCycle(ctx, persist); err != nil {
+		return nil, fmt.Errorf("persist probe cycle: %w", err)
+	}
+	return results, nil
+}
+
+// computeConsecutiveSeq 计算连续异常周期序号（§5.2）：
+// 上一条异常记录的 written_history_id 与该 (monitor_id, model) 最新历史行 id
+// 相同 → 上一周期也是异常且中间没有真实结果，seq = prev + 1；否则从 1 重新开始。
+func (s *ChannelMonitorService) computeConsecutiveSeq(ctx context.Context, monitorID int64, model string) (int, error) {
+	prev, err := s.repo.FindLatestProbeAnomaly(ctx, monitorID, model)
+	if err != nil {
+		return 0, err
+	}
+	if prev == nil {
+		return 1, nil
+	}
+	lastHistory, err := s.repo.FindLatestHistoryEntry(ctx, monitorID, model)
+	if err != nil {
+		return 0, err
+	}
+	if lastHistory != nil && prev.WrittenHistoryID == lastHistory.ID {
+		return prev.ConsecutiveSeq + 1, nil
+	}
+	return 1, nil
+}
+
+// ListProbeAnomalies 分页查询探测异常记录。params.MonitorID > 0 时校验监控存在。
+func (s *ChannelMonitorService) ListProbeAnomalies(ctx context.Context, params ProbeAnomalyListParams) ([]*ProbeAnomaly, int64, error) {
+	if params.MonitorID > 0 {
+		if _, err := s.repo.GetByID(ctx, params.MonitorID); err != nil {
+			return nil, 0, err
+		}
+	}
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.PageSize < 1 || params.PageSize > 200 {
+		params.PageSize = 20
+	}
+	return s.repo.ListProbeAnomalies(ctx, params)
+}
+
 // runQuotaOnlyCheck quota 模式：一次配额抓取 → 单条 CheckResult
 // （Model=PrimaryModel，默认 "quota"；无 ping/latency，状态由快照推导）。
 func (s *ChannelMonitorService) runQuotaOnlyCheck(ctx context.Context, m *ChannelMonitor) []*CheckResult {
@@ -696,7 +966,15 @@ func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *Chan
 // runChecksConcurrent 对 primary + extra 模型并发执行检测。
 // errgroup 仅用于等待，不传播错误（每个 model 失败都已打包进 CheckResult）。
 func (s *ChannelMonitorService) runChecksConcurrent(ctx context.Context, m *ChannelMonitor) []*CheckResult {
-	models := append([]string{m.PrimaryModel}, m.ExtraModels...)
+	return s.ProbeModels(ctx, m, append([]string{m.PrimaryModel}, m.ExtraModels...))
+}
+
+// ProbeModels 只探测指定模型、不落库（探测重试周期的单轮原语）。
+// 每轮独立 ping 一次，本轮内所有模型共享同一个 ping 延迟。
+func (s *ChannelMonitorService) ProbeModels(ctx context.Context, m *ChannelMonitor, models []string) []*CheckResult {
+	if len(models) == 0 {
+		return nil
+	}
 	results := make([]*CheckResult, len(models))
 
 	// ping 共享一次，所有模型记录同一个 ping 延迟。
@@ -794,6 +1072,25 @@ func (s *ChannelMonitorService) RunDailyMaintenance(ctx context.Context) error {
 	if err := s.cleanupOldRollups(ctx, today); err != nil {
 		slog.Warn("channel_monitor: maintenance step failed",
 			"step", "prune_rollups", "error", err)
+	}
+	if err := s.cleanupOldProbeAnomalies(ctx); err != nil {
+		slog.Warn("channel_monitor: maintenance step failed",
+			"step", "prune_probe_anomalies", "error", err)
+	}
+	return nil
+}
+
+// cleanupOldProbeAnomalies 物理删除超过保留期的探测异常记录
+// （日志类数据，与历史明细保留期一致；不参与可用率与日聚合计算）。
+func (s *ChannelMonitorService) cleanupOldProbeAnomalies(ctx context.Context) error {
+	before := time.Now().UTC().AddDate(0, 0, -monitorProbeAnomalyRetentionDays)
+	deleted, err := s.repo.DeleteProbeAnomaliesBefore(ctx, before)
+	if err != nil {
+		return fmt.Errorf("delete probe anomalies before %s: %w", before.Format(time.RFC3339), err)
+	}
+	if deleted > 0 {
+		slog.Info("channel_monitor: probe anomaly cleanup",
+			"deleted_rows", deleted, "before", before.Format(time.RFC3339))
 	}
 	return nil
 }

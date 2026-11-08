@@ -3,10 +3,21 @@
     <button
       @click="$emit('run', row)"
       :disabled="running"
+      :title="running ? t('admin.channelMonitor.runNowRunning') : t('admin.channelMonitor.runNow')"
       class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
     >
       <Icon name="refresh" size="sm" :class="running ? 'animate-spin' : ''" />
-      <span class="text-xs">{{ t('admin.channelMonitor.runNow') }}</span>
+      <span class="text-xs">
+        {{ running ? t('admin.channelMonitor.runNowRunning') : t('admin.channelMonitor.runNow') }}
+      </span>
+    </button>
+    <button
+      @click="$emit('history', row)"
+      :title="t('admin.channelMonitor.history')"
+      class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+    >
+      <Icon name="clock" size="sm" />
+      <span class="text-xs">{{ t('admin.channelMonitor.history') }}</span>
     </button>
     <button
       data-testid="monitor-duplicate"
@@ -51,6 +62,7 @@ const props = defineProps<{
 
 defineEmits<{
   (e: 'run', row: ChannelMonitor): void
+  (e: 'history', row: ChannelMonitor): void
   (e: 'duplicate', row: ChannelMonitor): void
   (e: 'edit', row: ChannelMonitor): void
   (e: 'delete', row: ChannelMonitor): void

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	adminhandler "github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -720,6 +721,8 @@ func TestAPIContracts(t *testing.T) {
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
 					"promo_code_enabled": true,
+					"public_transit_enabled": true,
+					"public_transit_page_enabled": false,
 					"password_reset_enabled": false,
 						"frontend_url": "",
 						"totp_enabled": false,
@@ -1078,6 +1081,8 @@ func TestAPIContracts(t *testing.T) {
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
 					"promo_code_enabled": true,
+					"public_transit_enabled": true,
+					"public_transit_page_enabled": false,
 					"password_reset_enabled": false,
 					"frontend_url": "",
 						"invitation_code_enabled": false,
@@ -1400,19 +1405,166 @@ func TestAPIContracts(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"success": 2,
-					"failed": 0,
-					"success_ids": [101, 102],
-					"failed_ids": [],
-					"results": [
-						{"account_id": 101, "success": true},
-						{"account_id": 102, "success": true}
-					]
-				}
-			}`,
+					"code": 0,
+					"message": "success",
+					"data": {
+						"success": 2,
+						"failed": 0,
+						"success_ids": [101, 102],
+						"failed_ids": [],
+						"results": [
+							{"account_id": 101, "success": true},
+							{"account_id": 102, "success": true}
+						]
+					}
+				}`,
+		},
+		{
+			// 历史接口：复制行带 substituted=true + anomaly_id，普通行为 false/null。
+			name:       "GET /api/v1/admin/channel-monitors/:id/history",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/channel-monitors/5/history",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+					"code": 0,
+					"message": "success",
+					"data": {
+						"items": [
+							{
+								"id": 12,
+								"model": "gpt-5",
+								"status": "operational",
+								"latency_ms": 420,
+								"ping_latency_ms": 60,
+								"message": "",
+								"checked_at": "2025-01-02T03:04:05Z",
+								"substituted": true,
+								"anomaly_id": 77
+							},
+							{
+								"id": 11,
+								"model": "gpt-5",
+								"status": "error",
+								"latency_ms": 300,
+								"ping_latency_ms": 61,
+								"message": "upstream HTTP 503",
+								"checked_at": "2025-01-02T03:03:05Z",
+								"substituted": false,
+								"anomaly_id": null
+							}
+						]
+					}
+				}`,
+		},
+		{
+			name:       "GET /api/v1/admin/channel-monitors/:id/probe-anomalies",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/channel-monitors/5/probe-anomalies",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+					"code": 0,
+					"message": "success",
+					"data": {
+						"items": [
+							{
+								"id": 77,
+								"monitor_id": 5,
+								"monitor_name": "primary channel",
+								"model": "gpt-5",
+								"trigger": "scheduled",
+								"trigger_status": "error",
+								"resolution": "substituted",
+								"reason": "",
+								"consecutive_seq": 2,
+								"attempt_count": 2,
+								"attempts": [
+									{
+										"seq": 1,
+										"status": "error",
+										"latency_ms": 45001,
+										"ping_latency_ms": 120,
+										"message": "context deadline exceeded",
+										"checked_at": "2025-01-02T03:04:05Z"
+									},
+									{
+										"seq": 2,
+										"status": "error",
+										"latency_ms": 312,
+										"ping_latency_ms": 118,
+										"message": "upstream HTTP 502",
+										"checked_at": "2025-01-02T03:04:52Z"
+									}
+								],
+								"reference_history_id": 9,
+								"reference_checked_at": "2025-01-02T02:04:05Z",
+								"written_history_id": 12,
+								"cycle_started_at": "2025-01-02T03:04:05Z",
+								"cycle_finished_at": "2025-01-02T03:05:35Z",
+								"created_at": "2025-01-02T03:05:35Z"
+							},
+							{
+								"id": 78,
+								"monitor_id": 5,
+								"monitor_name": "primary channel",
+								"model": "gpt-5",
+								"trigger": "manual",
+								"trigger_status": "failed",
+								"resolution": "real_written",
+								"reason": "no_reference",
+								"consecutive_seq": 1,
+								"attempt_count": 0,
+								"attempts": [],
+								"reference_history_id": null,
+								"reference_checked_at": null,
+								"written_history_id": 13,
+								"cycle_started_at": "2025-01-02T03:06:05Z",
+								"cycle_finished_at": "2025-01-02T03:07:35Z",
+								"created_at": "2025-01-02T03:07:35Z"
+							}
+						],
+						"total": 2,
+						"page": 1,
+						"page_size": 20,
+						"pages": 1
+					}
+				}`,
+		},
+		{
+			name:       "GET /api/v1/admin/channel-monitor-probe-anomalies",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/channel-monitor-probe-anomalies?monitor_id=5&resolution=real_written",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+					"code": 0,
+					"message": "success",
+					"data": {
+						"items": [
+							{
+								"id": 78,
+								"monitor_id": 5,
+								"monitor_name": "primary channel",
+								"model": "gpt-5",
+								"trigger": "manual",
+								"trigger_status": "failed",
+								"resolution": "real_written",
+								"reason": "no_reference",
+								"consecutive_seq": 1,
+								"attempt_count": 0,
+								"attempts": [],
+								"reference_history_id": null,
+								"reference_checked_at": null,
+								"written_history_id": 13,
+								"cycle_started_at": "2025-01-02T03:06:05Z",
+								"cycle_finished_at": "2025-01-02T03:07:35Z",
+								"created_at": "2025-01-02T03:07:35Z"
+							}
+						],
+						"total": 1,
+						"page": 1,
+						"page_size": 20,
+						"pages": 1
+					}
+				}`,
 		},
 	}
 
@@ -1495,7 +1647,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
 
-	adminService := service.NewAdminService(nil, userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(cfg, userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
@@ -1551,6 +1703,16 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
 
+	// 渠道监控：history / 探测异常列表契约（探测重试方案 §8.1）。
+	channelMonitorRepo := newStubChannelMonitorRepo()
+	channelMonitorHandler := adminhandler.NewChannelMonitorHandler(
+		service.NewChannelMonitorService(channelMonitorRepo, nil))
+	monitorsGroup := v1Admin.Group("/channel-monitors")
+	monitorsGroup.GET("/:id/history", channelMonitorHandler.History)
+	monitorsGroup.GET("/:id/probe-anomalies", channelMonitorHandler.ProbeAnomalies)
+	globalAnomalies := v1Admin.Group("/channel-monitor-probe-anomalies")
+	globalAnomalies.GET("", channelMonitorHandler.GlobalProbeAnomalies)
+
 	return &contractDeps{
 		now:         now,
 		router:      r,
@@ -1562,6 +1724,92 @@ func newContractDeps(t *testing.T) *contractDeps {
 		settingRepo: settingRepo,
 		redeemRepo:  redeemRepo,
 	}
+}
+
+// stubChannelMonitorRepo 支撑渠道监控 history / probe-anomalies 契约用例。
+type stubChannelMonitorRepo struct {
+	service.ChannelMonitorRepository
+	monitorID int64
+	history   []*service.ChannelMonitorHistoryEntry
+	anomalies []*service.ProbeAnomaly
+}
+
+func newStubChannelMonitorRepo() *stubChannelMonitorRepo {
+	latency := func(v int) *int { return &v }
+	ts := func(min int) time.Time {
+		return time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC).Add(time.Duration(min) * time.Minute)
+	}
+	anomalyID := int64(77)
+	return &stubChannelMonitorRepo{
+		monitorID: 5,
+		history: []*service.ChannelMonitorHistoryEntry{
+			{
+				ID: 12, Model: "gpt-5", Status: "operational",
+				LatencyMs: latency(420), PingLatencyMs: latency(60),
+				CheckedAt: ts(0), Substituted: true, AnomalyID: &anomalyID,
+			},
+			{
+				ID: 11, Model: "gpt-5", Status: "error",
+				LatencyMs: latency(300), PingLatencyMs: latency(61),
+				Message: "upstream HTTP 503", CheckedAt: ts(0).Add(-time.Minute),
+			},
+		},
+		anomalies: []*service.ProbeAnomaly{
+			{
+				ID: 77, MonitorID: 5, MonitorName: "primary channel", Model: "gpt-5",
+				Trigger: "scheduled", TriggerStatus: "error",
+				Resolution: "substituted", ConsecutiveSeq: 2, AttemptCount: 2,
+				Attempts: []domain.MonitorProbeAttempt{
+					{Seq: 1, Status: "error", LatencyMs: latency(45001), PingLatencyMs: latency(120),
+						Message: "context deadline exceeded", CheckedAt: ts(0)},
+					{Seq: 2, Status: "error", LatencyMs: latency(312), PingLatencyMs: latency(118),
+						Message: "upstream HTTP 502", CheckedAt: ts(0).Add(47 * time.Second)},
+				},
+				ReferenceHistoryID: &[]int64{9}[0],
+				ReferenceCheckedAt: &[]time.Time{ts(0).Add(-time.Hour)}[0],
+				WrittenHistoryID:   12,
+				CycleStartedAt:     ts(0), CycleFinishedAt: ts(0).Add(90 * time.Second),
+				CreatedAt: ts(0).Add(90 * time.Second),
+			},
+			{
+				ID: 78, MonitorID: 5, MonitorName: "primary channel", Model: "gpt-5",
+				Trigger: "manual", TriggerStatus: "failed",
+				Resolution: "real_written", Reason: "no_reference", ConsecutiveSeq: 1,
+				Attempts:         []domain.MonitorProbeAttempt{},
+				WrittenHistoryID: 13,
+				CycleStartedAt:   ts(0).Add(2 * time.Minute), CycleFinishedAt: ts(0).Add(3*time.Minute + 30*time.Second),
+				CreatedAt: ts(0).Add(3*time.Minute + 30*time.Second),
+			},
+		},
+	}
+}
+
+func (s *stubChannelMonitorRepo) GetByID(_ context.Context, id int64) (*service.ChannelMonitor, error) {
+	if id != s.monitorID {
+		return nil, service.ErrChannelMonitorNotFound
+	}
+	return &service.ChannelMonitor{ID: id, Name: "primary channel", PrimaryModel: "gpt-5"}, nil
+}
+
+func (s *stubChannelMonitorRepo) ListHistory(_ context.Context, monitorID int64, _ string, _ int) ([]*service.ChannelMonitorHistoryEntry, error) {
+	if monitorID != s.monitorID {
+		return []*service.ChannelMonitorHistoryEntry{}, nil
+	}
+	return s.history, nil
+}
+
+func (s *stubChannelMonitorRepo) ListProbeAnomalies(_ context.Context, params service.ProbeAnomalyListParams) ([]*service.ProbeAnomaly, int64, error) {
+	out := make([]*service.ProbeAnomaly, 0, len(s.anomalies))
+	for _, a := range s.anomalies {
+		if params.MonitorID > 0 && a.MonitorID != params.MonitorID {
+			continue
+		}
+		if params.Resolution != "" && a.Resolution != params.Resolution {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, int64(len(out)), nil
 }
 
 func doRequest(t *testing.T, router http.Handler, method, path, body string, headers map[string]string) (int, string) {
@@ -2148,7 +2396,9 @@ func (stubProxyRepo) CountExpiringSoon(ctx context.Context, now time.Time) (int6
 	return 0, nil
 }
 
+// stubRedeemCodeRepo 同样嵌入接口吸收 service.RedeemCodeRepository 演进。
 type stubRedeemCodeRepo struct {
+	service.RedeemCodeRepository
 	byUser map[int64][]service.RedeemCode
 }
 
@@ -2565,7 +2815,10 @@ func (r *stubApiKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*servi
 	return nil, nil
 }
 
+// stubUsageLogRepo 嵌入接口以吸收 service.UsageLogRepository 的演进
+// （契约用例只驱动下方覆写的少数方法，未覆写方法保持 nil embed）。
 type stubUsageLogRepo struct {
+	service.UsageLogRepository
 	userLogs map[int64][]service.UsageLog
 }
 
@@ -2575,6 +2828,10 @@ func newStubUsageLogRepo() *stubUsageLogRepo {
 
 func (r *stubUsageLogRepo) SetUserLogs(userID int64, logs []service.UsageLog) {
 	r.userLogs[userID] = logs
+}
+
+func (r *stubUsageLogRepo) GetUserGroupUsageStats(context.Context, int64) ([]usagestats.UserGroupUsageStat, error) {
+	return nil, nil
 }
 
 func (r *stubUsageLogRepo) Create(ctx context.Context, log *service.UsageLog) (bool, error) {

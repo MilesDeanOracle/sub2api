@@ -61,6 +61,8 @@ const (
 	EdgeHistory = "history"
 	// EdgeDailyRollups holds the string denoting the daily_rollups edge name in mutations.
 	EdgeDailyRollups = "daily_rollups"
+	// EdgeProbeAnomalies holds the string denoting the probe_anomalies edge name in mutations.
+	EdgeProbeAnomalies = "probe_anomalies"
 	// EdgeRequestTemplate holds the string denoting the request_template edge name in mutations.
 	EdgeRequestTemplate = "request_template"
 	// Table holds the table name of the channelmonitor in the database.
@@ -79,6 +81,13 @@ const (
 	DailyRollupsInverseTable = "channel_monitor_daily_rollups"
 	// DailyRollupsColumn is the table column denoting the daily_rollups relation/edge.
 	DailyRollupsColumn = "monitor_id"
+	// ProbeAnomaliesTable is the table that holds the probe_anomalies relation/edge.
+	ProbeAnomaliesTable = "channel_monitor_probe_anomalies"
+	// ProbeAnomaliesInverseTable is the table name for the ChannelMonitorProbeAnomaly entity.
+	// It exists in this package in order to avoid circular dependency with the "channelmonitorprobeanomaly" package.
+	ProbeAnomaliesInverseTable = "channel_monitor_probe_anomalies"
+	// ProbeAnomaliesColumn is the table column denoting the probe_anomalies relation/edge.
+	ProbeAnomaliesColumn = "monitor_id"
 	// RequestTemplateTable is the table that holds the request_template relation/edge.
 	RequestTemplateTable = "channel_monitors"
 	// RequestTemplateInverseTable is the table name for the ChannelMonitorRequestTemplate entity.
@@ -326,6 +335,20 @@ func ByDailyRollups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByProbeAnomaliesCount orders the results by probe_anomalies count.
+func ByProbeAnomaliesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newProbeAnomaliesStep(), opts...)
+	}
+}
+
+// ByProbeAnomalies orders the results by probe_anomalies terms.
+func ByProbeAnomalies(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newProbeAnomaliesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByRequestTemplateField orders the results by request_template field.
 func ByRequestTemplateField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -344,6 +367,13 @@ func newDailyRollupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(DailyRollupsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, DailyRollupsTable, DailyRollupsColumn),
+	)
+}
+func newProbeAnomaliesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ProbeAnomaliesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ProbeAnomaliesTable, ProbeAnomaliesColumn),
 	)
 }
 func newRequestTemplateStep() *sqlgraph.Step {

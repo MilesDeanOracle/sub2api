@@ -284,6 +284,39 @@
           </template>
         </el-table-column>
 
+        <!-- Usage windows (5h/7d 等滚动用量窗口，数据复用账号页的批量接口) -->
+        <el-table-column
+          v-if="showUsageWindows"
+          :label="t('admin.accounts.columns.usageWindows')"
+          min-width="190"
+        >
+          <template #header>
+            <div class="inline-flex items-center gap-1">
+              <span>{{ t('admin.accounts.columns.usageWindows') }}</span>
+              <el-tooltip
+                :content="t('admin.accounts.usageWindowsHint')"
+                placement="top"
+                :show-after="200"
+              >
+                <el-icon class="cursor-help text-gray-400"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
+          </template>
+          <template #default="{ row }">
+            <AccountUsageCell
+              :account="row"
+              :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
+              :today-stats-loading="todayStatsLoading"
+              :batched-usage="usageWindowsByAccountId[String(row.id)] ?? null"
+              :batched-usage-error="usageWindowsErrorByAccountId[String(row.id)] ?? null"
+              :batched-usage-loading="usageWindowsLoadingByAccountId[String(row.id)] === true"
+              :request-batched-usage="queueUsageWindows"
+              @account-updated="account => onUsageAccountUpdated(row, account)"
+              @usage-loaded="usage => onUsageWindowsLoaded(row.id, usage)"
+            />
+          </template>
+        </el-table-column>
+
         <!-- Today's stats(点击列头按用户扣费在当前页内排序) -->
         <el-table-column
           v-if="showTodayStats"
@@ -401,6 +434,7 @@ import {
   Loading,
   MoreFilled,
   Plus,
+  QuestionFilled,
   Search
 } from '@element-plus/icons-vue'
 import { accountsAPI } from '@/api/admin'
@@ -411,10 +445,11 @@ import { Icon } from '@/components/icons'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import AccountPriorityCell from '@/components/account/AccountPriorityCell.vue'
+import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import ResourcePoolMembershipCell from './ResourcePoolMembershipCell.vue'
-import type { Account, AccountListItem, AdminGroup, GroupPlatform, WindowStats } from '@/types'
+import type { Account, AccountListItem, AccountUsageInfo, AdminGroup, GroupPlatform, WindowStats } from '@/types'
 
 export interface ResourcePoolAccountFilters {
   search: string
@@ -463,11 +498,12 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const isNarrow = useMediaQuery('(max-width: 960px)')
 // 按容器实际宽度渐进显隐次要列,保证核心列永远不被固定操作列遮挡
-// (固定列组合约 580px 起,容量 +130,今日统计 +160)
+// (固定列组合约 580px 起,容量 +130,今日统计 +160,用量窗口 +190)
 const tableAreaRef = ref<HTMLElement>()
 const { width: tableAreaWidth } = useElementSize(tableAreaRef)
 const showRateColumn = computed(() => tableAreaWidth.value >= 600)
 const showCapacity = computed(() => tableAreaWidth.value >= 730)
+const showUsageWindows = computed(() => tableAreaWidth.value >= 1060)
 const showTodayStats = computed(() => tableAreaWidth.value >= 890)
 const nameColumnMinWidth = computed(() => (tableAreaWidth.value >= 730 ? 200 : 150))
 const groupColumnMinWidth = computed(() => (tableAreaWidth.value >= 730 ? 170 : 130))
@@ -687,6 +723,170 @@ watch(
       if (requestId === todayStatsRequest) todayStatsError.value = t('resourcePool.accounts.todayStatsFailed')
     } finally {
       if (requestId === todayStatsRequest) todayStatsLoading.value = false
+    }
+  },
+  { immediate: true }
+)
+
+// —— 用量窗口(5h/7d 等滚动窗口):复用账号页的批量用量接口与 AccountUsageCell ——
+// 队列 + 5min 缓存 + 请求令牌与 AccountsView 保持一致;列被宽度阈值隐藏时跳过加载。
+const usageWindowsByAccountId = ref<Record<string, AccountUsageInfo | null>>({})
+const usageWindowsErrorByAccountId = ref<Record<string, string | null>>({})
+const usageWindowsLoadingByAccountId = ref<Record<string, boolean>>({})
+const usageWindowsRequestTokenByAccountId = ref<Record<string, number>>({})
+const usageWindowsCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
+const USAGE_WINDOWS_CACHE_TTL = 5 * 60 * 1000
+const pendingUsageWindowIds = new Set<number>()
+let usageWindowsFlushTimer: ReturnType<typeof setTimeout> | null = null
+let queuedUsageWindowsForce = false
+let usageWindowsRequestToken = 0
+
+// 与账号页 accountSupportsBatchUsage 同口径:批量接口仅覆盖这些平台/类型,
+// 其余平台由 AccountUsageCell 内部按需主动查询(usage-loaded 回写)。
+function accountSupportsUsageWindows(account: AccountListItem): boolean {
+  if (account.platform === 'anthropic') {
+    return account.type === 'oauth' || account.type === 'setup-token'
+  }
+  if (account.platform === 'gemini') return true
+  if (account.platform === 'antigravity') return account.type === 'oauth'
+  if (account.platform === 'openai') return account.type === 'oauth'
+  if (account.platform === 'grok') return account.type === 'oauth'
+  return false
+}
+
+function setUsageWindowsLoading(accountID: number, loadingState: boolean) {
+  usageWindowsLoadingByAccountId.value = {
+    ...usageWindowsLoadingByAccountId.value,
+    [String(accountID)]: loadingState
+  }
+}
+
+function setUsageWindowsState(accountID: number, usage: AccountUsageInfo | null, error: string | null) {
+  const key = String(accountID)
+  usageWindowsByAccountId.value = {
+    ...usageWindowsByAccountId.value,
+    [key]: usage
+  }
+  usageWindowsErrorByAccountId.value = {
+    ...usageWindowsErrorByAccountId.value,
+    [key]: error
+  }
+}
+
+// 单元格主动查询(不支持批量的平台)成功后回写,同一份数据供下次渲染复用
+function onUsageWindowsLoaded(accountID: number, usage: AccountUsageInfo) {
+  if (usageWindowsByAccountId.value[String(accountID)] === usage) return
+  setUsageWindowsState(accountID, usage, null)
+}
+
+// 单元格内部状态探测(ollama/opencode 用量等)回写行对象,避免整表刷新
+function onUsageAccountUpdated(row: AccountListItem, account: Account) {
+  Object.assign(row, account)
+}
+
+async function flushQueuedUsageWindows() {
+  usageWindowsFlushTimer = null
+  const accountIDs = Array.from(pendingUsageWindowIds)
+  const force = queuedUsageWindowsForce
+  pendingUsageWindowIds.clear()
+  queuedUsageWindowsForce = false
+
+  if (accountIDs.length === 0) return
+
+  const requestTokensByAccount = accountIDs.reduce<Record<string, number>>((acc, accountID) => {
+    acc[String(accountID)] = usageWindowsRequestTokenByAccountId.value[String(accountID)] ?? 0
+    return acc
+  }, {})
+
+  try {
+    const result = await accountsAPI.getBatchUsage(accountIDs, force)
+    const usageMap = result.usage ?? {}
+    const errorMap = result.errors ?? {}
+    const now = Date.now()
+    const nextUsage = { ...usageWindowsByAccountId.value }
+    const nextErrors = { ...usageWindowsErrorByAccountId.value }
+    const nextLoading = { ...usageWindowsLoadingByAccountId.value }
+
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if ((usageWindowsRequestTokenByAccountId.value[key] ?? 0) !== requestTokensByAccount[key]) {
+        continue
+      }
+      const usage = usageMap[key] ?? null
+      nextUsage[key] = usage
+      nextErrors[key] = errorMap[key] ?? null
+      nextLoading[key] = false
+      if (usage) {
+        usageWindowsCache.set(accountID, { data: usage, ts: now })
+      } else {
+        usageWindowsCache.delete(accountID)
+      }
+    }
+
+    usageWindowsByAccountId.value = nextUsage
+    usageWindowsErrorByAccountId.value = nextErrors
+    usageWindowsLoadingByAccountId.value = nextLoading
+  } catch {
+    const nextErrors = { ...usageWindowsErrorByAccountId.value }
+    const nextLoading = { ...usageWindowsLoadingByAccountId.value }
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if ((usageWindowsRequestTokenByAccountId.value[key] ?? 0) !== requestTokensByAccount[key]) {
+        continue
+      }
+      nextErrors[key] = 'Failed'
+      nextLoading[key] = false
+    }
+    usageWindowsErrorByAccountId.value = nextErrors
+    usageWindowsLoadingByAccountId.value = nextLoading
+  }
+}
+
+// AccountUsageCell 的 request-batched-usage 回调:带 5min 缓存去重后合并为一次批量请求
+function queueUsageWindows(account: Account, options?: { force?: boolean }) {
+  if (!showUsageWindows.value) return
+  if (!accountSupportsUsageWindows(account as AccountListItem)) return
+
+  const force = options?.force === true
+  const cacheKey = account.id
+  const key = String(cacheKey)
+
+  if (force) {
+    usageWindowsCache.delete(cacheKey)
+  } else {
+    const cached = usageWindowsCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < USAGE_WINDOWS_CACHE_TTL) {
+      setUsageWindowsState(cacheKey, cached.data, null)
+      setUsageWindowsLoading(cacheKey, false)
+      return
+    }
+  }
+
+  usageWindowsErrorByAccountId.value = {
+    ...usageWindowsErrorByAccountId.value,
+    [key]: null
+  }
+  usageWindowsRequestTokenByAccountId.value = {
+    ...usageWindowsRequestTokenByAccountId.value,
+    [key]: ++usageWindowsRequestToken
+  }
+  setUsageWindowsLoading(cacheKey, true)
+  pendingUsageWindowIds.add(cacheKey)
+  queuedUsageWindowsForce = queuedUsageWindowsForce || force
+
+  if (usageWindowsFlushTimer !== null) return
+  usageWindowsFlushTimer = setTimeout(() => {
+    void flushQueuedUsageWindows()
+  }, 0)
+}
+
+// 页数据变化或列从隐藏变为可见时,为当前页支持的账号排队加载(缓存命中不重查)
+watch(
+  () => `${props.accounts.map(account => account.id).join(',')}|${showUsageWindows.value}`,
+  () => {
+    if (!showUsageWindows.value) return
+    for (const account of props.accounts) {
+      queueUsageWindows(account)
     }
   },
   { immediate: true }

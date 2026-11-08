@@ -73,11 +73,13 @@ type ChannelMonitorEdges struct {
 	History []*ChannelMonitorHistory `json:"history,omitempty"`
 	// DailyRollups holds the value of the daily_rollups edge.
 	DailyRollups []*ChannelMonitorDailyRollup `json:"daily_rollups,omitempty"`
+	// ProbeAnomalies holds the value of the probe_anomalies edge.
+	ProbeAnomalies []*ChannelMonitorProbeAnomaly `json:"probe_anomalies,omitempty"`
 	// RequestTemplate holds the value of the request_template edge.
 	RequestTemplate *ChannelMonitorRequestTemplate `json:"request_template,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // HistoryOrErr returns the History value or an error if the edge
@@ -98,12 +100,21 @@ func (e ChannelMonitorEdges) DailyRollupsOrErr() ([]*ChannelMonitorDailyRollup, 
 	return nil, &NotLoadedError{edge: "daily_rollups"}
 }
 
+// ProbeAnomaliesOrErr returns the ProbeAnomalies value or an error if the edge
+// was not loaded in eager-loading.
+func (e ChannelMonitorEdges) ProbeAnomaliesOrErr() ([]*ChannelMonitorProbeAnomaly, error) {
+	if e.loadedTypes[2] {
+		return e.ProbeAnomalies, nil
+	}
+	return nil, &NotLoadedError{edge: "probe_anomalies"}
+}
+
 // RequestTemplateOrErr returns the RequestTemplate value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
 func (e ChannelMonitorEdges) RequestTemplateOrErr() (*ChannelMonitorRequestTemplate, error) {
 	if e.RequestTemplate != nil {
 		return e.RequestTemplate, nil
-	} else if e.loadedTypes[2] {
+	} else if e.loadedTypes[3] {
 		return nil, &NotFoundError{label: channelmonitorrequesttemplate.Label}
 	}
 	return nil, &NotLoadedError{edge: "request_template"}
@@ -301,6 +312,11 @@ func (_m *ChannelMonitor) QueryHistory() *ChannelMonitorHistoryQuery {
 // QueryDailyRollups queries the "daily_rollups" edge of the ChannelMonitor entity.
 func (_m *ChannelMonitor) QueryDailyRollups() *ChannelMonitorDailyRollupQuery {
 	return NewChannelMonitorClient(_m.config).QueryDailyRollups(_m)
+}
+
+// QueryProbeAnomalies queries the "probe_anomalies" edge of the ChannelMonitor entity.
+func (_m *ChannelMonitor) QueryProbeAnomalies() *ChannelMonitorProbeAnomalyQuery {
+	return NewChannelMonitorClient(_m.config).QueryProbeAnomalies(_m)
 }
 
 // QueryRequestTemplate queries the "request_template" edge of the ChannelMonitor entity.

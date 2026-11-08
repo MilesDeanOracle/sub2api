@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -139,6 +141,10 @@ type channelMonitorHistoryItemResponse struct {
 	Message       string                       `json:"message"`
 	CheckedAt     string                       `json:"checked_at"`
 	Quota         *domain.MonitorQuotaSnapshot `json:"quota,omitempty"`
+	// Substituted / AnomalyID：该行是否为「上一次正常结果」的复制行
+	// 及关联的探测异常记录 id（点击可查看重试明细）；普通行为 false / null。
+	Substituted bool   `json:"substituted"`
+	AnomalyID   *int64 `json:"anomaly_id"`
 }
 
 // maskAPIKey 对 API Key 明文做脱敏：前 4 字符 + "***"，长度 ≤ 4 时只显示 "***"。
@@ -216,6 +222,8 @@ func historyEntryToResponse(e *service.ChannelMonitorHistoryEntry) channelMonito
 		Message:       e.Message,
 		CheckedAt:     e.CheckedAt.UTC().Format(time.RFC3339),
 		Quota:         e.Quota,
+		Substituted:   e.Substituted,
+		AnomalyID:     e.AnomalyID,
 	}
 }
 
@@ -471,13 +479,119 @@ func (h *ChannelMonitorHandler) Delete(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// probeRunStreamEvent 手动检测流式接口（RunStream）的单条 SSE 事件。
+// Type 取值：cycle_start / attempt / wait / done / error。
+type probeRunStreamEvent struct {
+	Type string `json:"type"`
+
+	// cycle_start
+	Trigger   string     `json:"trigger,omitempty"`
+	Models    []string   `json:"models,omitempty"`
+	StartedAt *time.Time `json:"started_at,omitempty"`
+
+	// attempt
+	Model         string     `json:"model,omitempty"`
+	Seq           int        `json:"seq,omitempty"`
+	Status        string     `json:"status,omitempty"`
+	LatencyMs     *int       `json:"latency_ms,omitempty"`
+	PingLatencyMs *int       `json:"ping_latency_ms,omitempty"`
+	Message       string     `json:"message,omitempty"`
+	CheckedAt     *time.Time `json:"checked_at,omitempty"`
+
+	// wait
+	DelayMs int64 `json:"delay_ms,omitempty"`
+
+	// done
+	Results []channelMonitorCheckResultResponse `json:"results,omitempty"`
+
+	// error
+	Error string `json:"error,omitempty"`
+}
+
+// writeProbeRunEvent 以 SSE（data: {...}\n\n）写出一条事件并立刻 flush，
+// 保证前端探测日志逐条实时上屏。连接已断开时写入失败按静默处理。
+func writeProbeRunEvent(c *gin.Context, event probeRunStreamEvent) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
+		return
+	}
+	c.Writer.Flush()
+}
+
+// RunStream POST /api/v1/admin/channel-monitors/:id/run/stream
+// 「立即检测」流式版：SSE 逐条吐出探测日志（cycle_start / attempt / wait），
+// 结束时发 done（results 与 POST /run 响应结构一致）或 error。
+// 先做一次 LoadForProbe 预检，让「监控不存在 / 功能停用 / 密钥解密失败」
+// 等错误仍走常规 JSON 错误响应（HTTP 状态码语义不变）。
+// 客户端断开（关闭弹窗）时请求 ctx 取消，本次周期按「这次不算」丢弃。
+func (h *ChannelMonitorHandler) RunStream(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	// 预检：此时还未写 SSE 头，错误可返回标准 JSON。
+	if _, err := h.monitorService.LoadForProbe(c.Request.Context(), id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	observe := &service.ProbeRunEventObserver{
+		OnCycleStart: func(models []string, startedAt time.Time) {
+			ts := startedAt
+			writeProbeRunEvent(c, probeRunStreamEvent{
+				Type: "cycle_start", Trigger: service.ProbeTriggerManual,
+				Models: models, StartedAt: &ts,
+			})
+		},
+		OnAttempt: func(model string, attempt domain.MonitorProbeAttempt) {
+			checkedAt := attempt.CheckedAt
+			writeProbeRunEvent(c, probeRunStreamEvent{
+				Type: "attempt", Model: model, Seq: attempt.Seq, Status: attempt.Status,
+				LatencyMs: attempt.LatencyMs, PingLatencyMs: attempt.PingLatencyMs,
+				Message: attempt.Message, CheckedAt: &checkedAt,
+			})
+		},
+		OnWait: func(delay time.Duration) {
+			writeProbeRunEvent(c, probeRunStreamEvent{Type: "wait", DelayMs: delay.Milliseconds()})
+		},
+	}
+
+	results, err := h.monitorService.RunCheckWithRetryStream(c.Request.Context(), id, observe)
+	if err != nil {
+		// 客户端主动断开导致的取消不需要再发事件（对端已关闭）。
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		writeProbeRunEvent(c, probeRunStreamEvent{Type: "error", Error: err.Error()})
+		return
+	}
+	out := make([]channelMonitorCheckResultResponse, 0, len(results))
+	for _, r := range results {
+		out = append(out, checkResultToResponse(r))
+	}
+	writeProbeRunEvent(c, probeRunStreamEvent{Type: "done", Results: out})
+}
+
 // Run POST /api/v1/admin/channel-monitors/:id/run
+// 内部走探测重试周期（probe / quota_probe；quota 模式不重试）：
+// 同步执行完整重试后返回最终结果，接口形态与响应结构与旧版一致；
+// 失败渠道常见耗时约 1 分钟（退避等待 3+10+30s），前端 loading 时间会变长。
+// 请求被网关 / 前端超时切断时本次周期作废（不落库、不写异常记录）。
 func (h *ChannelMonitorHandler) Run(c *gin.Context) {
 	id, ok := ParseChannelMonitorID(c)
 	if !ok {
 		return
 	}
-	results, err := h.monitorService.RunCheck(c.Request.Context(), id)
+	results, err := h.monitorService.RunCheckWithRetry(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -524,4 +638,133 @@ func parseHistoryLimit(raw string) int {
 		return service.MonitorHistoryMaxLimit
 	}
 	return v
+}
+
+// --- 探测异常列表（channel-monitor-v1-probe-retry） ---
+
+// probeAnomalyToResponse 把 service.ProbeAnomaly 转成 admin DTO。
+func probeAnomalyToResponse(a *service.ProbeAnomaly) dto.ChannelMonitorProbeAnomaly {
+	out := dto.ChannelMonitorProbeAnomaly{
+		ID:               a.ID,
+		MonitorID:        a.MonitorID,
+		MonitorName:      a.MonitorName,
+		Model:            a.Model,
+		Trigger:          a.Trigger,
+		TriggerStatus:    a.TriggerStatus,
+		Resolution:       a.Resolution,
+		Reason:           a.Reason,
+		ConsecutiveSeq:   a.ConsecutiveSeq,
+		AttemptCount:     a.AttemptCount,
+		Attempts:         make([]dto.ChannelMonitorProbeAttempt, 0, len(a.Attempts)),
+		WrittenHistoryID: a.WrittenHistoryID,
+		CycleStartedAt:   a.CycleStartedAt,
+		CycleFinishedAt:  a.CycleFinishedAt,
+		CreatedAt:        a.CreatedAt,
+	}
+	for _, at := range a.Attempts {
+		out.Attempts = append(out.Attempts, dto.ChannelMonitorProbeAttempt{
+			Seq:           at.Seq,
+			Status:        at.Status,
+			LatencyMs:     at.LatencyMs,
+			PingLatencyMs: at.PingLatencyMs,
+			Message:       at.Message,
+			CheckedAt:     at.CheckedAt,
+		})
+	}
+	if a.ReferenceHistoryID != nil {
+		v := *a.ReferenceHistoryID
+		out.ReferenceHistoryID = &v
+	}
+	if a.ReferenceCheckedAt != nil {
+		v := *a.ReferenceCheckedAt
+		out.ReferenceCheckedAt = &v
+	}
+	return out
+}
+
+// parseProbeAnomalyParams 解析异常列表的公共 query 参数。
+// 校验失败时已写入 4xx 响应，调用方只需 return。
+func parseProbeAnomalyParams(c *gin.Context) (service.ProbeAnomalyListParams, bool) {
+	params := service.ProbeAnomalyListParams{
+		Model:      strings.TrimSpace(c.Query("model")),
+		Resolution: strings.TrimSpace(c.Query("resolution")),
+	}
+	if params.Resolution != "" &&
+		params.Resolution != service.ProbeAnomalyResolutionSubstituted &&
+		params.Resolution != service.ProbeAnomalyResolutionRealWritten {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_PROBE_ANOMALY_RESOLUTION",
+			"resolution must be one of substituted/real_written"))
+		return params, false
+	}
+	for name, field := range map[string]**time.Time{"from": &params.From, "to": &params.To} {
+		raw := strings.TrimSpace(c.Query(name))
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			response.ErrorFrom(c, infraerrors.BadRequest("INVALID_PROBE_ANOMALY_TIME",
+				name+" must be an RFC3339 timestamp"))
+			return params, false
+		}
+		*field = &t
+	}
+	params.Page, params.PageSize = response.ParsePagination(c)
+	if params.PageSize > monitorMaxPageSize {
+		params.PageSize = monitorMaxPageSize
+	}
+	return params, true
+}
+
+// ProbeAnomalies GET /api/v1/admin/channel-monitors/:id/probe-anomalies
+// 单个监控的探测异常列表。
+func (h *ChannelMonitorHandler) ProbeAnomalies(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	params, ok := parseProbeAnomalyParams(c)
+	if !ok {
+		return
+	}
+	params.MonitorID = id
+
+	items, total, err := h.monitorService.ListProbeAnomalies(c.Request.Context(), params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.ChannelMonitorProbeAnomaly, 0, len(items))
+	for _, a := range items {
+		out = append(out, probeAnomalyToResponse(a))
+	}
+	response.Paginated(c, out, total, params.Page, params.PageSize)
+}
+
+// GlobalProbeAnomalies GET /api/v1/admin/channel-monitor-probe-anomalies
+// 跨监控的全局异常列表（可按 monitor_id 过滤）。
+func (h *ChannelMonitorHandler) GlobalProbeAnomalies(c *gin.Context) {
+	params, ok := parseProbeAnomalyParams(c)
+	if !ok {
+		return
+	}
+	if raw := strings.TrimSpace(c.Query("monitor_id")); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			response.ErrorFrom(c, infraerrors.BadRequest("INVALID_MONITOR_ID", "invalid monitor id"))
+			return
+		}
+		params.MonitorID = id
+	}
+
+	items, total, err := h.monitorService.ListProbeAnomalies(c.Request.Context(), params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.ChannelMonitorProbeAnomaly, 0, len(items))
+	for _, a := range items {
+		out = append(out, probeAnomalyToResponse(a))
+	}
+	response.Paginated(c, out, total, params.Page, params.PageSize)
 }

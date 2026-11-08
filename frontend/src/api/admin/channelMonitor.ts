@@ -183,6 +183,10 @@ export interface HistoryItem {
   checked_at: string
   /** 配额快照（配额模式行；探活行为空） */
   quota?: MonitorQuotaSnapshot | null
+  /** 该行是否为「上一次正常结果」的复制行（探测重试平滑写入） */
+  substituted?: boolean
+  /** 关联的探测异常记录 id（substituted 行非空；点击可查看重试明细） */
+  anomaly_id?: number | null
 }
 
 export interface HistoryParams {
@@ -192,6 +196,56 @@ export interface HistoryParams {
 
 export interface HistoryResponse {
   items: HistoryItem[]
+}
+
+/** 探测异常记录：单次尝试明细 */
+export interface ProbeAttempt {
+  seq: number
+  status: MonitorStatus
+  latency_ms: number | null
+  ping_latency_ms: number | null
+  message: string
+  checked_at: string
+}
+
+/** 探测异常记录：失败策略落空的一个周期 */
+export interface ProbeAnomaly {
+  id: number
+  monitor_id: number
+  monitor_name: string
+  model: string
+  trigger: 'scheduled' | 'manual'
+  trigger_status: MonitorStatus
+  resolution: 'substituted' | 'real_written'
+  reason: '' | 'no_reference' | 'too_many_consecutive'
+  consecutive_seq: number
+  attempt_count: number
+  attempts: ProbeAttempt[]
+  reference_history_id: number | null
+  reference_checked_at: string | null
+  written_history_id: number
+  cycle_started_at: string
+  cycle_finished_at: string
+  created_at: string
+}
+
+export interface ProbeAnomalyListParams {
+  /** 仅全局列表支持：按监控过滤 */
+  monitor_id?: number
+  model?: string
+  resolution?: 'substituted' | 'real_written'
+  from?: string
+  to?: string
+  page?: number
+  page_size?: number
+}
+
+export interface ProbeAnomalyListResponse {
+  items: ProbeAnomaly[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
 }
 
 /**
@@ -325,10 +379,94 @@ export async function del(id: number): Promise<void> {
 /**
  * Trigger an immediate manual check for a channel monitor.
  * Returns the latest check results for primary + extra models.
+ *
+ * probe / quota_probe 模式服务端会同步走完整重试周期（失败渠道常见 1 分多钟，
+ * 上限约 5 分钟），这里单独放宽请求超时；全局 30s 超时会在首个退避阶段就切断。
+ * 请求被切断时服务端按「本次不算」丢弃周期，不落库。
  */
 export async function runNow(id: number): Promise<RunNowResponse> {
-  const { data } = await apiClient.post<RunNowResponse>(`/admin/channel-monitors/${id}/run`)
+  const { data } = await apiClient.post<RunNowResponse>(
+    `/admin/channel-monitors/${id}/run`,
+    undefined,
+    { timeout: 300_000 }
+  )
   return data
+}
+
+/** 手动检测流式接口（run/stream）的单条 SSE 事件 */
+export type MonitorRunStreamEvent =
+  | { type: 'cycle_start'; trigger: string; models: string[]; started_at: string }
+  | {
+      type: 'attempt'
+      model: string
+      seq: number
+      status: MonitorStatus
+      latency_ms: number | null
+      ping_latency_ms: number | null
+      message: string
+      checked_at: string
+    }
+  | { type: 'wait'; delay_ms: number }
+  | { type: 'done'; results: CheckResult[] }
+  | { type: 'error'; message: string }
+
+/**
+ * 流式版「立即检测」：SSE 逐条吐出探测日志（cycle_start / attempt / wait），
+ * 结束时收到 done（results 与 runNow 一致）或 error。
+ *
+ * fetch + ReadableStream 手工解析（与账号测试弹窗同一模式）：EventSource 不支持
+ * POST，也不希望它的自动重连重触发检测。abort signal 取消时服务端按
+ * 「本次不算」丢弃周期。非 2xx 时解析 JSON 错误体并抛出（错误信息与 axios
+ * 拦截器口径一致取 message 字段）。
+ */
+export async function runNowStream(
+  id: number,
+  onEvent: (event: MonitorRunStreamEvent) => void,
+  signal: AbortSignal
+): Promise<void> {
+  const { buildApiUrl } = await import('../url')
+  const response = await fetch(buildApiUrl(`/admin/channel-monitors/${id}/run/stream`), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      'Content-Type': 'application/json'
+    },
+    signal
+  })
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const body = (await response.json()) as { message?: string }
+      if (body?.message) message = body.message
+    } catch {
+      // 保留 HTTP 状态码兜底信息
+    }
+    throw new Error(message)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const payload = line.slice(6).trim()
+      if (!payload) continue
+      try {
+        onEvent(JSON.parse(payload) as MonitorRunStreamEvent)
+      } catch (error) {
+        console.error('Failed to parse monitor run SSE event:', error)
+      }
+    }
+  }
 }
 
 /**
@@ -345,6 +483,33 @@ export async function listHistory(
   return data
 }
 
+/**
+ * List probe anomalies (failed retry cycles) for a single monitor.
+ */
+export async function listMonitorProbeAnomalies(
+  id: number,
+  params: ProbeAnomalyListParams = {}
+): Promise<ProbeAnomalyListResponse> {
+  const { data } = await apiClient.get<ProbeAnomalyListResponse>(
+    `/admin/channel-monitors/${id}/probe-anomalies`,
+    { params }
+  )
+  return data
+}
+
+/**
+ * List probe anomalies across all monitors (optionally filtered by monitor_id).
+ */
+export async function listProbeAnomalies(
+  params: ProbeAnomalyListParams = {}
+): Promise<ProbeAnomalyListResponse> {
+  const { data } = await apiClient.get<ProbeAnomalyListResponse>(
+    '/admin/channel-monitor-probe-anomalies',
+    { params }
+  )
+  return data
+}
+
 export const channelMonitorAPI = {
   list,
   get,
@@ -353,7 +518,10 @@ export const channelMonitorAPI = {
   update,
   del,
   runNow,
+  runNowStream,
   listHistory,
+  listMonitorProbeAnomalies,
+  listProbeAnomalies,
 }
 
 export default channelMonitorAPI
