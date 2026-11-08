@@ -205,6 +205,10 @@ const history = ref<HistoryItem[]>([])
 const anomalies = ref<ProbeAnomaly[]>([])
 const expandedAnomalyId = ref<number | null>(null)
 
+// 抽屉只展示最近 N 条：检测历史与探测异常各自独立计数。
+const HISTORY_LIMIT = 10
+const ANOMALY_LIMIT = 10
+
 function tabLabel(tab: HistoryTab): string {
   return tab === 'history'
     ? t('admin.channelMonitor.tabHistory')
@@ -261,8 +265,8 @@ async function load() {
   expandedAnomalyId.value = null
   try {
     const [historyRes, anomalyRes] = await Promise.all([
-      adminAPI.channelMonitor.listHistory(monitor.id, { limit: 100 }),
-      adminAPI.channelMonitor.listMonitorProbeAnomalies(monitor.id, { page: 1, page_size: 50 }),
+      adminAPI.channelMonitor.listHistory(monitor.id, { limit: HISTORY_LIMIT }),
+      adminAPI.channelMonitor.listMonitorProbeAnomalies(monitor.id, { page: 1, page_size: ANOMALY_LIMIT }),
     ])
     history.value = historyRes.items || []
     anomalies.value = anomalyRes.items || []
