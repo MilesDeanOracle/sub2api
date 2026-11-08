@@ -393,6 +393,82 @@ export async function runNow(id: number): Promise<RunNowResponse> {
   return data
 }
 
+/** 手动检测流式接口（run/stream）的单条 SSE 事件 */
+export type MonitorRunStreamEvent =
+  | { type: 'cycle_start'; trigger: string; models: string[]; started_at: string }
+  | {
+      type: 'attempt'
+      model: string
+      seq: number
+      status: MonitorStatus
+      latency_ms: number | null
+      ping_latency_ms: number | null
+      message: string
+      checked_at: string
+    }
+  | { type: 'wait'; delay_ms: number }
+  | { type: 'done'; results: CheckResult[] }
+  | { type: 'error'; message: string }
+
+/**
+ * 流式版「立即检测」：SSE 逐条吐出探测日志（cycle_start / attempt / wait），
+ * 结束时收到 done（results 与 runNow 一致）或 error。
+ *
+ * fetch + ReadableStream 手工解析（与账号测试弹窗同一模式）：EventSource 不支持
+ * POST，也不希望它的自动重连重触发检测。abort signal 取消时服务端按
+ * 「本次不算」丢弃周期。非 2xx 时解析 JSON 错误体并抛出（错误信息与 axios
+ * 拦截器口径一致取 message 字段）。
+ */
+export async function runNowStream(
+  id: number,
+  onEvent: (event: MonitorRunStreamEvent) => void,
+  signal: AbortSignal
+): Promise<void> {
+  const { buildApiUrl } = await import('../url')
+  const response = await fetch(buildApiUrl(`/admin/channel-monitors/${id}/run/stream`), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      'Content-Type': 'application/json'
+    },
+    signal
+  })
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const body = (await response.json()) as { message?: string }
+      if (body?.message) message = body.message
+    } catch {
+      // 保留 HTTP 状态码兜底信息
+    }
+    throw new Error(message)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const payload = line.slice(6).trim()
+      if (!payload) continue
+      try {
+        onEvent(JSON.parse(payload) as MonitorRunStreamEvent)
+      } catch (error) {
+        console.error('Failed to parse monitor run SSE event:', error)
+      }
+    }
+  }
+}
+
 /**
  * List historical check results for a monitor.
  */
@@ -442,6 +518,7 @@ export const channelMonitorAPI = {
   update,
   del,
   runNow,
+  runNowStream,
   listHistory,
   listMonitorProbeAnomalies,
   listProbeAnomalies,

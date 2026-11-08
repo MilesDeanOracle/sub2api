@@ -816,6 +816,7 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers, s
 		monitors.PUT("/:id", h.Admin.ChannelMonitor.Update)
 		monitors.DELETE("/:id", h.Admin.ChannelMonitor.Delete)
 		monitors.POST("/:id/run", h.Admin.ChannelMonitor.Run)
+		monitors.POST("/:id/run/stream", h.Admin.ChannelMonitor.RunStream)
 		monitors.GET("/:id/history", h.Admin.ChannelMonitor.History)
 		monitors.GET("/:id/probe-anomalies", h.Admin.ChannelMonitor.ProbeAnomalies)
 	}

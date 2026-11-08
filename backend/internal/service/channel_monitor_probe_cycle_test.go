@@ -5,9 +5,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -386,7 +389,7 @@ func TestDriveProbeCycle_StopsAtOperational(t *testing.T) {
 			return []*CheckResult{resultAt("m1", MonitorStatusError, latencyPtr(1), time.Now())}
 		}
 		return []*CheckResult{resultAt("m1", MonitorStatusOperational, latencyPtr(2), time.Now())}
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, 2, calls)
 	require.True(t, cycle.AllDone())
@@ -401,7 +404,7 @@ func TestDriveProbeCycle_CanceledContextDiscards(t *testing.T) {
 		calls++
 		cancel()
 		return []*CheckResult{resultAt("m1", MonitorStatusError, latencyPtr(1), time.Now())}
-	})
+	}, nil)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 1, calls)
 }
@@ -413,7 +416,7 @@ func TestDriveProbeCycle_ImmediateCancelBeforeFirstAttempt(t *testing.T) {
 	err := driveProbeCycle(ctx, cycle, func(context.Context, []string) []*CheckResult {
 		t.Fatal("probe must not run with a dead context")
 		return nil
-	})
+	}, nil)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -423,4 +426,49 @@ func TestProbeCycle_RecordRoundIgnoresUnknownModels(t *testing.T) {
 	cycle.RecordRound([]*CheckResult{resultAt("ghost", MonitorStatusError, nil, time.Now())}, time.Now())
 	require.False(t, cycle.AllDone(), "unknown model results must be ignored, m1 still pending")
 	require.Len(t, cycle.Models, 1)
+}
+
+func TestDriveProbeCycle_EmitsObserverEvents(t *testing.T) {
+	// 压缩退避到 1ms，避免真实等待。
+	savedFailure := monitorFailureRetryBackoffs
+	monitorFailureRetryBackoffs = []time.Duration{time.Millisecond}
+	defer func() { monitorFailureRetryBackoffs = savedFailure }()
+
+	cycle := newProbeCycle(1, ProbeTriggerManual, time.Now(), []string{"m1", "m2"})
+	var events []string
+	observe := &ProbeRunEventObserver{
+		OnCycleStart: func(models []string, _ time.Time) {
+			events = append(events, "start:"+strings.Join(models, ","))
+		},
+		OnAttempt: func(model string, a domain.MonitorProbeAttempt) {
+			events = append(events, fmt.Sprintf("attempt:%s#%d:%s", model, a.Seq, a.Status))
+		},
+		OnWait: func(delay time.Duration) {
+			events = append(events, "wait")
+		},
+	}
+
+	calls := 0
+	err := driveProbeCycle(context.Background(), cycle, func(_ context.Context, due []string) []*CheckResult {
+		calls++
+		if calls == 1 {
+			require.ElementsMatch(t, []string{"m1", "m2"}, due)
+			return []*CheckResult{
+				resultAt("m1", MonitorStatusError, latencyPtr(100), time.Now()),
+				resultAt("m2", MonitorStatusOperational, latencyPtr(80), time.Now()),
+			}
+		}
+		require.Equal(t, []string{"m1"}, due, "recovered m2 must not be probed again")
+		return []*CheckResult{resultAt("m1", MonitorStatusOperational, latencyPtr(90), time.Now())}
+	}, observe)
+	require.NoError(t, err)
+
+	// 事件顺序：周期开始 → 每轮各模型的尝试 → 退避等待 → 恢复后无等待直接结束。
+	require.Equal(t, []string{
+		"start:m1,m2",
+		"attempt:m1#1:error",
+		"attempt:m2#1:operational",
+		"wait",
+		"attempt:m1#2:operational",
+	}, events)
 }

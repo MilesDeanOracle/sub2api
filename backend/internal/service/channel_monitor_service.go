@@ -679,6 +679,13 @@ func (s *ChannelMonitorService) LoadForProbe(ctx context.Context, id int64) (*Ch
 // 周期 ctx 从请求 ctx 派生：网关 / 前端超时或用户关闭页面导致请求断开时，
 // 本次周期直接丢弃——不落库、不写异常记录（「这次不算」）。
 func (s *ChannelMonitorService) RunCheckWithRetry(ctx context.Context, id int64) ([]*CheckResult, error) {
+	return s.RunCheckWithRetryStream(ctx, id, nil)
+}
+
+// RunCheckWithRetryStream 是 RunCheckWithRetry 的事件版：探测过程中的每次尝试、
+// 退避等待通过 observe 回调吐出（供 SSE 流式接口渲染探测日志），行为与返回值
+// 与 RunCheckWithRetry 完全一致（quota 模式无周期事件，只有最终结果）。
+func (s *ChannelMonitorService) RunCheckWithRetryStream(ctx context.Context, id int64, observe *ProbeRunEventObserver) ([]*CheckResult, error) {
 	m, err := s.LoadForProbe(ctx, id)
 	if err != nil {
 		return nil, err
@@ -693,7 +700,7 @@ func (s *ChannelMonitorService) RunCheckWithRetry(ctx context.Context, id int64)
 	cycle := newProbeCycle(m.ID, ProbeTriggerManual, time.Now(), probeModelsOf(m))
 	if err := driveProbeCycle(cycleCtx, cycle, func(attemptCtx context.Context, due []string) []*CheckResult {
 		return s.ProbeModels(attemptCtx, m, due)
-	}); err != nil {
+	}, observe); err != nil {
 		return nil, err
 	}
 	return s.FinalizeProbeCycle(ctx, m, cycle)
@@ -704,10 +711,63 @@ func probeModelsOf(m *ChannelMonitor) []string {
 	return append([]string{m.PrimaryModel}, m.ExtraModels...)
 }
 
+// ProbeRunEventObserver 探测周期事件回调（手动「立即检测」流式接口消费，
+// 见 ChannelMonitorHandler.RunStream）。字段为 nil 时跳过对应事件。
+type ProbeRunEventObserver struct {
+	// OnCycleStart 周期开始（参与模型清单）。
+	OnCycleStart func(models []string, startedAt time.Time)
+	// OnAttempt 单次尝试结束（attempt 为该模型第 attempt.Seq 次尝试的明细）。
+	OnAttempt func(model string, attempt domain.MonitorProbeAttempt)
+	// OnWait 进入退避等待（下一次尝试的等待时长）。
+	OnWait func(delay time.Duration)
+}
+
+func (o *ProbeRunEventObserver) cycleStart(models []string, startedAt time.Time) {
+	if o != nil && o.OnCycleStart != nil {
+		o.OnCycleStart(models, startedAt)
+	}
+}
+
+func (o *ProbeRunEventObserver) attempt(model string, a domain.MonitorProbeAttempt) {
+	if o != nil && o.OnAttempt != nil {
+		o.OnAttempt(model, a)
+	}
+}
+
+func (o *ProbeRunEventObserver) wait(delay time.Duration) {
+	if o != nil && o.OnWait != nil {
+		o.OnWait(delay)
+	}
+}
+
+// emitRecordedAttempts 按本轮结果顺序发出尝试事件（seq 取该模型已记录的尝试数）。
+func emitRecordedAttempts(cycle *ProbeCycle, results []*CheckResult, observe *ProbeRunEventObserver) {
+	if observe == nil || observe.OnAttempt == nil {
+		return
+	}
+	for _, r := range results {
+		if r == nil {
+			continue
+		}
+		st, ok := cycle.Models[r.Model]
+		if !ok || len(st.Attempts) == 0 {
+			continue
+		}
+		last := st.Attempts[len(st.Attempts)-1]
+		if last != r {
+			continue // 该结果未记录（如 operational 后的重复结果），不发事件
+		}
+		details := buildAttemptDetails(st.Attempts)
+		observe.attempt(r.Model, details[len(details)-1])
+	}
+}
+
 // driveProbeCycle 同步驱动重试轮次：每轮探测到点模型、按退避等待，直到全部 Done
 // 或 ctx 结束。probe 回调负责真正的探测（调用方决定是否派生单次尝试超时）。
 // 返回 ctx 的错误（取消 / 截止）时周期作废，已完成的探测结果全部丢弃。
-func driveProbeCycle(ctx context.Context, cycle *ProbeCycle, probe func(ctx context.Context, due []string) []*CheckResult) error {
+// observe 可为 nil（无事件消费方）。
+func driveProbeCycle(ctx context.Context, cycle *ProbeCycle, probe func(ctx context.Context, due []string) []*CheckResult, observe *ProbeRunEventObserver) error {
+	observe.cycleStart(cycle.ModelNames(), cycle.StartedAt)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -725,6 +785,7 @@ func driveProbeCycle(ctx context.Context, cycle *ProbeCycle, probe func(ctx cont
 				return err
 			}
 			cycle.RecordRound(results, time.Now())
+			emitRecordedAttempts(cycle, results, observe)
 			if cycle.AllDone() {
 				return nil
 			}
@@ -733,6 +794,7 @@ func driveProbeCycle(ctx context.Context, cycle *ProbeCycle, probe func(ctx cont
 		if !ok {
 			return nil
 		}
+		observe.wait(delay)
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():

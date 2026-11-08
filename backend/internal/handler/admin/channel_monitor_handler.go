@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -475,6 +477,108 @@ func (h *ChannelMonitorHandler) Delete(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
+}
+
+// probeRunStreamEvent 手动检测流式接口（RunStream）的单条 SSE 事件。
+// Type 取值：cycle_start / attempt / wait / done / error。
+type probeRunStreamEvent struct {
+	Type string `json:"type"`
+
+	// cycle_start
+	Trigger   string     `json:"trigger,omitempty"`
+	Models    []string   `json:"models,omitempty"`
+	StartedAt *time.Time `json:"started_at,omitempty"`
+
+	// attempt
+	Model         string     `json:"model,omitempty"`
+	Seq           int        `json:"seq,omitempty"`
+	Status        string     `json:"status,omitempty"`
+	LatencyMs     *int       `json:"latency_ms,omitempty"`
+	PingLatencyMs *int       `json:"ping_latency_ms,omitempty"`
+	Message       string     `json:"message,omitempty"`
+	CheckedAt     *time.Time `json:"checked_at,omitempty"`
+
+	// wait
+	DelayMs int64 `json:"delay_ms,omitempty"`
+
+	// done
+	Results []channelMonitorCheckResultResponse `json:"results,omitempty"`
+
+	// error
+	Error string `json:"error,omitempty"`
+}
+
+// writeProbeRunEvent 以 SSE（data: {...}\n\n）写出一条事件并立刻 flush，
+// 保证前端探测日志逐条实时上屏。连接已断开时写入失败按静默处理。
+func writeProbeRunEvent(c *gin.Context, event probeRunStreamEvent) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
+		return
+	}
+	c.Writer.Flush()
+}
+
+// RunStream POST /api/v1/admin/channel-monitors/:id/run/stream
+// 「立即检测」流式版：SSE 逐条吐出探测日志（cycle_start / attempt / wait），
+// 结束时发 done（results 与 POST /run 响应结构一致）或 error。
+// 先做一次 LoadForProbe 预检，让「监控不存在 / 功能停用 / 密钥解密失败」
+// 等错误仍走常规 JSON 错误响应（HTTP 状态码语义不变）。
+// 客户端断开（关闭弹窗）时请求 ctx 取消，本次周期按「这次不算」丢弃。
+func (h *ChannelMonitorHandler) RunStream(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	// 预检：此时还未写 SSE 头，错误可返回标准 JSON。
+	if _, err := h.monitorService.LoadForProbe(c.Request.Context(), id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	observe := &service.ProbeRunEventObserver{
+		OnCycleStart: func(models []string, startedAt time.Time) {
+			ts := startedAt
+			writeProbeRunEvent(c, probeRunStreamEvent{
+				Type: "cycle_start", Trigger: service.ProbeTriggerManual,
+				Models: models, StartedAt: &ts,
+			})
+		},
+		OnAttempt: func(model string, attempt domain.MonitorProbeAttempt) {
+			checkedAt := attempt.CheckedAt
+			writeProbeRunEvent(c, probeRunStreamEvent{
+				Type: "attempt", Model: model, Seq: attempt.Seq, Status: attempt.Status,
+				LatencyMs: attempt.LatencyMs, PingLatencyMs: attempt.PingLatencyMs,
+				Message: attempt.Message, CheckedAt: &checkedAt,
+			})
+		},
+		OnWait: func(delay time.Duration) {
+			writeProbeRunEvent(c, probeRunStreamEvent{Type: "wait", DelayMs: delay.Milliseconds()})
+		},
+	}
+
+	results, err := h.monitorService.RunCheckWithRetryStream(c.Request.Context(), id, observe)
+	if err != nil {
+		// 客户端主动断开导致的取消不需要再发事件（对端已关闭）。
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		writeProbeRunEvent(c, probeRunStreamEvent{Type: "error", Error: err.Error()})
+		return
+	}
+	out := make([]channelMonitorCheckResultResponse, 0, len(results))
+	for _, r := range results {
+		out = append(out, checkResultToResponse(r))
+	}
+	writeProbeRunEvent(c, probeRunStreamEvent{Type: "done", Results: out})
 }
 
 // Run POST /api/v1/admin/channel-monitors/:id/run

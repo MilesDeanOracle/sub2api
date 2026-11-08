@@ -150,10 +150,12 @@
       @updated="reload"
     />
 
-    <MonitorRunResultDialog
-      :show="showRunResult"
-      :results="runResults"
-      @close="showRunResult = false"
+    <MonitorRunLogDialog
+      :show="showRunLog"
+      :monitor="runLogMonitor"
+      @close="showRunLog = false; runningId = null"
+      @finished="handleRunFinished"
+      @failed="handleRunFailed"
     />
 
     <MonitorHistoryDialog
@@ -183,7 +185,6 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { adminAPI } from '@/api/admin'
 import type {
   ChannelMonitor,
-  CheckResult,
   ListParams,
   Provider,
 } from '@/api/admin/channelMonitor'
@@ -200,7 +201,7 @@ import Toggle from '@/components/common/Toggle.vue'
 import MonitorFiltersBar from '@/components/admin/monitor/MonitorFiltersBar.vue'
 import MonitorFormDialog from '@/components/admin/monitor/MonitorFormDialog.vue'
 import MonitorTemplateManagerDialog from '@/components/admin/monitor/MonitorTemplateManagerDialog.vue'
-import MonitorRunResultDialog from '@/components/admin/monitor/MonitorRunResultDialog.vue'
+import MonitorRunLogDialog from '@/components/admin/monitor/MonitorRunLogDialog.vue'
 import MonitorHistoryDialog from '@/components/admin/monitor/MonitorHistoryDialog.vue'
 import MonitorPrimaryModelCell from '@/components/admin/monitor/MonitorPrimaryModelCell.vue'
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
@@ -235,8 +236,8 @@ const showTemplateManager = ref(false)
 const editing = ref<ChannelMonitor | null>(null)
 const showDeleteDialog = ref(false)
 const deleting = ref<ChannelMonitor | null>(null)
-const showRunResult = ref(false)
-const runResults = ref<CheckResult[]>([])
+const showRunLog = ref(false)
+const runLogMonitor = ref<ChannelMonitor | null>(null)
 const showHistory = ref(false)
 const historyMonitor = ref<ChannelMonitor | null>(null)
 const duplicatingIds = reactive(new Set<number>())
@@ -334,25 +335,28 @@ async function toggleEnabled(row: ChannelMonitor) {
   }
 }
 
-async function handleRunNow(row: ChannelMonitor) {
+// 立即检测：打开探测日志弹窗，由弹窗内的 SSE 流驱动完整重试周期
+function handleRunNow(row: ChannelMonitor) {
   if (!isV1Mode.value) {
     appStore.showError(t('admin.channelMonitor.runFailed'))
     return
   }
   if (runningId.value != null) return
   runningId.value = row.id
-  try {
-    const res = await adminAPI.channelMonitor.runNow(row.id)
-    runResults.value = res.results || []
-    showRunResult.value = true
-    appStore.showSuccess(t('admin.channelMonitor.runSuccess'))
-    // Refresh row to get latest status from backend
-    void reload()
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.runFailed')))
-  } finally {
-    runningId.value = null
-  }
+  runLogMonitor.value = row
+  showRunLog.value = true
+}
+
+function handleRunFinished() {
+  appStore.showSuccess(t('admin.channelMonitor.runSuccess'))
+  runningId.value = null
+  // Refresh row to get latest status from backend
+  void reload()
+}
+
+function handleRunFailed(message: string) {
+  appStore.showError(message || t('admin.channelMonitor.runFailed'))
+  runningId.value = null
 }
 
 function openHistoryDialog(row: ChannelMonitor) {
