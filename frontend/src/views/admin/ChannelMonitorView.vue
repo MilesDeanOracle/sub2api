@@ -106,6 +106,7 @@
               :running="runningId === row.id"
               :duplicating="duplicatingIds.has(row.id)"
               @run="handleRunNow"
+              @history="openHistoryDialog"
               @duplicate="handleDuplicate"
               @edit="openEditDialog"
               @delete="handleDelete"
@@ -155,6 +156,12 @@
       @close="showRunResult = false"
     />
 
+    <MonitorHistoryDialog
+      :show="showHistory"
+      :monitor="historyMonitor"
+      @close="showHistory = false"
+    />
+
     <ConfirmDialog
       :show="showDeleteDialog"
       :title="t('common.delete')"
@@ -194,6 +201,7 @@ import MonitorFiltersBar from '@/components/admin/monitor/MonitorFiltersBar.vue'
 import MonitorFormDialog from '@/components/admin/monitor/MonitorFormDialog.vue'
 import MonitorTemplateManagerDialog from '@/components/admin/monitor/MonitorTemplateManagerDialog.vue'
 import MonitorRunResultDialog from '@/components/admin/monitor/MonitorRunResultDialog.vue'
+import MonitorHistoryDialog from '@/components/admin/monitor/MonitorHistoryDialog.vue'
 import MonitorPrimaryModelCell from '@/components/admin/monitor/MonitorPrimaryModelCell.vue'
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -229,6 +237,8 @@ const showDeleteDialog = ref(false)
 const deleting = ref<ChannelMonitor | null>(null)
 const showRunResult = ref(false)
 const runResults = ref<CheckResult[]>([])
+const showHistory = ref(false)
+const historyMonitor = ref<ChannelMonitor | null>(null)
 const duplicatingIds = reactive(new Set<number>())
 
 let abortController: AbortController | null = null
@@ -343,6 +353,11 @@ async function handleRunNow(row: ChannelMonitor) {
   } finally {
     runningId.value = null
   }
+}
+
+function openHistoryDialog(row: ChannelMonitor) {
+  historyMonitor.value = row
+  showHistory.value = true
 }
 
 async function handleDuplicate(row: ChannelMonitor) {

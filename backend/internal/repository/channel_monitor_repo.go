@@ -268,32 +268,62 @@ func (r *channelMonitorRepository) DeleteHistoryBefore(ctx context.Context, befo
 
 // ListHistory 按 checked_at 倒序返回某个监控的最近 N 条历史记录。
 // model 为空时不过滤；非空时只返回该模型的记录。
+// LEFT JOIN 探测异常表填充 Substituted / AnomalyID（管理员标记复制行，§5.3）；
+// 该接口仅被管理员历史端点使用，用户侧聚合查询不经过这里。
 func (r *channelMonitorRepository) ListHistory(ctx context.Context, monitorID int64, model string, limit int) ([]*service.ChannelMonitorHistoryEntry, error) {
-	q := r.client.ChannelMonitorHistory.Query().
-		Where(channelmonitorhistory.MonitorIDEQ(monitorID))
+	const withModelSQL = `
+		SELECT h.id, h.model, h.status, h.latency_ms, h.ping_latency_ms, h.message, h.checked_at, h.quota,
+		       a.id AS anomaly_id,
+		       COALESCE(a.resolution = 'substituted', FALSE) AS substituted
+		FROM channel_monitor_histories h
+		LEFT JOIN channel_monitor_probe_anomalies a ON a.written_history_id = h.id
+		WHERE h.monitor_id = $1 AND h.model = $2
+		ORDER BY h.checked_at DESC, h.id DESC
+		LIMIT $3`
+	const anyModelSQL = `
+		SELECT h.id, h.model, h.status, h.latency_ms, h.ping_latency_ms, h.message, h.checked_at, h.quota,
+		       a.id AS anomaly_id,
+		       COALESCE(a.resolution = 'substituted', FALSE) AS substituted
+		FROM channel_monitor_histories h
+		LEFT JOIN channel_monitor_probe_anomalies a ON a.written_history_id = h.id
+		WHERE h.monitor_id = $1
+		ORDER BY h.checked_at DESC, h.id DESC
+		LIMIT $2`
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
 	if strings.TrimSpace(model) != "" {
-		q = q.Where(channelmonitorhistory.ModelEQ(model))
+		rows, err = r.db.QueryContext(ctx, withModelSQL, monitorID, model, limit)
+	} else {
+		rows, err = r.db.QueryContext(ctx, anyModelSQL, monitorID, limit)
 	}
-	rows, err := q.
-		Order(dbent.Desc(channelmonitorhistory.FieldCheckedAt)).
-		Limit(limit).
-		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list history: %w", err)
 	}
-	out := make([]*service.ChannelMonitorHistoryEntry, 0, len(rows))
-	for _, row := range rows {
-		entry := &service.ChannelMonitorHistoryEntry{
-			ID:            row.ID,
-			Model:         row.Model,
-			Status:        string(row.Status),
-			LatencyMs:     row.LatencyMs,
-			PingLatencyMs: row.PingLatencyMs,
-			Message:       row.Message,
-			CheckedAt:     row.CheckedAt,
-			Quota:         row.Quota,
+	defer func() { _ = rows.Close() }()
+
+	out := make([]*service.ChannelMonitorHistoryEntry, 0)
+	for rows.Next() {
+		entry := &service.ChannelMonitorHistoryEntry{}
+		var latency, ping, anomalyID sql.NullInt64
+		var quota []byte
+		if err := rows.Scan(&entry.ID, &entry.Model, &entry.Status, &latency, &ping,
+			&entry.Message, &entry.CheckedAt, &quota, &anomalyID, &entry.Substituted); err != nil {
+			return nil, fmt.Errorf("scan history row: %w", err)
+		}
+		assignNullInt(&entry.LatencyMs, latency)
+		assignNullInt(&entry.PingLatencyMs, ping)
+		entry.Quota = scanMonitorQuota(quota)
+		if anomalyID.Valid {
+			v := anomalyID.Int64
+			entry.AnomalyID = &v
 		}
 		out = append(out, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

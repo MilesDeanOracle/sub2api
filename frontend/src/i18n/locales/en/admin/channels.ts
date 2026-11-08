@@ -535,8 +535,35 @@ export default {
       createTitle: 'Create Channel Monitor',
       editTitle: 'Edit Channel Monitor',
       runNow: 'Run Now',
+      runNowRunning: 'Checking',
       runSuccess: 'Check completed',
       runFailed: 'Check failed',
+      history: 'History',
+      historyTitle: 'Checks — {name}',
+      historyTabAria: 'Check record view tabs',
+      tabHistory: 'History',
+      tabAnomalies: 'Probe Anomalies',
+      historyEmpty: 'No check history yet',
+      historyLoadError: 'Failed to load check records',
+      substitutedTag: 'Substituted',
+      substitutedHint: 'This row copies the last healthy result after retries failed. Click to inspect the real failure attempts.',
+      anomaliesEmpty: 'No probe anomalies',
+      anomalyTrigger: {
+        scheduled: 'Scheduled',
+        manual: 'Manual'
+      },
+      anomalyResolution: {
+        substituted: 'Substituted result written',
+        real_written: 'Real failure written'
+      },
+      anomalyReason: {
+        no_reference: 'No healthy reference row',
+        too_many_consecutive: 'Too many consecutive failures'
+      },
+      anomalyConsecutiveSeq: '{n} consecutive',
+      anomalyAttemptCount: '{n} attempts',
+      anomalyReferenceAt: 'Substituted from the healthy result at {time}',
+      anomalyCheckedAt: '{time}',
       duplicate: 'Duplicate',
       duplicating: 'Duplicating',
       duplicateSuccess: 'Monitor duplicated as "{name}" and disabled. Review its configuration before enabling it.',

@@ -18,6 +18,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
+	"github.com/Wei-Shaw/sub2api/ent/channelmonitorprobeanomaly"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
@@ -804,6 +805,48 @@ func init() {
 	channelmonitorhistoryDescCheckedAt := channelmonitorhistoryFields[7].Descriptor()
 	// channelmonitorhistory.DefaultCheckedAt holds the default value on creation for the checked_at field.
 	channelmonitorhistory.DefaultCheckedAt = channelmonitorhistoryDescCheckedAt.Default.(func() time.Time)
+	channelmonitorprobeanomalyFields := schema.ChannelMonitorProbeAnomaly{}.Fields()
+	_ = channelmonitorprobeanomalyFields
+	// channelmonitorprobeanomalyDescModel is the schema descriptor for model field.
+	channelmonitorprobeanomalyDescModel := channelmonitorprobeanomalyFields[1].Descriptor()
+	// channelmonitorprobeanomaly.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	channelmonitorprobeanomaly.ModelValidator = func() func(string) error {
+		validators := channelmonitorprobeanomalyDescModel.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(model string) error {
+			for _, fn := range fns {
+				if err := fn(model); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// channelmonitorprobeanomalyDescTrigger is the schema descriptor for trigger field.
+	channelmonitorprobeanomalyDescTrigger := channelmonitorprobeanomalyFields[2].Descriptor()
+	// channelmonitorprobeanomaly.TriggerValidator is a validator for the "trigger" field. It is called by the builders before save.
+	channelmonitorprobeanomaly.TriggerValidator = channelmonitorprobeanomalyDescTrigger.Validators[0].(func(string) error)
+	// channelmonitorprobeanomalyDescTriggerStatus is the schema descriptor for trigger_status field.
+	channelmonitorprobeanomalyDescTriggerStatus := channelmonitorprobeanomalyFields[3].Descriptor()
+	// channelmonitorprobeanomaly.TriggerStatusValidator is a validator for the "trigger_status" field. It is called by the builders before save.
+	channelmonitorprobeanomaly.TriggerStatusValidator = channelmonitorprobeanomalyDescTriggerStatus.Validators[0].(func(string) error)
+	// channelmonitorprobeanomalyDescResolution is the schema descriptor for resolution field.
+	channelmonitorprobeanomalyDescResolution := channelmonitorprobeanomalyFields[4].Descriptor()
+	// channelmonitorprobeanomaly.ResolutionValidator is a validator for the "resolution" field. It is called by the builders before save.
+	channelmonitorprobeanomaly.ResolutionValidator = channelmonitorprobeanomalyDescResolution.Validators[0].(func(string) error)
+	// channelmonitorprobeanomalyDescReason is the schema descriptor for reason field.
+	channelmonitorprobeanomalyDescReason := channelmonitorprobeanomalyFields[5].Descriptor()
+	// channelmonitorprobeanomaly.DefaultReason holds the default value on creation for the reason field.
+	channelmonitorprobeanomaly.DefaultReason = channelmonitorprobeanomalyDescReason.Default.(string)
+	// channelmonitorprobeanomaly.ReasonValidator is a validator for the "reason" field. It is called by the builders before save.
+	channelmonitorprobeanomaly.ReasonValidator = channelmonitorprobeanomalyDescReason.Validators[0].(func(string) error)
+	// channelmonitorprobeanomalyDescCreatedAt is the schema descriptor for created_at field.
+	channelmonitorprobeanomalyDescCreatedAt := channelmonitorprobeanomalyFields[14].Descriptor()
+	// channelmonitorprobeanomaly.DefaultCreatedAt holds the default value on creation for the created_at field.
+	channelmonitorprobeanomaly.DefaultCreatedAt = channelmonitorprobeanomalyDescCreatedAt.Default.(func() time.Time)
 	channelmonitorrequesttemplateMixin := schema.ChannelMonitorRequestTemplate{}.Mixin()
 	channelmonitorrequesttemplateMixinFields0 := channelmonitorrequesttemplateMixin[0].Fields()
 	_ = channelmonitorrequesttemplateMixinFields0

@@ -40,6 +40,8 @@ type Tx struct {
 	ChannelMonitorDailyRollup *ChannelMonitorDailyRollupClient
 	// ChannelMonitorHistory is the client for interacting with the ChannelMonitorHistory builders.
 	ChannelMonitorHistory *ChannelMonitorHistoryClient
+	// ChannelMonitorProbeAnomaly is the client for interacting with the ChannelMonitorProbeAnomaly builders.
+	ChannelMonitorProbeAnomaly *ChannelMonitorProbeAnomalyClient
 	// ChannelMonitorRequestTemplate is the client for interacting with the ChannelMonitorRequestTemplate builders.
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// CompositeModelRoute is the client for interacting with the CompositeModelRoute builders.
@@ -238,6 +240,7 @@ func (tx *Tx) init() {
 	tx.ChannelMonitor = NewChannelMonitorClient(tx.config)
 	tx.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(tx.config)
 	tx.ChannelMonitorHistory = NewChannelMonitorHistoryClient(tx.config)
+	tx.ChannelMonitorProbeAnomaly = NewChannelMonitorProbeAnomalyClient(tx.config)
 	tx.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(tx.config)
 	tx.CompositeModelRoute = NewCompositeModelRouteClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)

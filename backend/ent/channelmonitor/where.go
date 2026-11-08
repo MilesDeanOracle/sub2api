@@ -1086,6 +1086,29 @@ func HasDailyRollupsWith(preds ...predicate.ChannelMonitorDailyRollup) predicate
 	})
 }
 
+// HasProbeAnomalies applies the HasEdge predicate on the "probe_anomalies" edge.
+func HasProbeAnomalies() predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ProbeAnomaliesTable, ProbeAnomaliesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasProbeAnomaliesWith applies the HasEdge predicate on the "probe_anomalies" edge with a given conditions (other predicates).
+func HasProbeAnomaliesWith(preds ...predicate.ChannelMonitorProbeAnomaly) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(func(s *sql.Selector) {
+		step := newProbeAnomaliesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasRequestTemplate applies the HasEdge predicate on the "request_template" edge.
 func HasRequestTemplate() predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(func(s *sql.Selector) {

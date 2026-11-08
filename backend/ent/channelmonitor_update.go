@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
+	"github.com/Wei-Shaw/sub2api/ent/channelmonitorprobeanomaly"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 )
@@ -374,6 +375,21 @@ func (_u *ChannelMonitorUpdate) AddDailyRollups(v ...*ChannelMonitorDailyRollup)
 	return _u.AddDailyRollupIDs(ids...)
 }
 
+// AddProbeAnomalyIDs adds the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity by IDs.
+func (_u *ChannelMonitorUpdate) AddProbeAnomalyIDs(ids ...int64) *ChannelMonitorUpdate {
+	_u.mutation.AddProbeAnomalyIDs(ids...)
+	return _u
+}
+
+// AddProbeAnomalies adds the "probe_anomalies" edges to the ChannelMonitorProbeAnomaly entity.
+func (_u *ChannelMonitorUpdate) AddProbeAnomalies(v ...*ChannelMonitorProbeAnomaly) *ChannelMonitorUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddProbeAnomalyIDs(ids...)
+}
+
 // SetRequestTemplateID sets the "request_template" edge to the ChannelMonitorRequestTemplate entity by ID.
 func (_u *ChannelMonitorUpdate) SetRequestTemplateID(id int64) *ChannelMonitorUpdate {
 	_u.mutation.SetRequestTemplateID(id)
@@ -438,6 +454,27 @@ func (_u *ChannelMonitorUpdate) RemoveDailyRollups(v ...*ChannelMonitorDailyRoll
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveDailyRollupIDs(ids...)
+}
+
+// ClearProbeAnomalies clears all "probe_anomalies" edges to the ChannelMonitorProbeAnomaly entity.
+func (_u *ChannelMonitorUpdate) ClearProbeAnomalies() *ChannelMonitorUpdate {
+	_u.mutation.ClearProbeAnomalies()
+	return _u
+}
+
+// RemoveProbeAnomalyIDs removes the "probe_anomalies" edge to ChannelMonitorProbeAnomaly entities by IDs.
+func (_u *ChannelMonitorUpdate) RemoveProbeAnomalyIDs(ids ...int64) *ChannelMonitorUpdate {
+	_u.mutation.RemoveProbeAnomalyIDs(ids...)
+	return _u
+}
+
+// RemoveProbeAnomalies removes "probe_anomalies" edges to ChannelMonitorProbeAnomaly entities.
+func (_u *ChannelMonitorUpdate) RemoveProbeAnomalies(v ...*ChannelMonitorProbeAnomaly) *ChannelMonitorUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveProbeAnomalyIDs(ids...)
 }
 
 // ClearRequestTemplate clears the "request_template" edge to the ChannelMonitorRequestTemplate entity.
@@ -723,6 +760,51 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(channelmonitordailyrollup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ProbeAnomaliesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedProbeAnomaliesIDs(); len(nodes) > 0 && !_u.mutation.ProbeAnomaliesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ProbeAnomaliesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1121,6 +1203,21 @@ func (_u *ChannelMonitorUpdateOne) AddDailyRollups(v ...*ChannelMonitorDailyRoll
 	return _u.AddDailyRollupIDs(ids...)
 }
 
+// AddProbeAnomalyIDs adds the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity by IDs.
+func (_u *ChannelMonitorUpdateOne) AddProbeAnomalyIDs(ids ...int64) *ChannelMonitorUpdateOne {
+	_u.mutation.AddProbeAnomalyIDs(ids...)
+	return _u
+}
+
+// AddProbeAnomalies adds the "probe_anomalies" edges to the ChannelMonitorProbeAnomaly entity.
+func (_u *ChannelMonitorUpdateOne) AddProbeAnomalies(v ...*ChannelMonitorProbeAnomaly) *ChannelMonitorUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddProbeAnomalyIDs(ids...)
+}
+
 // SetRequestTemplateID sets the "request_template" edge to the ChannelMonitorRequestTemplate entity by ID.
 func (_u *ChannelMonitorUpdateOne) SetRequestTemplateID(id int64) *ChannelMonitorUpdateOne {
 	_u.mutation.SetRequestTemplateID(id)
@@ -1185,6 +1282,27 @@ func (_u *ChannelMonitorUpdateOne) RemoveDailyRollups(v ...*ChannelMonitorDailyR
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveDailyRollupIDs(ids...)
+}
+
+// ClearProbeAnomalies clears all "probe_anomalies" edges to the ChannelMonitorProbeAnomaly entity.
+func (_u *ChannelMonitorUpdateOne) ClearProbeAnomalies() *ChannelMonitorUpdateOne {
+	_u.mutation.ClearProbeAnomalies()
+	return _u
+}
+
+// RemoveProbeAnomalyIDs removes the "probe_anomalies" edge to ChannelMonitorProbeAnomaly entities by IDs.
+func (_u *ChannelMonitorUpdateOne) RemoveProbeAnomalyIDs(ids ...int64) *ChannelMonitorUpdateOne {
+	_u.mutation.RemoveProbeAnomalyIDs(ids...)
+	return _u
+}
+
+// RemoveProbeAnomalies removes "probe_anomalies" edges to ChannelMonitorProbeAnomaly entities.
+func (_u *ChannelMonitorUpdateOne) RemoveProbeAnomalies(v ...*ChannelMonitorProbeAnomaly) *ChannelMonitorUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveProbeAnomalyIDs(ids...)
 }
 
 // ClearRequestTemplate clears the "request_template" edge to the ChannelMonitorRequestTemplate entity.
@@ -1500,6 +1618,51 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(channelmonitordailyrollup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ProbeAnomaliesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedProbeAnomaliesIDs(); len(nodes) > 0 && !_u.mutation.ProbeAnomaliesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ProbeAnomaliesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

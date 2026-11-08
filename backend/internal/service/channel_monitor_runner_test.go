@@ -17,7 +17,26 @@ type stubMonitorSvc struct {
 	runCalled  chan int64 // 每次 RunCheck 触发时 push 一次（缓冲足够大避免阻塞）
 	runErr     error
 	listErr    error
-	runHoldFor time.Duration // RunCheck 内额外阻塞的时长，用来测试 Stop 等待行为
+	runHoldFor time.Duration // RunCheck 内额外阻塞的时长（可被 ctx 取消打断）
+	// runHoldUncancellable RunCheck 内不可取消的收尾时长（验证 StopAndWait 等 worker 退出）。
+	runHoldUncancellable time.Duration
+
+	// ---- 探测重试周期（probe / quota_probe 模式） ----
+	// monitors 提供 LoadForProbe 的监控快照；未注册的 id 返回默认 quota 监控，
+	// 让既有调度语义测试（RunCheck 路径）无需改动。
+	monitors map[int64]*ChannelMonitor
+	loadErr  error
+	// rounds 是 ProbeModels 的轮次脚本：每次调用弹出一轮结果；耗尽后返回空。
+	rounds [][]*CheckResult
+	// probeModels 可选地完全接管 ProbeModels（优先于 rounds）。
+	probeModels func(ctx context.Context, m *ChannelMonitor, models []string) []*CheckResult
+
+	probeMu    sync.Mutex
+	probeCalls int64
+	probed     [][]string // 每轮实际探测的模型列表
+
+	finalizeCount atomic.Int64
+	finalizeErr   error
 }
 
 func (s *stubMonitorSvc) ListEnabledMonitors(_ context.Context) ([]*ChannelMonitor, error) {
@@ -41,7 +60,45 @@ func (s *stubMonitorSvc) RunCheck(ctx context.Context, id int64) ([]*CheckResult
 		case <-ctx.Done():
 		}
 	}
+	if s.runHoldUncancellable > 0 {
+		time.Sleep(s.runHoldUncancellable)
+	}
 	return nil, s.runErr
+}
+
+// LoadForProbe 返回注册的监控快照；未注册的 id 返回默认 quota 监控
+// （走 RunCheck 单发路径，保持既有调度测试的行为）。
+func (s *stubMonitorSvc) LoadForProbe(_ context.Context, id int64) (*ChannelMonitor, error) {
+	if s.loadErr != nil {
+		return nil, s.loadErr
+	}
+	if m, ok := s.monitors[id]; ok {
+		clone := *m
+		return &clone, nil
+	}
+	return &ChannelMonitor{ID: id, CheckMode: MonitorCheckModeQuota, PrimaryModel: "quota"}, nil
+}
+
+// ProbeModels 弹出一轮脚本结果；脚本耗尽返回 nil（不再推进状态，周期停在等待）。
+func (s *stubMonitorSvc) ProbeModels(ctx context.Context, m *ChannelMonitor, models []string) []*CheckResult {
+	s.probeMu.Lock()
+	s.probeCalls++
+	s.probed = append(s.probed, append([]string{}, models...))
+	var round []*CheckResult
+	if len(s.rounds) > 0 {
+		round, s.rounds = s.rounds[0], s.rounds[1:]
+	}
+	s.probeMu.Unlock()
+	if s.probeModels != nil {
+		return s.probeModels(ctx, m, models)
+	}
+	return round
+}
+
+// FinalizeProbeCycle 记录收尾次数并返回 finalizeErr。
+func (s *stubMonitorSvc) FinalizeProbeCycle(_ context.Context, _ *ChannelMonitor, _ *ProbeCycle) ([]*CheckResult, error) {
+	s.finalizeCount.Add(1)
+	return nil, s.finalizeErr
 }
 
 func newRunnerForTest(svc monitorRunnerSvc) *ChannelMonitorRunner {
@@ -299,10 +356,15 @@ func TestStop_DrainsAllGoroutines(t *testing.T) {
 }
 
 // TestStop_WaitsForInFlightCheck 验证 Stop 会等待正在执行的 RunCheck 退出（pool.StopAndWait）。
+// 注意：探测重试改造后周期 ctx 从任务 ctx 派生，Stop 会取消正在执行的检测
+// （上游等待被尽早中止）；本用例的 stub 故意不响应 ctx 取消，
+// 以验证 StopAndWait 仍会等 worker 真正退出而不是丢弃。
 func TestStop_WaitsForInFlightCheck(t *testing.T) {
 	svc := &stubMonitorSvc{
-		runCalled:  make(chan int64, 1),
-		runHoldFor: 200 * time.Millisecond,
+		runCalled: make(chan int64, 1),
+		// runHoldFor 的等待现在会被 ctx 取消打断（新语义：重试周期必须可取消），
+		// 因此这里用不可取消的短睡眠模拟「检测正在收尾、无法立即退出」。
+		runHoldUncancellable: 150 * time.Millisecond,
 	}
 	r := newRunnerForTest(svc)
 	r.Start()
@@ -317,8 +379,8 @@ func TestStop_WaitsForInFlightCheck(t *testing.T) {
 	start := time.Now()
 	stoppedWithin(t, r, 3*time.Second)
 	elapsed := time.Since(start)
-	// Stop 必须等待 in-flight check 跑完（runHoldFor=200ms），耗时下界约 100ms。
-	if elapsed < 100*time.Millisecond {
+	// Stop 必须等待 in-flight check 跑完（不可取消的 150ms 收尾），耗时下界约 75ms。
+	if elapsed < 75*time.Millisecond {
 		t.Fatalf("Stop returned too fast (%v); did not wait for in-flight check", elapsed)
 	}
 }

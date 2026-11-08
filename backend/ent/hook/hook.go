@@ -165,6 +165,18 @@ func (f ChannelMonitorHistoryFunc) Mutate(ctx context.Context, m ent.Mutation) (
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelMonitorHistoryMutation", m)
 }
 
+// The ChannelMonitorProbeAnomalyFunc type is an adapter to allow the use of ordinary
+// function as ChannelMonitorProbeAnomaly mutator.
+type ChannelMonitorProbeAnomalyFunc func(context.Context, *ent.ChannelMonitorProbeAnomalyMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelMonitorProbeAnomalyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelMonitorProbeAnomalyMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelMonitorProbeAnomalyMutation", m)
+}
+
 // The ChannelMonitorRequestTemplateFunc type is an adapter to allow the use of ordinary
 // function as ChannelMonitorRequestTemplate mutator.
 type ChannelMonitorRequestTemplateFunc func(context.Context, *ent.ChannelMonitorRequestTemplateMutation) (ent.Value, error)

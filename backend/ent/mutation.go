@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
+	"github.com/Wei-Shaw/sub2api/ent/channelmonitorprobeanomaly"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
@@ -78,6 +79,7 @@ const (
 	TypeChannelMonitor                = "ChannelMonitor"
 	TypeChannelMonitorDailyRollup     = "ChannelMonitorDailyRollup"
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
+	TypeChannelMonitorProbeAnomaly    = "ChannelMonitorProbeAnomaly"
 	TypeChannelMonitorRequestTemplate = "ChannelMonitorRequestTemplate"
 	TypeCompositeModelRoute           = "CompositeModelRoute"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
@@ -14638,6 +14640,9 @@ type ChannelMonitorMutation struct {
 	daily_rollups           map[int64]struct{}
 	removeddaily_rollups    map[int64]struct{}
 	cleareddaily_rollups    bool
+	probe_anomalies         map[int64]struct{}
+	removedprobe_anomalies  map[int64]struct{}
+	clearedprobe_anomalies  bool
 	request_template        *int64
 	clearedrequest_template bool
 	done                    bool
@@ -15768,6 +15773,60 @@ func (m *ChannelMonitorMutation) ResetDailyRollups() {
 	m.removeddaily_rollups = nil
 }
 
+// AddProbeAnomalyIDs adds the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity by ids.
+func (m *ChannelMonitorMutation) AddProbeAnomalyIDs(ids ...int64) {
+	if m.probe_anomalies == nil {
+		m.probe_anomalies = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.probe_anomalies[ids[i]] = struct{}{}
+	}
+}
+
+// ClearProbeAnomalies clears the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity.
+func (m *ChannelMonitorMutation) ClearProbeAnomalies() {
+	m.clearedprobe_anomalies = true
+}
+
+// ProbeAnomaliesCleared reports if the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity was cleared.
+func (m *ChannelMonitorMutation) ProbeAnomaliesCleared() bool {
+	return m.clearedprobe_anomalies
+}
+
+// RemoveProbeAnomalyIDs removes the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity by IDs.
+func (m *ChannelMonitorMutation) RemoveProbeAnomalyIDs(ids ...int64) {
+	if m.removedprobe_anomalies == nil {
+		m.removedprobe_anomalies = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.probe_anomalies, ids[i])
+		m.removedprobe_anomalies[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedProbeAnomalies returns the removed IDs of the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity.
+func (m *ChannelMonitorMutation) RemovedProbeAnomaliesIDs() (ids []int64) {
+	for id := range m.removedprobe_anomalies {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ProbeAnomaliesIDs returns the "probe_anomalies" edge IDs in the mutation.
+func (m *ChannelMonitorMutation) ProbeAnomaliesIDs() (ids []int64) {
+	for id := range m.probe_anomalies {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetProbeAnomalies resets all changes to the "probe_anomalies" edge.
+func (m *ChannelMonitorMutation) ResetProbeAnomalies() {
+	m.probe_anomalies = nil
+	m.clearedprobe_anomalies = false
+	m.removedprobe_anomalies = nil
+}
+
 // SetRequestTemplateID sets the "request_template" edge to the ChannelMonitorRequestTemplate entity by id.
 func (m *ChannelMonitorMutation) SetRequestTemplateID(id int64) {
 	m.request_template = &id
@@ -16365,12 +16424,15 @@ func (m *ChannelMonitorMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ChannelMonitorMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.history != nil {
 		edges = append(edges, channelmonitor.EdgeHistory)
 	}
 	if m.daily_rollups != nil {
 		edges = append(edges, channelmonitor.EdgeDailyRollups)
+	}
+	if m.probe_anomalies != nil {
+		edges = append(edges, channelmonitor.EdgeProbeAnomalies)
 	}
 	if m.request_template != nil {
 		edges = append(edges, channelmonitor.EdgeRequestTemplate)
@@ -16394,6 +16456,12 @@ func (m *ChannelMonitorMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case channelmonitor.EdgeProbeAnomalies:
+		ids := make([]ent.Value, 0, len(m.probe_anomalies))
+		for id := range m.probe_anomalies {
+			ids = append(ids, id)
+		}
+		return ids
 	case channelmonitor.EdgeRequestTemplate:
 		if id := m.request_template; id != nil {
 			return []ent.Value{*id}
@@ -16404,12 +16472,15 @@ func (m *ChannelMonitorMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ChannelMonitorMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.removedhistory != nil {
 		edges = append(edges, channelmonitor.EdgeHistory)
 	}
 	if m.removeddaily_rollups != nil {
 		edges = append(edges, channelmonitor.EdgeDailyRollups)
+	}
+	if m.removedprobe_anomalies != nil {
+		edges = append(edges, channelmonitor.EdgeProbeAnomalies)
 	}
 	return edges
 }
@@ -16430,18 +16501,27 @@ func (m *ChannelMonitorMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case channelmonitor.EdgeProbeAnomalies:
+		ids := make([]ent.Value, 0, len(m.removedprobe_anomalies))
+		for id := range m.removedprobe_anomalies {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ChannelMonitorMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.clearedhistory {
 		edges = append(edges, channelmonitor.EdgeHistory)
 	}
 	if m.cleareddaily_rollups {
 		edges = append(edges, channelmonitor.EdgeDailyRollups)
+	}
+	if m.clearedprobe_anomalies {
+		edges = append(edges, channelmonitor.EdgeProbeAnomalies)
 	}
 	if m.clearedrequest_template {
 		edges = append(edges, channelmonitor.EdgeRequestTemplate)
@@ -16457,6 +16537,8 @@ func (m *ChannelMonitorMutation) EdgeCleared(name string) bool {
 		return m.clearedhistory
 	case channelmonitor.EdgeDailyRollups:
 		return m.cleareddaily_rollups
+	case channelmonitor.EdgeProbeAnomalies:
+		return m.clearedprobe_anomalies
 	case channelmonitor.EdgeRequestTemplate:
 		return m.clearedrequest_template
 	}
@@ -16483,6 +16565,9 @@ func (m *ChannelMonitorMutation) ResetEdge(name string) error {
 		return nil
 	case channelmonitor.EdgeDailyRollups:
 		m.ResetDailyRollups()
+		return nil
+	case channelmonitor.EdgeProbeAnomalies:
+		m.ResetProbeAnomalies()
 		return nil
 	case channelmonitor.EdgeRequestTemplate:
 		m.ResetRequestTemplate()
@@ -18812,6 +18897,1335 @@ func (m *ChannelMonitorHistoryMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown ChannelMonitorHistory edge %s", name)
+}
+
+// ChannelMonitorProbeAnomalyMutation represents an operation that mutates the ChannelMonitorProbeAnomaly nodes in the graph.
+type ChannelMonitorProbeAnomalyMutation struct {
+	config
+	op                      Op
+	typ                     string
+	id                      *int64
+	model                   *string
+	trigger                 *string
+	trigger_status          *string
+	resolution              *string
+	reason                  *string
+	consecutive_seq         *int
+	addconsecutive_seq      *int
+	attempt_count           *int16
+	addattempt_count        *int16
+	attempts                *[]domain.MonitorProbeAttempt
+	appendattempts          []domain.MonitorProbeAttempt
+	reference_history_id    *int64
+	addreference_history_id *int64
+	reference_checked_at    *time.Time
+	written_history_id      *int64
+	addwritten_history_id   *int64
+	cycle_started_at        *time.Time
+	cycle_finished_at       *time.Time
+	created_at              *time.Time
+	clearedFields           map[string]struct{}
+	monitor                 *int64
+	clearedmonitor          bool
+	done                    bool
+	oldValue                func(context.Context) (*ChannelMonitorProbeAnomaly, error)
+	predicates              []predicate.ChannelMonitorProbeAnomaly
+}
+
+var _ ent.Mutation = (*ChannelMonitorProbeAnomalyMutation)(nil)
+
+// channelmonitorprobeanomalyOption allows management of the mutation configuration using functional options.
+type channelmonitorprobeanomalyOption func(*ChannelMonitorProbeAnomalyMutation)
+
+// newChannelMonitorProbeAnomalyMutation creates new mutation for the ChannelMonitorProbeAnomaly entity.
+func newChannelMonitorProbeAnomalyMutation(c config, op Op, opts ...channelmonitorprobeanomalyOption) *ChannelMonitorProbeAnomalyMutation {
+	m := &ChannelMonitorProbeAnomalyMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelMonitorProbeAnomaly,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelMonitorProbeAnomalyID sets the ID field of the mutation.
+func withChannelMonitorProbeAnomalyID(id int64) channelmonitorprobeanomalyOption {
+	return func(m *ChannelMonitorProbeAnomalyMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelMonitorProbeAnomaly
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelMonitorProbeAnomaly, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelMonitorProbeAnomaly.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelMonitorProbeAnomaly sets the old ChannelMonitorProbeAnomaly of the mutation.
+func withChannelMonitorProbeAnomaly(node *ChannelMonitorProbeAnomaly) channelmonitorprobeanomalyOption {
+	return func(m *ChannelMonitorProbeAnomalyMutation) {
+		m.oldValue = func(context.Context) (*ChannelMonitorProbeAnomaly, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelMonitorProbeAnomalyMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelMonitorProbeAnomalyMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelMonitorProbeAnomalyMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelMonitorProbeAnomaly.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetMonitorID sets the "monitor_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetMonitorID(i int64) {
+	m.monitor = &i
+}
+
+// MonitorID returns the value of the "monitor_id" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) MonitorID() (r int64, exists bool) {
+	v := m.monitor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonitorID returns the old "monitor_id" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldMonitorID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonitorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonitorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonitorID: %w", err)
+	}
+	return oldValue.MonitorID, nil
+}
+
+// ResetMonitorID resets all changes to the "monitor_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetMonitorID() {
+	m.monitor = nil
+}
+
+// SetModel sets the "model" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetTrigger sets the "trigger" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetTrigger(s string) {
+	m.trigger = &s
+}
+
+// Trigger returns the value of the "trigger" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) Trigger() (r string, exists bool) {
+	v := m.trigger
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTrigger returns the old "trigger" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldTrigger(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTrigger is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTrigger requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTrigger: %w", err)
+	}
+	return oldValue.Trigger, nil
+}
+
+// ResetTrigger resets all changes to the "trigger" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetTrigger() {
+	m.trigger = nil
+}
+
+// SetTriggerStatus sets the "trigger_status" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetTriggerStatus(s string) {
+	m.trigger_status = &s
+}
+
+// TriggerStatus returns the value of the "trigger_status" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) TriggerStatus() (r string, exists bool) {
+	v := m.trigger_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTriggerStatus returns the old "trigger_status" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldTriggerStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTriggerStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTriggerStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTriggerStatus: %w", err)
+	}
+	return oldValue.TriggerStatus, nil
+}
+
+// ResetTriggerStatus resets all changes to the "trigger_status" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetTriggerStatus() {
+	m.trigger_status = nil
+}
+
+// SetResolution sets the "resolution" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetResolution(s string) {
+	m.resolution = &s
+}
+
+// Resolution returns the value of the "resolution" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) Resolution() (r string, exists bool) {
+	v := m.resolution
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolution returns the old "resolution" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldResolution(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolution is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolution requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolution: %w", err)
+	}
+	return oldValue.Resolution, nil
+}
+
+// ResetResolution resets all changes to the "resolution" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetResolution() {
+	m.resolution = nil
+}
+
+// SetReason sets the "reason" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetReason(s string) {
+	m.reason = &s
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) Reason() (r string, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetReason() {
+	m.reason = nil
+}
+
+// SetConsecutiveSeq sets the "consecutive_seq" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetConsecutiveSeq(i int) {
+	m.consecutive_seq = &i
+	m.addconsecutive_seq = nil
+}
+
+// ConsecutiveSeq returns the value of the "consecutive_seq" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ConsecutiveSeq() (r int, exists bool) {
+	v := m.consecutive_seq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveSeq returns the old "consecutive_seq" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldConsecutiveSeq(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveSeq is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveSeq requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveSeq: %w", err)
+	}
+	return oldValue.ConsecutiveSeq, nil
+}
+
+// AddConsecutiveSeq adds i to the "consecutive_seq" field.
+func (m *ChannelMonitorProbeAnomalyMutation) AddConsecutiveSeq(i int) {
+	if m.addconsecutive_seq != nil {
+		*m.addconsecutive_seq += i
+	} else {
+		m.addconsecutive_seq = &i
+	}
+}
+
+// AddedConsecutiveSeq returns the value that was added to the "consecutive_seq" field in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedConsecutiveSeq() (r int, exists bool) {
+	v := m.addconsecutive_seq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveSeq resets all changes to the "consecutive_seq" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetConsecutiveSeq() {
+	m.consecutive_seq = nil
+	m.addconsecutive_seq = nil
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetAttemptCount(i int16) {
+	m.attempt_count = &i
+	m.addattempt_count = nil
+}
+
+// AttemptCount returns the value of the "attempt_count" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AttemptCount() (r int16, exists bool) {
+	v := m.attempt_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttemptCount returns the old "attempt_count" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldAttemptCount(ctx context.Context) (v int16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttemptCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttemptCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttemptCount: %w", err)
+	}
+	return oldValue.AttemptCount, nil
+}
+
+// AddAttemptCount adds i to the "attempt_count" field.
+func (m *ChannelMonitorProbeAnomalyMutation) AddAttemptCount(i int16) {
+	if m.addattempt_count != nil {
+		*m.addattempt_count += i
+	} else {
+		m.addattempt_count = &i
+	}
+}
+
+// AddedAttemptCount returns the value that was added to the "attempt_count" field in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedAttemptCount() (r int16, exists bool) {
+	v := m.addattempt_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAttemptCount resets all changes to the "attempt_count" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetAttemptCount() {
+	m.attempt_count = nil
+	m.addattempt_count = nil
+}
+
+// SetAttempts sets the "attempts" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetAttempts(dpa []domain.MonitorProbeAttempt) {
+	m.attempts = &dpa
+	m.appendattempts = nil
+}
+
+// Attempts returns the value of the "attempts" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) Attempts() (r []domain.MonitorProbeAttempt, exists bool) {
+	v := m.attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttempts returns the old "attempts" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldAttempts(ctx context.Context) (v []domain.MonitorProbeAttempt, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttempts: %w", err)
+	}
+	return oldValue.Attempts, nil
+}
+
+// AppendAttempts adds dpa to the "attempts" field.
+func (m *ChannelMonitorProbeAnomalyMutation) AppendAttempts(dpa []domain.MonitorProbeAttempt) {
+	m.appendattempts = append(m.appendattempts, dpa...)
+}
+
+// AppendedAttempts returns the list of values that were appended to the "attempts" field in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AppendedAttempts() ([]domain.MonitorProbeAttempt, bool) {
+	if len(m.appendattempts) == 0 {
+		return nil, false
+	}
+	return m.appendattempts, true
+}
+
+// ResetAttempts resets all changes to the "attempts" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetAttempts() {
+	m.attempts = nil
+	m.appendattempts = nil
+}
+
+// SetReferenceHistoryID sets the "reference_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetReferenceHistoryID(i int64) {
+	m.reference_history_id = &i
+	m.addreference_history_id = nil
+}
+
+// ReferenceHistoryID returns the value of the "reference_history_id" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ReferenceHistoryID() (r int64, exists bool) {
+	v := m.reference_history_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferenceHistoryID returns the old "reference_history_id" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldReferenceHistoryID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferenceHistoryID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferenceHistoryID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferenceHistoryID: %w", err)
+	}
+	return oldValue.ReferenceHistoryID, nil
+}
+
+// AddReferenceHistoryID adds i to the "reference_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) AddReferenceHistoryID(i int64) {
+	if m.addreference_history_id != nil {
+		*m.addreference_history_id += i
+	} else {
+		m.addreference_history_id = &i
+	}
+}
+
+// AddedReferenceHistoryID returns the value that was added to the "reference_history_id" field in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedReferenceHistoryID() (r int64, exists bool) {
+	v := m.addreference_history_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearReferenceHistoryID clears the value of the "reference_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearReferenceHistoryID() {
+	m.reference_history_id = nil
+	m.addreference_history_id = nil
+	m.clearedFields[channelmonitorprobeanomaly.FieldReferenceHistoryID] = struct{}{}
+}
+
+// ReferenceHistoryIDCleared returns if the "reference_history_id" field was cleared in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ReferenceHistoryIDCleared() bool {
+	_, ok := m.clearedFields[channelmonitorprobeanomaly.FieldReferenceHistoryID]
+	return ok
+}
+
+// ResetReferenceHistoryID resets all changes to the "reference_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetReferenceHistoryID() {
+	m.reference_history_id = nil
+	m.addreference_history_id = nil
+	delete(m.clearedFields, channelmonitorprobeanomaly.FieldReferenceHistoryID)
+}
+
+// SetReferenceCheckedAt sets the "reference_checked_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetReferenceCheckedAt(t time.Time) {
+	m.reference_checked_at = &t
+}
+
+// ReferenceCheckedAt returns the value of the "reference_checked_at" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ReferenceCheckedAt() (r time.Time, exists bool) {
+	v := m.reference_checked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferenceCheckedAt returns the old "reference_checked_at" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldReferenceCheckedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferenceCheckedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferenceCheckedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferenceCheckedAt: %w", err)
+	}
+	return oldValue.ReferenceCheckedAt, nil
+}
+
+// ClearReferenceCheckedAt clears the value of the "reference_checked_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearReferenceCheckedAt() {
+	m.reference_checked_at = nil
+	m.clearedFields[channelmonitorprobeanomaly.FieldReferenceCheckedAt] = struct{}{}
+}
+
+// ReferenceCheckedAtCleared returns if the "reference_checked_at" field was cleared in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ReferenceCheckedAtCleared() bool {
+	_, ok := m.clearedFields[channelmonitorprobeanomaly.FieldReferenceCheckedAt]
+	return ok
+}
+
+// ResetReferenceCheckedAt resets all changes to the "reference_checked_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetReferenceCheckedAt() {
+	m.reference_checked_at = nil
+	delete(m.clearedFields, channelmonitorprobeanomaly.FieldReferenceCheckedAt)
+}
+
+// SetWrittenHistoryID sets the "written_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetWrittenHistoryID(i int64) {
+	m.written_history_id = &i
+	m.addwritten_history_id = nil
+}
+
+// WrittenHistoryID returns the value of the "written_history_id" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) WrittenHistoryID() (r int64, exists bool) {
+	v := m.written_history_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWrittenHistoryID returns the old "written_history_id" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldWrittenHistoryID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWrittenHistoryID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWrittenHistoryID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWrittenHistoryID: %w", err)
+	}
+	return oldValue.WrittenHistoryID, nil
+}
+
+// AddWrittenHistoryID adds i to the "written_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) AddWrittenHistoryID(i int64) {
+	if m.addwritten_history_id != nil {
+		*m.addwritten_history_id += i
+	} else {
+		m.addwritten_history_id = &i
+	}
+}
+
+// AddedWrittenHistoryID returns the value that was added to the "written_history_id" field in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedWrittenHistoryID() (r int64, exists bool) {
+	v := m.addwritten_history_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetWrittenHistoryID resets all changes to the "written_history_id" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetWrittenHistoryID() {
+	m.written_history_id = nil
+	m.addwritten_history_id = nil
+}
+
+// SetCycleStartedAt sets the "cycle_started_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetCycleStartedAt(t time.Time) {
+	m.cycle_started_at = &t
+}
+
+// CycleStartedAt returns the value of the "cycle_started_at" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) CycleStartedAt() (r time.Time, exists bool) {
+	v := m.cycle_started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCycleStartedAt returns the old "cycle_started_at" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldCycleStartedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCycleStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCycleStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCycleStartedAt: %w", err)
+	}
+	return oldValue.CycleStartedAt, nil
+}
+
+// ResetCycleStartedAt resets all changes to the "cycle_started_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetCycleStartedAt() {
+	m.cycle_started_at = nil
+}
+
+// SetCycleFinishedAt sets the "cycle_finished_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetCycleFinishedAt(t time.Time) {
+	m.cycle_finished_at = &t
+}
+
+// CycleFinishedAt returns the value of the "cycle_finished_at" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) CycleFinishedAt() (r time.Time, exists bool) {
+	v := m.cycle_finished_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCycleFinishedAt returns the old "cycle_finished_at" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldCycleFinishedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCycleFinishedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCycleFinishedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCycleFinishedAt: %w", err)
+	}
+	return oldValue.CycleFinishedAt, nil
+}
+
+// ResetCycleFinishedAt resets all changes to the "cycle_finished_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetCycleFinishedAt() {
+	m.cycle_finished_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ChannelMonitorProbeAnomaly entity.
+// If the ChannelMonitorProbeAnomaly object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorProbeAnomalyMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearMonitor clears the "monitor" edge to the ChannelMonitor entity.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearMonitor() {
+	m.clearedmonitor = true
+	m.clearedFields[channelmonitorprobeanomaly.FieldMonitorID] = struct{}{}
+}
+
+// MonitorCleared reports if the "monitor" edge to the ChannelMonitor entity was cleared.
+func (m *ChannelMonitorProbeAnomalyMutation) MonitorCleared() bool {
+	return m.clearedmonitor
+}
+
+// MonitorIDs returns the "monitor" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MonitorID instead. It exists only for internal usage by the builders.
+func (m *ChannelMonitorProbeAnomalyMutation) MonitorIDs() (ids []int64) {
+	if id := m.monitor; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMonitor resets all changes to the "monitor" edge.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetMonitor() {
+	m.monitor = nil
+	m.clearedmonitor = false
+}
+
+// Where appends a list predicates to the ChannelMonitorProbeAnomalyMutation builder.
+func (m *ChannelMonitorProbeAnomalyMutation) Where(ps ...predicate.ChannelMonitorProbeAnomaly) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelMonitorProbeAnomalyMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelMonitorProbeAnomalyMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelMonitorProbeAnomaly, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelMonitorProbeAnomalyMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelMonitorProbeAnomalyMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelMonitorProbeAnomaly).
+func (m *ChannelMonitorProbeAnomalyMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelMonitorProbeAnomalyMutation) Fields() []string {
+	fields := make([]string, 0, 15)
+	if m.monitor != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldMonitorID)
+	}
+	if m.model != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldModel)
+	}
+	if m.trigger != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldTrigger)
+	}
+	if m.trigger_status != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldTriggerStatus)
+	}
+	if m.resolution != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldResolution)
+	}
+	if m.reason != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReason)
+	}
+	if m.consecutive_seq != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldConsecutiveSeq)
+	}
+	if m.attempt_count != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldAttemptCount)
+	}
+	if m.attempts != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldAttempts)
+	}
+	if m.reference_history_id != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReferenceHistoryID)
+	}
+	if m.reference_checked_at != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReferenceCheckedAt)
+	}
+	if m.written_history_id != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldWrittenHistoryID)
+	}
+	if m.cycle_started_at != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldCycleStartedAt)
+	}
+	if m.cycle_finished_at != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldCycleFinishedAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelMonitorProbeAnomalyMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelmonitorprobeanomaly.FieldMonitorID:
+		return m.MonitorID()
+	case channelmonitorprobeanomaly.FieldModel:
+		return m.Model()
+	case channelmonitorprobeanomaly.FieldTrigger:
+		return m.Trigger()
+	case channelmonitorprobeanomaly.FieldTriggerStatus:
+		return m.TriggerStatus()
+	case channelmonitorprobeanomaly.FieldResolution:
+		return m.Resolution()
+	case channelmonitorprobeanomaly.FieldReason:
+		return m.Reason()
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		return m.ConsecutiveSeq()
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		return m.AttemptCount()
+	case channelmonitorprobeanomaly.FieldAttempts:
+		return m.Attempts()
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		return m.ReferenceHistoryID()
+	case channelmonitorprobeanomaly.FieldReferenceCheckedAt:
+		return m.ReferenceCheckedAt()
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		return m.WrittenHistoryID()
+	case channelmonitorprobeanomaly.FieldCycleStartedAt:
+		return m.CycleStartedAt()
+	case channelmonitorprobeanomaly.FieldCycleFinishedAt:
+		return m.CycleFinishedAt()
+	case channelmonitorprobeanomaly.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelMonitorProbeAnomalyMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelmonitorprobeanomaly.FieldMonitorID:
+		return m.OldMonitorID(ctx)
+	case channelmonitorprobeanomaly.FieldModel:
+		return m.OldModel(ctx)
+	case channelmonitorprobeanomaly.FieldTrigger:
+		return m.OldTrigger(ctx)
+	case channelmonitorprobeanomaly.FieldTriggerStatus:
+		return m.OldTriggerStatus(ctx)
+	case channelmonitorprobeanomaly.FieldResolution:
+		return m.OldResolution(ctx)
+	case channelmonitorprobeanomaly.FieldReason:
+		return m.OldReason(ctx)
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		return m.OldConsecutiveSeq(ctx)
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		return m.OldAttemptCount(ctx)
+	case channelmonitorprobeanomaly.FieldAttempts:
+		return m.OldAttempts(ctx)
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		return m.OldReferenceHistoryID(ctx)
+	case channelmonitorprobeanomaly.FieldReferenceCheckedAt:
+		return m.OldReferenceCheckedAt(ctx)
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		return m.OldWrittenHistoryID(ctx)
+	case channelmonitorprobeanomaly.FieldCycleStartedAt:
+		return m.OldCycleStartedAt(ctx)
+	case channelmonitorprobeanomaly.FieldCycleFinishedAt:
+		return m.OldCycleFinishedAt(ctx)
+	case channelmonitorprobeanomaly.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelMonitorProbeAnomaly field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelMonitorProbeAnomalyMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelmonitorprobeanomaly.FieldMonitorID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonitorID(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldTrigger:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTrigger(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldTriggerStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTriggerStatus(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldResolution:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolution(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveSeq(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttemptCount(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldAttempts:
+		v, ok := value.([]domain.MonitorProbeAttempt)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttempts(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferenceHistoryID(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceCheckedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferenceCheckedAt(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWrittenHistoryID(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldCycleStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCycleStartedAt(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldCycleFinishedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCycleFinishedAt(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedFields() []string {
+	var fields []string
+	if m.addconsecutive_seq != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldConsecutiveSeq)
+	}
+	if m.addattempt_count != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldAttemptCount)
+	}
+	if m.addreference_history_id != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReferenceHistoryID)
+	}
+	if m.addwritten_history_id != nil {
+		fields = append(fields, channelmonitorprobeanomaly.FieldWrittenHistoryID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		return m.AddedConsecutiveSeq()
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		return m.AddedAttemptCount()
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		return m.AddedReferenceHistoryID()
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		return m.AddedWrittenHistoryID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelMonitorProbeAnomalyMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveSeq(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAttemptCount(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddReferenceHistoryID(v)
+		return nil
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWrittenHistoryID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(channelmonitorprobeanomaly.FieldReferenceHistoryID) {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReferenceHistoryID)
+	}
+	if m.FieldCleared(channelmonitorprobeanomaly.FieldReferenceCheckedAt) {
+		fields = append(fields, channelmonitorprobeanomaly.FieldReferenceCheckedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearField(name string) error {
+	switch name {
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		m.ClearReferenceHistoryID()
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceCheckedAt:
+		m.ClearReferenceCheckedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetField(name string) error {
+	switch name {
+	case channelmonitorprobeanomaly.FieldMonitorID:
+		m.ResetMonitorID()
+		return nil
+	case channelmonitorprobeanomaly.FieldModel:
+		m.ResetModel()
+		return nil
+	case channelmonitorprobeanomaly.FieldTrigger:
+		m.ResetTrigger()
+		return nil
+	case channelmonitorprobeanomaly.FieldTriggerStatus:
+		m.ResetTriggerStatus()
+		return nil
+	case channelmonitorprobeanomaly.FieldResolution:
+		m.ResetResolution()
+		return nil
+	case channelmonitorprobeanomaly.FieldReason:
+		m.ResetReason()
+		return nil
+	case channelmonitorprobeanomaly.FieldConsecutiveSeq:
+		m.ResetConsecutiveSeq()
+		return nil
+	case channelmonitorprobeanomaly.FieldAttemptCount:
+		m.ResetAttemptCount()
+		return nil
+	case channelmonitorprobeanomaly.FieldAttempts:
+		m.ResetAttempts()
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceHistoryID:
+		m.ResetReferenceHistoryID()
+		return nil
+	case channelmonitorprobeanomaly.FieldReferenceCheckedAt:
+		m.ResetReferenceCheckedAt()
+		return nil
+	case channelmonitorprobeanomaly.FieldWrittenHistoryID:
+		m.ResetWrittenHistoryID()
+		return nil
+	case channelmonitorprobeanomaly.FieldCycleStartedAt:
+		m.ResetCycleStartedAt()
+		return nil
+	case channelmonitorprobeanomaly.FieldCycleFinishedAt:
+		m.ResetCycleFinishedAt()
+		return nil
+	case channelmonitorprobeanomaly.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.monitor != nil {
+		edges = append(edges, channelmonitorprobeanomaly.EdgeMonitor)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case channelmonitorprobeanomaly.EdgeMonitor:
+		if id := m.monitor; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmonitor {
+		edges = append(edges, channelmonitorprobeanomaly.EdgeMonitor)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelMonitorProbeAnomalyMutation) EdgeCleared(name string) bool {
+	switch name {
+	case channelmonitorprobeanomaly.EdgeMonitor:
+		return m.clearedmonitor
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelMonitorProbeAnomalyMutation) ClearEdge(name string) error {
+	switch name {
+	case channelmonitorprobeanomaly.EdgeMonitor:
+		m.ClearMonitor()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelMonitorProbeAnomalyMutation) ResetEdge(name string) error {
+	switch name {
+	case channelmonitorprobeanomaly.EdgeMonitor:
+		m.ResetMonitor()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelMonitorProbeAnomaly edge %s", name)
 }
 
 // ChannelMonitorRequestTemplateMutation represents an operation that mutates the ChannelMonitorRequestTemplate nodes in the graph.

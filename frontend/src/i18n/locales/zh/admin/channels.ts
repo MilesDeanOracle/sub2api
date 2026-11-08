@@ -535,8 +535,35 @@ export default {
       createTitle: '新增渠道监控',
       editTitle: '编辑渠道监控',
       runNow: '立即检测',
+      runNowRunning: '检测中',
       runSuccess: '检测完成',
       runFailed: '检测失败',
+      history: '历史',
+      historyTitle: '「{name}」检测记录',
+      historyTabAria: '检测记录视图切换',
+      tabHistory: '检测历史',
+      tabAnomalies: '探测异常',
+      historyEmpty: '暂无检测历史',
+      historyLoadError: '加载检测记录失败',
+      substitutedTag: '已替代',
+      substitutedHint: '该行是重试后仍失败时写入的上一次正常结果复制行，点击查看真实失败过程',
+      anomaliesEmpty: '暂无探测异常记录',
+      anomalyTrigger: {
+        scheduled: '定时检测',
+        manual: '手动检测'
+      },
+      anomalyResolution: {
+        substituted: '写入替代结果',
+        real_written: '写入真实失败'
+      },
+      anomalyReason: {
+        no_reference: '无可复制的正常记录',
+        too_many_consecutive: '连续异常超上限'
+      },
+      anomalyConsecutiveSeq: '连续异常 {n} 次',
+      anomalyAttemptCount: '尝试 {n} 次',
+      anomalyReferenceAt: '替代自 {time} 的正常结果',
+      anomalyCheckedAt: '{time}',
       duplicate: '复制',
       duplicating: '复制中',
       duplicateSuccess: '监控已复制为「{name}」，已默认停用，请确认配置后再启用',

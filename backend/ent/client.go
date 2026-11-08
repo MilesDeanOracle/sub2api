@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
+	"github.com/Wei-Shaw/sub2api/ent/channelmonitorprobeanomaly"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
@@ -90,6 +91,8 @@ type Client struct {
 	ChannelMonitorDailyRollup *ChannelMonitorDailyRollupClient
 	// ChannelMonitorHistory is the client for interacting with the ChannelMonitorHistory builders.
 	ChannelMonitorHistory *ChannelMonitorHistoryClient
+	// ChannelMonitorProbeAnomaly is the client for interacting with the ChannelMonitorProbeAnomaly builders.
+	ChannelMonitorProbeAnomaly *ChannelMonitorProbeAnomalyClient
 	// ChannelMonitorRequestTemplate is the client for interacting with the ChannelMonitorRequestTemplate builders.
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// CompositeModelRoute is the client for interacting with the CompositeModelRoute builders.
@@ -168,6 +171,7 @@ func (c *Client) init() {
 	c.ChannelMonitor = NewChannelMonitorClient(c.config)
 	c.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(c.config)
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
+	c.ChannelMonitorProbeAnomaly = NewChannelMonitorProbeAnomalyClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
 	c.CompositeModelRoute = NewCompositeModelRouteClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
@@ -300,6 +304,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
+		ChannelMonitorProbeAnomaly:    NewChannelMonitorProbeAnomalyClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
@@ -359,6 +364,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
+		ChannelMonitorProbeAnomaly:    NewChannelMonitorProbeAnomalyClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
@@ -418,14 +424,15 @@ func (c *Client) Use(hooks ...Hook) {
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.ChannelMonitorHistory, c.ChannelMonitorProbeAnomaly,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RechargeQuickButton, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -438,14 +445,15 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.ChannelMonitorHistory, c.ChannelMonitorProbeAnomaly,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RechargeQuickButton, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -480,6 +488,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorDailyRollup.mutate(ctx, m)
 	case *ChannelMonitorHistoryMutation:
 		return c.ChannelMonitorHistory.mutate(ctx, m)
+	case *ChannelMonitorProbeAnomalyMutation:
+		return c.ChannelMonitorProbeAnomaly.mutate(ctx, m)
 	case *ChannelMonitorRequestTemplateMutation:
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
 	case *CompositeModelRouteMutation:
@@ -2252,6 +2262,22 @@ func (c *ChannelMonitorClient) QueryDailyRollups(_m *ChannelMonitor) *ChannelMon
 	return query
 }
 
+// QueryProbeAnomalies queries the probe_anomalies edge of a ChannelMonitor.
+func (c *ChannelMonitorClient) QueryProbeAnomalies(_m *ChannelMonitor) *ChannelMonitorProbeAnomalyQuery {
+	query := (&ChannelMonitorProbeAnomalyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelmonitor.Table, channelmonitor.FieldID, id),
+			sqlgraph.To(channelmonitorprobeanomaly.Table, channelmonitorprobeanomaly.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, channelmonitor.ProbeAnomaliesTable, channelmonitor.ProbeAnomaliesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryRequestTemplate queries the request_template edge of a ChannelMonitor.
 func (c *ChannelMonitorClient) QueryRequestTemplate(_m *ChannelMonitor) *ChannelMonitorRequestTemplateQuery {
 	query := (&ChannelMonitorRequestTemplateClient{config: c.config}).Query()
@@ -2588,6 +2614,155 @@ func (c *ChannelMonitorHistoryClient) mutate(ctx context.Context, m *ChannelMoni
 		return (&ChannelMonitorHistoryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ChannelMonitorHistory mutation op: %q", m.Op())
+	}
+}
+
+// ChannelMonitorProbeAnomalyClient is a client for the ChannelMonitorProbeAnomaly schema.
+type ChannelMonitorProbeAnomalyClient struct {
+	config
+}
+
+// NewChannelMonitorProbeAnomalyClient returns a client for the ChannelMonitorProbeAnomaly from the given config.
+func NewChannelMonitorProbeAnomalyClient(c config) *ChannelMonitorProbeAnomalyClient {
+	return &ChannelMonitorProbeAnomalyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelmonitorprobeanomaly.Hooks(f(g(h())))`.
+func (c *ChannelMonitorProbeAnomalyClient) Use(hooks ...Hook) {
+	c.hooks.ChannelMonitorProbeAnomaly = append(c.hooks.ChannelMonitorProbeAnomaly, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelmonitorprobeanomaly.Intercept(f(g(h())))`.
+func (c *ChannelMonitorProbeAnomalyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelMonitorProbeAnomaly = append(c.inters.ChannelMonitorProbeAnomaly, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelMonitorProbeAnomaly entity.
+func (c *ChannelMonitorProbeAnomalyClient) Create() *ChannelMonitorProbeAnomalyCreate {
+	mutation := newChannelMonitorProbeAnomalyMutation(c.config, OpCreate)
+	return &ChannelMonitorProbeAnomalyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelMonitorProbeAnomaly entities.
+func (c *ChannelMonitorProbeAnomalyClient) CreateBulk(builders ...*ChannelMonitorProbeAnomalyCreate) *ChannelMonitorProbeAnomalyCreateBulk {
+	return &ChannelMonitorProbeAnomalyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelMonitorProbeAnomalyClient) MapCreateBulk(slice any, setFunc func(*ChannelMonitorProbeAnomalyCreate, int)) *ChannelMonitorProbeAnomalyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelMonitorProbeAnomalyCreateBulk{err: fmt.Errorf("calling to ChannelMonitorProbeAnomalyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelMonitorProbeAnomalyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelMonitorProbeAnomalyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelMonitorProbeAnomaly.
+func (c *ChannelMonitorProbeAnomalyClient) Update() *ChannelMonitorProbeAnomalyUpdate {
+	mutation := newChannelMonitorProbeAnomalyMutation(c.config, OpUpdate)
+	return &ChannelMonitorProbeAnomalyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelMonitorProbeAnomalyClient) UpdateOne(_m *ChannelMonitorProbeAnomaly) *ChannelMonitorProbeAnomalyUpdateOne {
+	mutation := newChannelMonitorProbeAnomalyMutation(c.config, OpUpdateOne, withChannelMonitorProbeAnomaly(_m))
+	return &ChannelMonitorProbeAnomalyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelMonitorProbeAnomalyClient) UpdateOneID(id int64) *ChannelMonitorProbeAnomalyUpdateOne {
+	mutation := newChannelMonitorProbeAnomalyMutation(c.config, OpUpdateOne, withChannelMonitorProbeAnomalyID(id))
+	return &ChannelMonitorProbeAnomalyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelMonitorProbeAnomaly.
+func (c *ChannelMonitorProbeAnomalyClient) Delete() *ChannelMonitorProbeAnomalyDelete {
+	mutation := newChannelMonitorProbeAnomalyMutation(c.config, OpDelete)
+	return &ChannelMonitorProbeAnomalyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelMonitorProbeAnomalyClient) DeleteOne(_m *ChannelMonitorProbeAnomaly) *ChannelMonitorProbeAnomalyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelMonitorProbeAnomalyClient) DeleteOneID(id int64) *ChannelMonitorProbeAnomalyDeleteOne {
+	builder := c.Delete().Where(channelmonitorprobeanomaly.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelMonitorProbeAnomalyDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelMonitorProbeAnomaly.
+func (c *ChannelMonitorProbeAnomalyClient) Query() *ChannelMonitorProbeAnomalyQuery {
+	return &ChannelMonitorProbeAnomalyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelMonitorProbeAnomaly},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelMonitorProbeAnomaly entity by its id.
+func (c *ChannelMonitorProbeAnomalyClient) Get(ctx context.Context, id int64) (*ChannelMonitorProbeAnomaly, error) {
+	return c.Query().Where(channelmonitorprobeanomaly.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelMonitorProbeAnomalyClient) GetX(ctx context.Context, id int64) *ChannelMonitorProbeAnomaly {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMonitor queries the monitor edge of a ChannelMonitorProbeAnomaly.
+func (c *ChannelMonitorProbeAnomalyClient) QueryMonitor(_m *ChannelMonitorProbeAnomaly) *ChannelMonitorQuery {
+	query := (&ChannelMonitorClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelmonitorprobeanomaly.Table, channelmonitorprobeanomaly.FieldID, id),
+			sqlgraph.To(channelmonitor.Table, channelmonitor.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelmonitorprobeanomaly.MonitorTable, channelmonitorprobeanomaly.MonitorColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelMonitorProbeAnomalyClient) Hooks() []Hook {
+	return c.hooks.ChannelMonitorProbeAnomaly
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelMonitorProbeAnomalyClient) Interceptors() []Interceptor {
+	return c.inters.ChannelMonitorProbeAnomaly
+}
+
+func (c *ChannelMonitorProbeAnomalyClient) mutate(ctx context.Context, m *ChannelMonitorProbeAnomalyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelMonitorProbeAnomalyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelMonitorProbeAnomalyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelMonitorProbeAnomalyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelMonitorProbeAnomalyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelMonitorProbeAnomaly mutation op: %q", m.Op())
 	}
 }
 
@@ -6985,25 +7160,25 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode, SecuritySecret,
-		Setting, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog,
-		User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Hook
+		ChannelMonitorProbeAnomaly, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode, SecuritySecret,
-		Setting, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog,
-		User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Interceptor
+		ChannelMonitorProbeAnomaly, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

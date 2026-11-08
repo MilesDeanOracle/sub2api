@@ -139,6 +139,10 @@ type channelMonitorHistoryItemResponse struct {
 	Message       string                       `json:"message"`
 	CheckedAt     string                       `json:"checked_at"`
 	Quota         *domain.MonitorQuotaSnapshot `json:"quota,omitempty"`
+	// Substituted / AnomalyID：该行是否为「上一次正常结果」的复制行
+	// 及关联的探测异常记录 id（点击可查看重试明细）；普通行为 false / null。
+	Substituted bool   `json:"substituted"`
+	AnomalyID   *int64 `json:"anomaly_id"`
 }
 
 // maskAPIKey 对 API Key 明文做脱敏：前 4 字符 + "***"，长度 ≤ 4 时只显示 "***"。
@@ -216,6 +220,8 @@ func historyEntryToResponse(e *service.ChannelMonitorHistoryEntry) channelMonito
 		Message:       e.Message,
 		CheckedAt:     e.CheckedAt.UTC().Format(time.RFC3339),
 		Quota:         e.Quota,
+		Substituted:   e.Substituted,
+		AnomalyID:     e.AnomalyID,
 	}
 }
 
@@ -472,12 +478,16 @@ func (h *ChannelMonitorHandler) Delete(c *gin.Context) {
 }
 
 // Run POST /api/v1/admin/channel-monitors/:id/run
+// 内部走探测重试周期（probe / quota_probe；quota 模式不重试）：
+// 同步执行完整重试后返回最终结果，接口形态与响应结构与旧版一致；
+// 失败渠道常见耗时约 1 分钟（退避等待 3+10+30s），前端 loading 时间会变长。
+// 请求被网关 / 前端超时切断时本次周期作废（不落库、不写异常记录）。
 func (h *ChannelMonitorHandler) Run(c *gin.Context) {
 	id, ok := ParseChannelMonitorID(c)
 	if !ok {
 		return
 	}
-	results, err := h.monitorService.RunCheck(c.Request.Context(), id)
+	results, err := h.monitorService.RunCheckWithRetry(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -524,4 +534,133 @@ func parseHistoryLimit(raw string) int {
 		return service.MonitorHistoryMaxLimit
 	}
 	return v
+}
+
+// --- 探测异常列表（channel-monitor-v1-probe-retry） ---
+
+// probeAnomalyToResponse 把 service.ProbeAnomaly 转成 admin DTO。
+func probeAnomalyToResponse(a *service.ProbeAnomaly) dto.ChannelMonitorProbeAnomaly {
+	out := dto.ChannelMonitorProbeAnomaly{
+		ID:               a.ID,
+		MonitorID:        a.MonitorID,
+		MonitorName:      a.MonitorName,
+		Model:            a.Model,
+		Trigger:          a.Trigger,
+		TriggerStatus:    a.TriggerStatus,
+		Resolution:       a.Resolution,
+		Reason:           a.Reason,
+		ConsecutiveSeq:   a.ConsecutiveSeq,
+		AttemptCount:     a.AttemptCount,
+		Attempts:         make([]dto.ChannelMonitorProbeAttempt, 0, len(a.Attempts)),
+		WrittenHistoryID: a.WrittenHistoryID,
+		CycleStartedAt:   a.CycleStartedAt,
+		CycleFinishedAt:  a.CycleFinishedAt,
+		CreatedAt:        a.CreatedAt,
+	}
+	for _, at := range a.Attempts {
+		out.Attempts = append(out.Attempts, dto.ChannelMonitorProbeAttempt{
+			Seq:           at.Seq,
+			Status:        at.Status,
+			LatencyMs:     at.LatencyMs,
+			PingLatencyMs: at.PingLatencyMs,
+			Message:       at.Message,
+			CheckedAt:     at.CheckedAt,
+		})
+	}
+	if a.ReferenceHistoryID != nil {
+		v := *a.ReferenceHistoryID
+		out.ReferenceHistoryID = &v
+	}
+	if a.ReferenceCheckedAt != nil {
+		v := *a.ReferenceCheckedAt
+		out.ReferenceCheckedAt = &v
+	}
+	return out
+}
+
+// parseProbeAnomalyParams 解析异常列表的公共 query 参数。
+// 校验失败时已写入 4xx 响应，调用方只需 return。
+func parseProbeAnomalyParams(c *gin.Context) (service.ProbeAnomalyListParams, bool) {
+	params := service.ProbeAnomalyListParams{
+		Model:      strings.TrimSpace(c.Query("model")),
+		Resolution: strings.TrimSpace(c.Query("resolution")),
+	}
+	if params.Resolution != "" &&
+		params.Resolution != service.ProbeAnomalyResolutionSubstituted &&
+		params.Resolution != service.ProbeAnomalyResolutionRealWritten {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_PROBE_ANOMALY_RESOLUTION",
+			"resolution must be one of substituted/real_written"))
+		return params, false
+	}
+	for name, field := range map[string]**time.Time{"from": &params.From, "to": &params.To} {
+		raw := strings.TrimSpace(c.Query(name))
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			response.ErrorFrom(c, infraerrors.BadRequest("INVALID_PROBE_ANOMALY_TIME",
+				name+" must be an RFC3339 timestamp"))
+			return params, false
+		}
+		*field = &t
+	}
+	params.Page, params.PageSize = response.ParsePagination(c)
+	if params.PageSize > monitorMaxPageSize {
+		params.PageSize = monitorMaxPageSize
+	}
+	return params, true
+}
+
+// ProbeAnomalies GET /api/v1/admin/channel-monitors/:id/probe-anomalies
+// 单个监控的探测异常列表。
+func (h *ChannelMonitorHandler) ProbeAnomalies(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	params, ok := parseProbeAnomalyParams(c)
+	if !ok {
+		return
+	}
+	params.MonitorID = id
+
+	items, total, err := h.monitorService.ListProbeAnomalies(c.Request.Context(), params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.ChannelMonitorProbeAnomaly, 0, len(items))
+	for _, a := range items {
+		out = append(out, probeAnomalyToResponse(a))
+	}
+	response.Paginated(c, out, total, params.Page, params.PageSize)
+}
+
+// GlobalProbeAnomalies GET /api/v1/admin/channel-monitor-probe-anomalies
+// 跨监控的全局异常列表（可按 monitor_id 过滤）。
+func (h *ChannelMonitorHandler) GlobalProbeAnomalies(c *gin.Context) {
+	params, ok := parseProbeAnomalyParams(c)
+	if !ok {
+		return
+	}
+	if raw := strings.TrimSpace(c.Query("monitor_id")); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			response.ErrorFrom(c, infraerrors.BadRequest("INVALID_MONITOR_ID", "invalid monitor id"))
+			return
+		}
+		params.MonitorID = id
+	}
+
+	items, total, err := h.monitorService.ListProbeAnomalies(c.Request.Context(), params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.ChannelMonitorProbeAnomaly, 0, len(items))
+	for _, a := range items {
+		out = append(out, probeAnomalyToResponse(a))
+	}
+	response.Paginated(c, out, total, params.Page, params.PageSize)
 }

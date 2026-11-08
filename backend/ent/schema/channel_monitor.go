@@ -116,6 +116,8 @@ func (ChannelMonitor) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("daily_rollups", ChannelMonitorDailyRollup.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("probe_anomalies", ChannelMonitorProbeAnomaly.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 		// 关联请求模板：模板被删除时 template_id 自动置空，
 		// 监控本身保留（继续用快照字段跑）。
 		edge.To("request_template", ChannelMonitorRequestTemplate.Type).

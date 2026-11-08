@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
+	"github.com/Wei-Shaw/sub2api/ent/channelmonitorprobeanomaly"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 )
 
@@ -267,6 +268,21 @@ func (_c *ChannelMonitorCreate) AddDailyRollups(v ...*ChannelMonitorDailyRollup)
 		ids[i] = v[i].ID
 	}
 	return _c.AddDailyRollupIDs(ids...)
+}
+
+// AddProbeAnomalyIDs adds the "probe_anomalies" edge to the ChannelMonitorProbeAnomaly entity by IDs.
+func (_c *ChannelMonitorCreate) AddProbeAnomalyIDs(ids ...int64) *ChannelMonitorCreate {
+	_c.mutation.AddProbeAnomalyIDs(ids...)
+	return _c
+}
+
+// AddProbeAnomalies adds the "probe_anomalies" edges to the ChannelMonitorProbeAnomaly entity.
+func (_c *ChannelMonitorCreate) AddProbeAnomalies(v ...*ChannelMonitorProbeAnomaly) *ChannelMonitorCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddProbeAnomalyIDs(ids...)
 }
 
 // SetRequestTemplateID sets the "request_template" edge to the ChannelMonitorRequestTemplate entity by ID.
@@ -602,6 +618,22 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(channelmonitordailyrollup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ProbeAnomaliesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channelmonitor.ProbeAnomaliesTable,
+			Columns: []string{channelmonitor.ProbeAnomaliesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelmonitorprobeanomaly.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

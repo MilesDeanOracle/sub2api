@@ -144,6 +144,30 @@ const (
 	monitorDialTimeout = 10 * time.Second
 	// monitorDialKeepAlive 自定义 dialer keep-alive 间隔。
 	monitorDialKeepAlive = 30 * time.Second
+
+	// ---- V1 探测重试与结果平滑（channel-monitor-v1-probe-retry） ----
+
+	// monitorProbeCycleDeadline 单个重试周期的总截止时间，超时即用已有结果收尾。
+	monitorProbeCycleDeadline = 5 * time.Minute
+	// monitorRetryResubmitDelay 重试轮次提交时 pool 满的再提交间隔。
+	monitorRetryResubmitDelay = 5 * time.Second
+	// monitorSubstituteMaxConsecutive 同一模型最多连续复制的周期数，超过后写真实失败。
+	monitorSubstituteMaxConsecutive = 3
+	// monitorProbeAnomalyRetentionDays 探测异常记录保留天数。
+	monitorProbeAnomalyRetentionDays = 30
+	// monitorSubstituteLatencyMin/Max 复制行 latency_ms 相对参考行随机扣减的毫秒区间（含两端）。
+	monitorSubstituteLatencyMin = 10
+	monitorSubstituteLatencyMax = 50
+)
+
+// 退避序列（slice 不能用 const，放 var 块）：
+//   - 失败策略：首次 error/failed 后的重试退避，长度即最大重试次数（共 4 次探测）。
+//   - 降级策略：首次 degraded 后的重试退避（共 3 次探测）。
+//
+// 「距上一次」指距上一次尝试结束的时间（ProbeCycle 在记录结果时按结束时刻排程下一次）。
+var (
+	monitorFailureRetryBackoffs  = []time.Duration{3 * time.Second, 10 * time.Second, 30 * time.Second}
+	monitorDegradedRetryBackoffs = []time.Duration{15 * time.Second, 30 * time.Second}
 )
 
 // 业务错误（统一在此声明，避免散落）。
