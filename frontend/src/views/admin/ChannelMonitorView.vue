@@ -158,7 +158,7 @@
       @failed="handleRunFailed"
     />
 
-    <MonitorHistoryDialog
+    <MonitorHistoryDrawer
       :show="showHistory"
       :monitor="historyMonitor"
       @close="showHistory = false"
@@ -202,7 +202,7 @@ import MonitorFiltersBar from '@/components/admin/monitor/MonitorFiltersBar.vue'
 import MonitorFormDialog from '@/components/admin/monitor/MonitorFormDialog.vue'
 import MonitorTemplateManagerDialog from '@/components/admin/monitor/MonitorTemplateManagerDialog.vue'
 import MonitorRunLogDialog from '@/components/admin/monitor/MonitorRunLogDialog.vue'
-import MonitorHistoryDialog from '@/components/admin/monitor/MonitorHistoryDialog.vue'
+import MonitorHistoryDrawer from '@/components/admin/monitor/MonitorHistoryDrawer.vue'
 import MonitorPrimaryModelCell from '@/components/admin/monitor/MonitorPrimaryModelCell.vue'
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
