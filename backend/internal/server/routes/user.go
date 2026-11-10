@@ -25,6 +25,17 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
+		// Feedback submits only the form; private user enrichment runs asynchronously.
+		if h.Feedback != nil {
+			feedback := authenticated.Group("/feedback")
+			feedback.POST("", panelRateLimiter.Heavy(), h.Feedback.Create)
+			feedback.GET("", h.Feedback.ListMine)
+			feedback.GET("/summary", h.Feedback.SummaryMine)
+			feedback.GET("/settings", h.Feedback.GetSettings)
+			feedback.POST("/:id/read", h.Feedback.MarkRead)
+			feedback.POST("/:id/replies", panelRateLimiter.Heavy(), h.Feedback.ReplyMine)
+			feedback.GET("/:id", h.Feedback.GetMine)
+		}
 		// 用户接口
 		user := authenticated.Group("/user")
 		{
@@ -161,5 +172,6 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+
 	}
 }

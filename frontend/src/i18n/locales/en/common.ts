@@ -166,6 +166,8 @@ export default {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    qqGroup: 'Wuyou Token QQ Group ③',
+    qqGroupLinkMissing: 'The group link has not been configured yet. Please contact the administrator.',
     batchImage: 'Batch Images',
     usage: 'Usage',
     redeem: 'Redeem',

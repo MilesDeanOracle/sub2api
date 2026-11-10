@@ -607,6 +607,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/feedback',
+    name: 'AdminFeedback',
+    component: () => import('@/views/admin/FeedbackView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Echo Wall',
+      titleKey: 'feedback.title',
+      descriptionKey: 'feedback.adminDescription'
+    }
+  },
+  {
     path: '/admin/proxies',
     name: 'AdminProxies',
     component: () => import('@/views/admin/ProxiesView.vue'),

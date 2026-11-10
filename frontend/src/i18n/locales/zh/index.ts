@@ -1,3 +1,4 @@
+import feedback from './feedback'
 import adminAccessKeys from './adminAccessKeys'
 import mcp from './mcp'
 import landing from './landing'
@@ -11,6 +12,7 @@ import operations from './operations'
 import publicTransit from './publicTransit'
 
 export default {
+  ...feedback,
   operations,
   adminAccessKeys,
   mcp,

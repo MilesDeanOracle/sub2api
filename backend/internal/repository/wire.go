@@ -63,8 +63,15 @@ func ProvideSchedulerCache(rdb *redis.Client, cfg *config.Config) service.Schedu
 	return newSchedulerCacheWithChunkSizes(rdb, mgetChunkSize, writeChunkSize)
 }
 
+// ProvideUserUsageAnalyticsReader reuses the existing usage repository for the
+// narrow admin analytics dependency when regenerating the application wiring.
+func ProvideUserUsageAnalyticsReader(repo service.UsageLogRepository) service.UserUsageAnalyticsReader {
+	return repo
+}
+
 // ProviderSet is the Wire provider set for all repositories
 var ProviderSet = wire.NewSet(
+	ProvideUserUsageAnalyticsReader,
 	NewUserRepository,
 	NewMCPOAuthRepository,
 	NewAPIKeyRepository,
@@ -79,6 +86,7 @@ var ProviderSet = wire.NewSet(
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
+	NewFeedbackRepository,
 	NewAnnouncementReadRepository,
 	NewUsageLogRepository,
 	NewUsageBillingRepository,

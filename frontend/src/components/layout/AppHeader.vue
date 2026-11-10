@@ -1,6 +1,36 @@
 <template>
   <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
-    <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
+    <div class="relative flex min-h-16 flex-wrap items-center justify-between gap-2 px-2 pb-2 sm:px-4 md:px-6 2xl:h-16 2xl:flex-nowrap 2xl:pb-0">
+      <div v-if="user" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
+        <button
+          type="button"
+          data-testid="feedback-entry"
+          class="group relative inline-flex items-center gap-2 rounded-full border border-violet-200 bg-gradient-to-r from-violet-50 to-pink-50 py-1 pl-1 pr-4 text-base font-bold text-violet-700 shadow-sm transition-all hover:-translate-y-px hover:border-violet-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-violet-800/60 dark:from-violet-900/30 dark:to-pink-900/20 dark:text-violet-300 2xl:pointer-events-auto"
+          :class="{ 'border-violet-400 ring-2 ring-violet-400/30 dark:border-violet-500': route.path.startsWith('/admin/feedback') }"
+          :title="t('feedback.title')"
+          :aria-label="t('feedback.title')"
+          @click="openFeedback"
+        >
+          <EchoWallLogo :size="28" class="transition-transform group-hover:rotate-6" />
+          {{ t('feedback.title') }}
+          <span v-if="feedbackBadge > 0" class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900" :aria-label="t(authStore.isAdmin ? 'feedback.pendingBadge' : 'feedback.unreadBadge', { count: feedbackBadge })">{{ feedbackBadge > 99 ? '99+' : feedbackBadge }}</span>
+        </button>
+        <!-- QQ group (opens the join link in a new tab) -->
+        <a
+          :href="qqGroupUrl || '#'"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="qq-group-entry"
+          :title="t('nav.qqGroup')"
+          :aria-label="t('nav.qqGroup')"
+          class="group inline-flex items-center gap-2 rounded-full border border-blue-200 bg-gradient-to-r from-blue-50 to-white py-1 pl-1 pr-4 text-base font-bold text-blue-700 shadow-sm transition-all hover:-translate-y-px hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800/60 dark:from-blue-900/30 dark:to-dark-800 dark:text-blue-300 2xl:pointer-events-auto"
+          @click="onQqGroupClick"
+        >
+          <QqGroupLogo :size="28" class="transition-transform group-hover:-translate-y-0.5" />
+          {{ t('nav.qqGroup') }}
+          <Icon name="externalLink" size="xs" class="opacity-50 transition-opacity group-hover:opacity-100" />
+        </a>
+      </div>
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex shrink-0 items-center gap-2 sm:gap-4">
         <button
@@ -260,7 +290,14 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import { useFeedbackStore } from '@/stores/feedback'
 import Icon from '@/components/icons/Icon.vue'
+import EchoWallLogo from '@/components/feedback/EchoWallLogo.vue'
+import QqGroupLogo from './QqGroupLogo.vue'
+
+// QQ 群加群链接（在 QQ 群资料页「分享群」中获取，形如 https://qm.qq.com/q/xxxxxx）。
+// 留空时点击按钮只会提示未配置，不会打开空白标签页。
+const QQ_GROUP_URL: string = 'https://qm.qq.com/cgi-bin/qm/qr?k=z77tL_WEPI5-c3fdp_oJDFXJPnXVp-LF&jump_from=webapi&authKey=zR8OIdt3V5nYIkcXWBb70JeuoBtdsLIjNOMUM4+1uO9VaXPcidkgKvdn6DU4q0J5'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
@@ -270,12 +307,25 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
+const qqGroupUrl = sanitizeUrl(QQ_GROUP_URL)
+function onQqGroupClick(event: MouseEvent) {
+  if (qqGroupUrl) return
+  event.preventDefault()
+  appStore.showInfo(t('nav.qqGroupLinkMissing'))
+}
 const authStore = useAuthStore()
 const adminSettingsStore = useAdminSettingsStore()
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
 const dropdownOpen = ref(false)
+const feedbackStore = useFeedbackStore()
+const feedbackBadge = computed(() => authStore.isAdmin ? feedbackStore.pendingCount : feedbackStore.unreadCount)
+function openFeedback() {
+  void feedbackStore.refresh()
+  if (authStore.isAdmin) void router.push('/admin/feedback')
+  else feedbackStore.openDialog()
+}
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
