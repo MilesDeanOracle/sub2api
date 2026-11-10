@@ -166,6 +166,7 @@ export default {
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
+    pelican: '鹈鹕测智',
     qqGroup: '无忧token③号群',
     qqGroupLinkMissing: '群链接尚未配置，请联系管理员。',
     batchImage: '批量生图',

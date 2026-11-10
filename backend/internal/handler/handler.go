@@ -70,6 +70,7 @@ type Handlers struct {
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	PublicTransit    *PublicTransitHandler
+	Pelican          *PelicanHandler
 	Feedback         *FeedbackHandler
 }
 

@@ -226,6 +226,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/pelican',
+    name: 'Pelican',
+    component: () => import('@/views/user/PelicanView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Pelican Test',
+      titleKey: 'pelican.title',
+      descriptionKey: 'pelican.description'
+    }
+  },
+  {
     path: '/batch-image',
     name: 'BatchImageGuide',
     alias: '/docs/batch-image',

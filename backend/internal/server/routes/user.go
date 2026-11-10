@@ -173,5 +173,12 @@ func RegisterUserRoutes(
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
 
+		// 鹈鹕测智：固定提示词生成单文件动画；结果只保存在浏览器。
+		if h.Pelican != nil {
+			pelican := authenticated.Group("/pelican")
+			pelican.GET("/config", panelRateLimiter.Heavy(), h.Pelican.Config)
+			pelican.GET("/models", panelRateLimiter.Heavy(), h.Pelican.Models)
+			pelican.POST("/runs", h.Pelican.Run)
+		}
 	}
 }

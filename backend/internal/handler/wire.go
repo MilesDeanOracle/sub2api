@@ -204,6 +204,7 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	publicTransitHandler *PublicTransitHandler,
+	pelicanHandler *PelicanHandler,
 	feedbackHandler *FeedbackHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
@@ -233,6 +234,7 @@ func ProvideHandlers(
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 		PublicTransit:    publicTransitHandler,
+		Pelican:          pelicanHandler,
 		Feedback:         feedbackHandler,
 	}
 }
@@ -262,6 +264,7 @@ var ProviderSet = wire.NewSet(
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 	NewPublicTransitHandler,
+	NewPelicanHandler,
 	NewFeedbackHandler,
 
 	// Admin handlers

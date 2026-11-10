@@ -30,6 +30,18 @@
           {{ t('nav.qqGroup') }}
           <Icon name="externalLink" size="xs" class="opacity-50 transition-opacity group-hover:opacity-100" />
         </a>
+        <!-- Pelican Test badge -->
+        <router-link
+          to="/pelican"
+          data-testid="pelican-entry"
+          :title="t('nav.pelican')"
+          :aria-label="t('nav.pelican')"
+          class="group inline-flex items-center gap-2 rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-orange-50 py-1 pl-1 pr-4 text-base font-bold text-sky-700 shadow-sm transition-all hover:-translate-y-px hover:border-sky-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-800/60 dark:from-sky-900/30 dark:to-orange-900/20 dark:text-sky-300 2xl:pointer-events-auto"
+          active-class="border-sky-400 ring-2 ring-sky-400/30 dark:border-sky-500"
+        >
+          <PelicanLogo :size="28" class="transition-transform group-hover:-rotate-6" />
+          {{ t('nav.pelican') }}
+        </router-link>
       </div>
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex shrink-0 items-center gap-2 sm:gap-4">
@@ -292,6 +304,7 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import { useFeedbackStore } from '@/stores/feedback'
 import Icon from '@/components/icons/Icon.vue'
+import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
 import EchoWallLogo from '@/components/feedback/EchoWallLogo.vue'
 import QqGroupLogo from './QqGroupLogo.vue'
 
