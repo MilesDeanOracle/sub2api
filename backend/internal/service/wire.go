@@ -861,6 +861,7 @@ func ProvideAPIKeyService(
 
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
+	NewFeedbackService,
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,
@@ -979,6 +980,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
 	NewPublicTransitService,
+	NewPelicanService,
 	NewModelPricingResolver,
 	NewModelPlazaService,
 	NewContentModerationService,

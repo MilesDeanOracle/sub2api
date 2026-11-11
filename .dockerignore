@@ -88,3 +88,14 @@ deploy/redis_data/
 .claude/
 issues/
 CLAUDE.md
+
+# 本地杂物（避免进入构建上下文：code/ 有 3.5 万个文件，经 WSL2 9P 桥
+# 逐个 stat/传输会把 "load build context" 拖到数分钟）
+code/
+code.zip
+.zcode/
+.dev/
+.playwright-cli/
+shrine.html
+demo-grok.html
+resource_pool_demo.html

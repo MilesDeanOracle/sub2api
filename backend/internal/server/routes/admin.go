@@ -50,6 +50,15 @@ func RegisterAdminRoutes(
 
 		// 公告管理
 		registerAnnouncementRoutes(admin, h)
+		if h.Feedback != nil {
+			feedback := admin.Group("/feedback")
+			feedback.GET("", h.Feedback.ListAdmin)
+			feedback.GET("/summary", h.Feedback.SummaryAdmin)
+			feedback.GET("/settings", h.Feedback.GetSettings)
+			feedback.PUT("/settings", h.Feedback.UpdateSettings)
+			feedback.GET("/:id", h.Feedback.GetAdmin)
+			feedback.POST("/:id/replies", h.Feedback.Reply)
+		}
 
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)

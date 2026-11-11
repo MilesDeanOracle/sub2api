@@ -226,6 +226,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/pelican',
+    name: 'Pelican',
+    component: () => import('@/views/user/PelicanView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Pelican Test',
+      titleKey: 'pelican.title',
+      descriptionKey: 'pelican.description'
+    }
+  },
+  {
     path: '/batch-image',
     name: 'BatchImageGuide',
     alias: '/docs/batch-image',
@@ -604,6 +616,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Announcements',
       titleKey: 'admin.announcements.title',
       descriptionKey: 'admin.announcements.description'
+    }
+  },
+  {
+    path: '/admin/feedback',
+    name: 'AdminFeedback',
+    component: () => import('@/views/admin/FeedbackView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '问题反馈',
+      titleKey: 'feedback.title',
+      descriptionKey: 'feedback.adminDescription'
     }
   },
   {

@@ -1,6 +1,47 @@
 <template>
   <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
-    <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
+    <div class="relative flex min-h-16 flex-wrap items-center justify-between gap-2 px-2 pb-2 sm:px-4 md:px-6 2xl:h-16 2xl:flex-nowrap 2xl:pb-0">
+      <div v-if="user" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
+        <button
+          type="button"
+          data-testid="feedback-entry"
+          class="group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-gray-700 transition-colors hover:bg-primary-50/70 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-gray-200 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 2xl:pointer-events-auto"
+          :class="{ 'bg-primary-50/70 text-primary-700': route.path.startsWith('/admin/feedback') }"
+          :title="t('feedback.title')"
+          :aria-label="t('feedback.title')"
+          @click="openFeedback"
+        >
+          <EchoWallLogo :size="22" class="saturate-75 transition-transform group-hover:rotate-6" />
+          {{ t('feedback.title') }}
+          <span v-if="feedbackBadge > 0" class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900" :aria-label="t(authStore.isAdmin ? 'feedback.pendingBadge' : 'feedback.unreadBadge', { count: feedbackBadge })">{{ feedbackBadge > 99 ? '99+' : feedbackBadge }}</span>
+        </button>
+        <!-- QQ group (opens the join link in a new tab) -->
+        <a
+          :href="qqGroupUrl || '#'"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="qq-group-entry"
+          :title="t('nav.qqGroup')"
+          :aria-label="t('nav.qqGroup')"
+          class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-cyan-700 transition-colors hover:bg-cyan-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:text-cyan-300 dark:hover:bg-cyan-900/20 2xl:pointer-events-auto"
+          @click="onQqGroupClick"
+        >
+          <QqGroupLogo :size="20" class="transition-transform group-hover:-translate-y-0.5" />
+          {{ t('nav.qqGroup') }}
+        </a>
+        <!-- Pelican Test badge -->
+        <router-link
+          to="/pelican"
+          data-testid="pelican-entry"
+          :title="t('nav.pelican')"
+          :aria-label="t('nav.pelican')"
+          class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-gray-700 transition-colors hover:bg-primary-50/70 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-gray-200 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 2xl:pointer-events-auto"
+          active-class="bg-primary-50/70 text-primary-700"
+        >
+          <PelicanLogo :size="22" class="saturate-75 transition-transform group-hover:-rotate-6" />
+          {{ t('nav.pelican') }}
+        </router-link>
+      </div>
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex shrink-0 items-center gap-2 sm:gap-4">
         <button
@@ -260,7 +301,15 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import { useFeedbackStore } from '@/stores/feedback'
 import Icon from '@/components/icons/Icon.vue'
+import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
+import EchoWallLogo from '@/components/feedback/EchoWallLogo.vue'
+import QqGroupLogo from './QqGroupLogo.vue'
+
+// QQ 群加群链接（在 QQ 群资料页「分享群」中获取，形如 https://qm.qq.com/q/xxxxxx）。
+// 留空时点击按钮只会提示未配置，不会打开空白标签页。
+const QQ_GROUP_URL: string = 'https://qm.qq.com/cgi-bin/qm/qr?k=z77tL_WEPI5-c3fdp_oJDFXJPnXVp-LF&jump_from=webapi&authKey=zR8OIdt3V5nYIkcXWBb70JeuoBtdsLIjNOMUM4+1uO9VaXPcidkgKvdn6DU4q0J5'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
@@ -270,12 +319,25 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
+const qqGroupUrl = sanitizeUrl(QQ_GROUP_URL)
+function onQqGroupClick(event: MouseEvent) {
+  if (qqGroupUrl) return
+  event.preventDefault()
+  appStore.showInfo(t('nav.qqGroupLinkMissing'))
+}
 const authStore = useAuthStore()
 const adminSettingsStore = useAdminSettingsStore()
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
 const dropdownOpen = ref(false)
+const feedbackStore = useFeedbackStore()
+const feedbackBadge = computed(() => authStore.isAdmin ? feedbackStore.pendingCount : feedbackStore.unreadCount)
+function openFeedback() {
+  void feedbackStore.refresh()
+  if (authStore.isAdmin) void router.push('/admin/feedback')
+  else feedbackStore.openDialog()
+}
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))

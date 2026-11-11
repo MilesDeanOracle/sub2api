@@ -50,6 +50,9 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
+# vue-tsc -b 全量类型检查在当前前端代码规模下超过 Node 默认 ~2GB 堆上限，
+# 显式放宽堆内存避免 OOM (exit 134)。仅作用于本构建阶段，不影响运行镜像。
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------
