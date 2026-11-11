@@ -1,10 +1,10 @@
 ﻿# make build-docker (Windows)：使用 WSL 里的 Docker 打包镜像，并上传到远端服务器。
 # 流程（与 scripts/build-docker.sh 一致，Linux/macOS 使用 .sh 版本）：
-#   1. 提示输入 SSH 用户名（密码由 ssh/scp 在连接时提示输入，脚本不保存密码）
+#   1. 提示输入 SSH 用户名（密码由 scp 在连接时提示输入，脚本不保存密码）
 #   2. 用 WSL Docker 构建镜像 sub2api:<版本号>（版本号取 backend/cmd/server/VERSION）
 #   3. docker save 导出 tar 到本地 dist/ 目录（已被 gitignore）
 #   4. 上传 tar 到远端服务器 /data/docker-img/ 目录
-#      （ssh 建目录、scp 上传，各提示一次密码）
+#      （直接通过 scp 上传到已有目录）
 $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置 =====
@@ -22,7 +22,7 @@ $GoProxy = 'https://mirrors.aliyun.com/goproxy/,direct'
 Set-Location (Join-Path $PSScriptRoot '..')
 $RepoRoot = (Get-Location).Path
 
-# 1. 输入用户名；密码在 ssh/scp 连接时由其自己提示，不在脚本中出现
+# 1. 输入用户名；密码在 scp 连接时由其自己提示，不在脚本中出现
 $SshUser = Read-Host 'SSH 用户名'
 if ([string]::IsNullOrWhiteSpace($SshUser)) {
     Write-Host '错误：用户名不能为空'
@@ -48,7 +48,7 @@ Write-Host "==> 目标镜像：$Tag"
 Write-Host "==> 本地产物：$TarPath"
 Write-Host ''
 
-# 3. 解析 ssh/scp：32 位 PowerShell 下 System32 会被 WoW64 重定向到 SysWOW64，
+# 3. 解析 scp：32 位 PowerShell 下 System32 会被 WoW64 重定向到 SysWOW64，
 #    需回退到 Sysnative 访问真实 System32（与 dev.ps1 一致）
 function Resolve-Tool {
     param($Name, $Relative)
@@ -57,10 +57,9 @@ function Resolve-Tool {
     if (-not (Test-Path $exe)) { $exe = Join-Path $env:WINDIR (Join-Path 'System32' $Relative) }
     return $exe
 }
-$sshExe = Resolve-Tool 'ssh' 'OpenSSH\ssh.exe'
 $scpExe = Resolve-Tool 'scp' 'OpenSSH\scp.exe'
-if (-not (Test-Path $sshExe) -or -not (Test-Path $scpExe)) {
-    Write-Host '错误：未找到 ssh/scp 客户端，请安装 Windows OpenSSH 或将其加入 PATH'
+if (-not (Test-Path $scpExe)) {
+    Write-Host '错误：未找到 scp 客户端，请安装 Windows OpenSSH 或将其加入 PATH'
     exit 1
 }
 
@@ -119,18 +118,10 @@ if ($LASTEXITCODE -ne 0) {
 $TarSize = '{0:N1} MB' -f ((Get-Item $TarPath).Length / 1MB)
 Write-Host "==> 镜像已导出：$TarPath（$TarSize）"
 
-# 8. 上传：ssh 建目录 + scp 上传（各提示一次密码）
-Write-Host ''
-Write-Host "==> 在服务器上创建目录 $RemoteDir（会提示输入密码）"
-& $sshExe -p $SshPort -o 'StrictHostKeyChecking=accept-new' "${SshUser}@${ServerHost}" "mkdir -p $RemoteDir"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host '错误：创建远端目录失败（请检查用户名/密码，或对该目录是否有写权限）'
-    exit 1
-}
-
+# 8. 上传到已有的远端目录
 Write-Host ''
 Write-Host "==> 上传 $TarName -> ${SshUser}@${ServerHost}:$RemoteDir/（会提示输入密码）"
-& $scpExe -P $SshPort $TarPath "${SshUser}@${ServerHost}:${RemoteDir}/"
+& $scpExe -P $SshPort -o 'StrictHostKeyChecking=accept-new' $TarPath "${SshUser}@${ServerHost}:${RemoteDir}/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host '错误：上传失败'
     exit 1

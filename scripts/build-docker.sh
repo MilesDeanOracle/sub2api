@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # make build-docker (Linux/macOS)：使用本机 Docker 打包镜像，并上传到远端服务器。
 # 流程（与 scripts/build-docker.ps1 一致，Windows 使用 .ps1 版本）：
-#   1. 提示输入 SSH 用户名（密码由 ssh/scp 在连接时提示输入，脚本不保存密码）
+#   1. 提示输入 SSH 用户名（密码由 scp 在连接时提示输入，脚本不保存密码）
 #   2. 用 Docker 构建镜像 sub2api:<版本号>（版本号取 backend/cmd/server/VERSION）
 #   3. docker save 导出 tar 到本地 dist/ 目录（已被 gitignore）
 #   4. 上传 tar 到远端服务器 /data/docker-img/ 目录
-#      （ssh 建目录、scp 上传，各提示一次密码）
+#      （直接通过 scp 上传到已有目录）
 set -euo pipefail
 
 # ===== 可按需修改的配置 =====
@@ -23,7 +23,7 @@ GO_PROXY="${GO_PROXY:-https://mirrors.aliyun.com/goproxy/,direct}"
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-# 1. 输入用户名；密码在 ssh/scp 连接时由其自己提示，不在脚本中出现
+# 1. 输入用户名；密码在 scp 连接时由其自己提示，不在脚本中出现
 read -rp 'SSH 用户名: ' SSH_USER
 if [ -z "${SSH_USER// /}" ]; then
     echo '错误：用户名不能为空'
@@ -80,14 +80,10 @@ docker save -o "$TAR_PATH" "$TAG"
 TAR_SIZE="$(du -h "$TAR_PATH" | cut -f1)"
 echo "==> 镜像已导出：${TAR_PATH}（${TAR_SIZE}）"
 
-# 6. 上传：ssh 建目录 + scp 上传（各提示一次密码）
-echo ""
-echo "==> 在服务器上创建目录 ${REMOTE_DIR}（会提示输入密码）"
-ssh -p "${SSH_PORT}" -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SERVER_HOST}" "mkdir -p ${REMOTE_DIR}"
-
+# 6. 上传到已有的远端目录
 echo ""
 echo "==> 上传 ${TAR_NAME} -> ${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/（会提示输入密码）"
-scp -P "${SSH_PORT}" "$TAR_PATH" "${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
+scp -P "${SSH_PORT}" -o StrictHostKeyChecking=accept-new "$TAR_PATH" "${SSH_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
 
 echo ""
 echo '==> 完成！可在服务器上加载镜像：'
