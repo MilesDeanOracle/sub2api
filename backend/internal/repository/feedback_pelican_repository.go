@@ -16,7 +16,7 @@ FROM usage_logs u
 LEFT JOIN api_keys k ON k.id=u.api_key_id
 LEFT JOIN groups g ON g.id=u.group_id
 LEFT JOIN accounts a ON a.id=u.account_id
-WHERE u.user_id=$1 AND u.request_id IN ($2, 'client:' || $2)
+WHERE u.user_id=$1 AND u.request_id IN ($2::text, 'client:' || $2::text)
 ORDER BY u.id DESC LIMIT 1`
 
 // FindPelicanUsage resolves a gateway request ID to the usage log owned by the
