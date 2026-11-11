@@ -176,6 +176,19 @@
             </div>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="!resultSource" :title="t('pelican.copy')" @click="copySource"><Icon name="copy" size="xs" /></button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="!resultSource" :title="t('pelican.download')" @click="downloadCurrent"><Icon name="download" size="xs" /></button>
+            <button
+              v-if="runState === 'done'"
+              type="button"
+              data-testid="pelican-report"
+              class="btn btn-sm"
+              :class="isReported ? 'btn-secondary' : 'btn-primary'"
+              :disabled="isReported || reporting || !gatewayRequestId || !resultSource"
+              :title="reportButtonTitle"
+              @click="openReportDialog"
+            >
+              <Icon :name="isReported ? 'checkCircle' : 'chatBubble'" size="xs" />
+              {{ isReported ? t('pelican.reported') : t('pelican.report') }}
+            </button>
           </div>
         </div>
 
@@ -266,6 +279,46 @@
       @delete="onDeleteFromDialog"
     />
 
+    <BaseDialog
+      :show="reportDialogOpen"
+      :title="t('pelican.reportTitle')"
+      width="normal"
+      :close-on-escape="!reporting"
+      :show-close-button="!reporting"
+      @close="closeReportDialog"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('pelican.reportIntro') }}</p>
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-xl bg-gray-50 p-3 text-xs dark:bg-dark-800">
+          <dt class="text-gray-500 dark:text-dark-400">{{ t('pelican.modelLabel') }}</dt>
+          <dd class="truncate font-mono text-gray-900 dark:text-gray-100">{{ runModel }}</dd>
+          <dt class="text-gray-500 dark:text-dark-400">{{ t('pelican.reasoningLabel') }}</dt>
+          <dd class="text-gray-900 dark:text-gray-100">{{ runReasoning || t('pelican.reasoningDefault') }}</dd>
+          <dt class="text-gray-500 dark:text-dark-400">{{ t('pelican.runId') }}</dt>
+          <dd class="truncate font-mono text-gray-900 dark:text-gray-100">{{ currentRunId }}</dd>
+        </dl>
+        <label class="block">
+          <span class="input-label">{{ t('pelican.reportNoteLabel') }}</span>
+          <textarea
+            v-model="reportNote"
+            class="input"
+            rows="3"
+            :maxlength="reportNoteMax"
+            :disabled="reporting"
+            :placeholder="t('pelican.reportNotePlaceholder')"
+          />
+          <span class="input-hint">{{ t('pelican.reportNoteHint', { max: reportNoteMax }) }}</span>
+        </label>
+        <p v-if="reportError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ reportError }}</p>
+      </div>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" :disabled="reporting" @click="closeReportDialog">{{ t('common.cancel') }}</button>
+        <button type="button" class="btn btn-primary" :disabled="reporting" @click="submitReport">
+          {{ reporting ? t('pelican.reporting') : t('pelican.reportSubmit') }}
+        </button>
+      </template>
+    </BaseDialog>
+
     <ConfirmDialog
       :show="confirmMode !== null"
       :title="confirmTitle"
@@ -284,6 +337,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import PelicanArtifactPreview from '@/components/pelican/PelicanArtifactPreview.vue'
 import PelicanHistoryDialog from '@/components/pelican/PelicanHistoryDialog.vue'
 import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
@@ -294,6 +348,7 @@ import {
   getConfig as getPelicanConfig,
   listModels as listPelicanModels,
   streamRun as streamPelicanRun,
+  reportRun as reportPelicanRun,
   type PelicanConfig,
   type PelicanModel,
   type PelicanUsage
@@ -311,6 +366,7 @@ import {
   type PelicanRunRecord
 } from '@/lib/pelican/storage'
 import type { ApiKey } from '@/types'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 type RunState = 'idle' | 'running' | 'done' | 'cancelled' | 'error'
 type ResultTab = 'play' | 'source'
@@ -353,6 +409,17 @@ const historyLoading = ref(false)
 const historyDialogVisible = ref(false)
 const selectedRecord = ref<PelicanRunRecord | null>(null)
 const confirmMode = ref<'clear' | 'delete' | null>(null)
+
+// One-click report to administrators (only for successful runs on this site).
+const reportNoteMax = 500
+const gatewayRequestId = ref('')
+const runModel = ref('')
+const runReasoning = ref('')
+const reportedRunIds = ref<Set<string>>(new Set())
+const reportDialogOpen = ref(false)
+const reportNote = ref('')
+const reporting = ref(false)
+const reportError = ref('')
 const deleteTargetId = ref<string | null>(null)
 
 const resultTabs: ResultTab[] = ['play', 'source']
@@ -606,6 +673,9 @@ async function startRun(): Promise<void> {
   const savedKey = keyMode.value === 'saved' ? keys.value.find((item) => item.id === selectedKeyId.value) : undefined
   const keyName = savedKey?.name ?? t('pelican.manualKeyLabel')
   currentRunId.value = newRunId()
+  gatewayRequestId.value = ''
+  runModel.value = selectedModel.value
+  runReasoning.value = reasoningEffort.value
   rawText.value = ''
   usage.value = null
   errorMessage.value = ''
@@ -646,6 +716,9 @@ async function startRun(): Promise<void> {
         },
         onUsage: (value) => {
           usage.value = value
+        },
+        onMeta: ({ requestId }) => {
+          gatewayRequestId.value = requestId
         }
       },
       abortController.signal
@@ -780,6 +853,58 @@ async function confirmHistoryAction(): Promise<void> {
     await loadHistory()
   } catch {
     appStore.showError(t('pelican.errorUnknown'))
+  }
+}
+
+const isReported = computed(() => !!currentRunId.value && reportedRunIds.value.has(currentRunId.value))
+const reportButtonTitle = computed(() => {
+  if (isReported.value) return t('pelican.reported')
+  if (!gatewayRequestId.value) return t('pelican.reportNotLocal')
+  return t('pelican.reportHint')
+})
+
+function openReportDialog(): void {
+  if (runState.value !== 'done' || !gatewayRequestId.value || isReported.value) {
+    return
+  }
+  reportNote.value = ''
+  reportError.value = ''
+  reportDialogOpen.value = true
+}
+
+function closeReportDialog(): void {
+  if (reporting.value) {
+    return
+  }
+  reportDialogOpen.value = false
+}
+
+async function submitReport(): Promise<void> {
+  const runId = currentRunId.value
+  if (reporting.value || !runId || !gatewayRequestId.value || !resultSource.value) {
+    return
+  }
+  reporting.value = true
+  reportError.value = ''
+  try {
+    await reportPelicanRun({
+      run_id: runId,
+      request_id: gatewayRequestId.value,
+      model: runModel.value,
+      reasoning_effort: runReasoning.value || undefined,
+      note: reportNote.value.trim() || undefined,
+      source: resultSource.value,
+      duration_ms: Math.round(elapsedMs.value),
+      ttft_ms: ttftMs.value == null ? null : Math.round(ttftMs.value),
+      prompt_version: config.value?.test.prompt_version
+    })
+    reportedRunIds.value = new Set([...reportedRunIds.value, runId])
+    reportDialogOpen.value = false
+    appStore.showSuccess(t('pelican.reportSent'))
+  } catch (error) {
+    reportError.value = extractApiErrorMessage(error, t('pelican.reportFailed'))
+  } finally {
+    reporting.value = false
   }
 }
 

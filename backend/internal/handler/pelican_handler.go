@@ -27,6 +27,9 @@ const (
 	// list. It is a header (not a query parameter) so the key does not appear
 	// in access-log URLs.
 	pelicanManualKeyHeader = "X-Pelican-Api-Key"
+	// pelicanGatewayRequestIDHeader is set by the ClientRequestID middleware on
+	// every gateway response of this site.
+	pelicanGatewayRequestIDHeader = "X-Client-Request-ID"
 )
 
 // PelicanHandler exposes the fixed "pelican riding a bicycle" animation test.
@@ -236,6 +239,13 @@ func (h *PelicanHandler) Run(c *gin.Context) {
 	if _, err := fmt.Fprint(c.Writer, ": connected\n\n"); err != nil {
 		return
 	}
+	// When the base URL is this site, the gateway answers with its client
+	// request ID; usage_logs stores it, so a later report can be verified and
+	// resolved to the group/account that served this run. Other sites (or a
+	// non-sub2api upstream) simply do not send it and the run is not reportable.
+	if requestID := strings.TrimSpace(upstream.Header.Get(pelicanGatewayRequestIDHeader)); isPelicanGatewayRequestID(requestID) {
+		writePelicanSSEMeta(c.Writer, requestID)
+	}
 	flusher.Flush()
 
 	err = copyPelicanSSE(ctx, upstream.Body, c.Writer, flusher)
@@ -430,6 +440,28 @@ func writePelicanSSEError(w io.Writer, code, message string) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "event: pelican-error\ndata: %s\n\n", payload)
+}
+
+func writePelicanSSEMeta(w io.Writer, requestID string) {
+	payload, err := json.Marshal(map[string]string{"request_id": requestID})
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "event: pelican-meta\ndata: %s\n\n", payload)
+}
+
+func isPelicanGatewayRequestID(value string) bool {
+	if len(value) < 8 || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.', r == ':':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func isPelicanReasoningLevel(value string) bool {

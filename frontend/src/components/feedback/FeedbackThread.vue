@@ -6,7 +6,7 @@
     </div>
     <div class="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-dark-400">
       <span>{{ t(`feedback.categories.${ticket.category}`) }}</span>
-      <span class="text-amber-500" :aria-label="t('feedback.stars', { count: ticket.rating })">{{ '★'.repeat(ticket.rating) }}{{ '☆'.repeat(5 - ticket.rating) }}</span>
+      <span v-if="ticket.rating > 0" class="text-amber-500" :aria-label="t('feedback.stars', { count: ticket.rating })">{{ '★'.repeat(ticket.rating) }}{{ '☆'.repeat(5 - ticket.rating) }}</span>
       <time>{{ formatDateTime(ticket.created_at) }}</time>
     </div>
     <p class="whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-4 text-sm text-gray-800 dark:bg-dark-800 dark:text-gray-200">{{ ticket.content }}</p>

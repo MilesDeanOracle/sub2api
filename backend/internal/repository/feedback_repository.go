@@ -21,22 +21,23 @@ func (r *feedbackRepository) Create(ctx context.Context, userID int64, in servic
 	return id, err
 }
 
-// User endpoints never select the private administrator snapshot.
+// User endpoints never select the private administrator snapshot or pelican report.
 func feedbackColumns(admin bool) string {
-	snapshot := "NULL::jsonb"
+	snapshot, pelican := "NULL::jsonb", "NULL::jsonb"
 	if admin {
-		snapshot = "f.snapshot"
+		snapshot, pelican = "f.snapshot", "f.pelican_report"
 	}
-	return `f.id,f.user_id,f.title,f.category,f.content,f.rating,f.status,` + snapshot + `,f.enrichment_status,f.created_at,f.updated_at,(SELECT COUNT(*) FROM feedback_replies r WHERE r.ticket_id=f.id),(SELECT COUNT(*) FROM feedback_replies r WHERE r.ticket_id=f.id AND r.author_role='admin' AND r.read_at IS NULL)`
+	return `f.id,f.user_id,f.title,f.category,f.content,COALESCE(f.rating,0),f.status,` + snapshot + `,` + pelican + `,f.enrichment_status,f.created_at,f.updated_at,(SELECT COUNT(*) FROM feedback_replies r WHERE r.ticket_id=f.id),(SELECT COUNT(*) FROM feedback_replies r WHERE r.ticket_id=f.id AND r.author_role='admin' AND r.read_at IS NULL)`
 }
 
 type feedbackScanner interface{ Scan(...any) error }
 
 func scanFeedback(row feedbackScanner) (service.FeedbackTicket, error) {
 	var f service.FeedbackTicket
-	var snapshot []byte
-	err := row.Scan(&f.ID, &f.UserID, &f.Title, &f.Category, &f.Content, &f.Rating, &f.Status, &snapshot, &f.EnrichmentStatus, &f.CreatedAt, &f.UpdatedAt, &f.ReplyCount, &f.UnreadReplyCount)
+	var snapshot, pelican []byte
+	err := row.Scan(&f.ID, &f.UserID, &f.Title, &f.Category, &f.Content, &f.Rating, &f.Status, &snapshot, &pelican, &f.EnrichmentStatus, &f.CreatedAt, &f.UpdatedAt, &f.ReplyCount, &f.UnreadReplyCount)
 	f.Snapshot = json.RawMessage(snapshot)
+	f.Pelican = json.RawMessage(pelican)
 	return f, err
 }
 

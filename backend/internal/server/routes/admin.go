@@ -57,6 +57,7 @@ func RegisterAdminRoutes(
 			feedback.GET("/settings", h.Feedback.GetSettings)
 			feedback.PUT("/settings", h.Feedback.UpdateSettings)
 			feedback.GET("/:id", h.Feedback.GetAdmin)
+			feedback.GET("/:id/pelican-source", h.Feedback.GetPelicanSource)
 			feedback.POST("/:id/replies", h.Feedback.Reply)
 		}
 

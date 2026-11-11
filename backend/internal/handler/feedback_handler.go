@@ -182,3 +182,36 @@ func (h *FeedbackHandler) UpdateSettings(c *gin.Context) {
 		response.Success(c, gin.H{"message": "ok"})
 	}
 }
+
+// CreatePelicanReport turns a successful pelican run into a feedback ticket
+// with one click. The body carries the generated HTML, so its limit is larger.
+func (h *FeedbackHandler) CreatePelicanReport(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.PelicanReportMaxSourceBytes*2+(64<<10))
+	var in service.PelicanReportInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.BadRequest(c, "Invalid pelican report")
+		return
+	}
+	id, err := h.service.CreatePelicanReport(c.Request.Context(), subject.UserID, in)
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Created(c, gin.H{"id": id})
+}
+
+// GetPelicanSource returns the stored HTML of a pelican report (admin only).
+func (h *FeedbackHandler) GetPelicanSource(c *gin.Context) {
+	id, ok := feedbackID(c)
+	if !ok {
+		return
+	}
+	source, err := h.service.GetPelicanSource(c.Request.Context(), id)
+	if !response.ErrorFrom(c, err) {
+		response.Success(c, source)
+	}
+}

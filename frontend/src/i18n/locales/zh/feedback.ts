@@ -11,7 +11,8 @@ export default {
       "usage": "使用问题",
       "suggestion": "意见与建议",
       "cooperation": "合作意向",
-      "other": "其他"
+      "other": "其他",
+      "pelican": "鹈鹕测智上报"
     },
     "content": "内容",
     "contentPlaceholder": "请详细描述您的问题或建议，请勿填写密码、API Key 等敏感信息。",
@@ -81,6 +82,27 @@ export default {
     "restoreNotice": "恢复默认文案",
     "settingsSaved": "问题反馈设置已保存。",
     "settingsLoadFailed": "设置加载失败，请点击刷新重试。",
-    "settingsSaveFailed": "设置保存失败，请重试。"
+    "settingsSaveFailed": "设置保存失败，请重试。",
+    "pelicanInfo": "鹈鹕测智上报信息",
+    "pelicanRunId": "检测 ID",
+    "pelicanRequestId": "网关请求 ID",
+    "pelicanModel": "模型",
+    "pelicanUpstreamModel": "上游模型",
+    "pelicanReasoning": "思考强度",
+    "pelicanReasoningDefault": "默认（不传）",
+    "pelicanGroup": "分组",
+    "pelicanAccount": "处理请求的账户",
+    "pelicanApiKey": "API 密钥",
+    "pelicanDuration": "耗时",
+    "pelicanFirstToken": "首字",
+    "pelicanTokens": "输入 / 输出 Token",
+    "pelicanCost": "费用",
+    "pelicanNote": "用户说明",
+    "pelicanSource": "生成源码",
+    "pelicanViewSource": "查看并回放源码",
+    "pelicanHideSource": "收起源码",
+    "pelicanSourceTruncated": "源码超过 2 MB，已截断保存",
+    "pelicanSourceLoadFailed": "源码加载失败，请重试",
+    "pelicanNoRating": "无评分"
   }
 }

@@ -2,7 +2,7 @@
   <AppLayout>
     <div class="space-y-5">
       <div class="flex flex-wrap items-center gap-2">
-        <button v-for="category in ['', ...feedbackCategories]" :key="category" type="button" class="btn btn-sm" :class="filters.category === category ? 'btn-primary' : 'btn-secondary'" @click="setCategory(category)">
+        <button v-for="category in ['', ...adminFeedbackCategories]" :key="category" type="button" class="btn btn-sm" :class="filters.category === category ? 'btn-primary' : 'btn-secondary'" @click="setCategory(category)">
           {{ category ? t(`feedback.categories.${category}`) : t('feedback.allCategories') }}
           <span class="rounded-full bg-black/10 px-1.5 text-[11px] leading-5 dark:bg-white/10">{{ category ? counts[category as FeedbackCategory] || 0 : allCount }}</span>
         </button>
@@ -22,7 +22,7 @@
             <template #cell-title="{ row }"><div class="max-w-72 whitespace-normal break-words font-medium text-gray-900 dark:text-white">#{{ row.id }} · {{ row.title }}</div><div class="mt-1"><span class="badge badge-gray">{{ t(`feedback.categories.${row.category}`) }}</span></div></template>
             <template #cell-user="{ row }"><div class="font-medium">{{ displayName(row) }}</div><div class="text-xs text-gray-500 dark:text-dark-400">{{ row.snapshot?.email || t(`feedback.enrichment.${row.enrichment_status}`) }}</div></template>
             <template #cell-usage="{ row }"><template v-if="row.snapshot"><div class="tabular-nums">${{ row.snapshot.total_recharged.toFixed(2) }}</div><div class="text-xs tabular-nums text-gray-500 dark:text-dark-400">{{ formatFeedbackTokens(row.snapshot.total_tokens) }}</div></template><span v-else>—</span></template>
-            <template #cell-rating="{ row }"><span class="whitespace-nowrap text-amber-500" :aria-label="t('feedback.stars', { count: row.rating })">{{ '★'.repeat(row.rating) }}{{ '☆'.repeat(5 - row.rating) }}</span></template>
+            <template #cell-rating="{ row }"><span v-if="row.rating > 0" class="whitespace-nowrap text-amber-500" :aria-label="t('feedback.stars', { count: row.rating })">{{ '★'.repeat(row.rating) }}{{ '☆'.repeat(5 - row.rating) }}</span><span v-else class="text-xs text-gray-400 dark:text-dark-500">{{ t('feedback.pelicanNoRating') }}</span></template>
             <template #cell-status="{ row }"><span class="badge" :class="statusBadge(row.status)">{{ t(`feedback.statuses.${row.status}`) }}</span></template>
             <template #cell-created_at="{ row }"><span class="whitespace-nowrap text-gray-500 dark:text-dark-400">{{ formatDateTime(row.created_at) }}</span></template>
             <template #cell-actions="{ row }"><button type="button" class="btn btn-secondary btn-sm whitespace-nowrap" :disabled="replying || detailLoading" @click="openTicket(row.id)">{{ t('feedback.viewReply') }} ({{ row.reply_count }})</button></template>
@@ -41,7 +41,7 @@
                 <h3 class="break-words text-lg font-semibold text-gray-900 dark:text-white">#{{ selected.id }} · {{ selected.title }}</h3>
                 <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-dark-400">
                   <span class="badge badge-gray">{{ t(`feedback.categories.${selected.category}`) }}</span>
-                  <span class="text-amber-500" :aria-label="t('feedback.stars', { count: selected.rating })">{{ '★'.repeat(selected.rating) }}{{ '☆'.repeat(5 - selected.rating) }}</span>
+                  <span v-if="selected.rating > 0" class="text-amber-500" :aria-label="t('feedback.stars', { count: selected.rating })">{{ '★'.repeat(selected.rating) }}{{ '☆'.repeat(5 - selected.rating) }}</span>
                   <time>{{ formatDateTime(selected.created_at) }}</time>
                 </div>
               </div>
@@ -49,6 +49,21 @@
             </div>
             <div ref="threadRef" class="space-y-4">
               <p class="whitespace-pre-wrap break-words rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">{{ selected.content }}</p>
+              <div v-if="selected.pelican?.has_source" class="space-y-2">
+                <button type="button" class="btn btn-secondary btn-sm" :disabled="pelicanSourceLoading" @click="togglePelicanSource">
+                  <Icon name="play" size="xs" />
+                  {{ pelicanSourceOpen ? t('feedback.pelicanHideSource') : (pelicanSourceLoading ? t('common.loading') : t('feedback.pelicanViewSource')) }}
+                </button>
+                <p v-if="pelicanSourceError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ pelicanSourceError }}</p>
+                <template v-if="pelicanSourceOpen && pelicanSource">
+                  <p v-if="pelicanSource.truncated || selected.pelican.source_truncated" class="text-xs text-amber-600 dark:text-amber-400">{{ t('feedback.pelicanSourceTruncated') }}</p>
+                  <PelicanArtifactPreview :html="pelicanSourceHtml" :title="selected.pelican.model" />
+                  <details class="rounded-xl border border-gray-200 dark:border-dark-700">
+                    <summary class="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('feedback.pelicanSource') }}</summary>
+                    <pre class="max-h-96 overflow-auto rounded-b-xl bg-gray-950 p-4 text-xs leading-relaxed text-gray-100">{{ pelicanSource.source }}</pre>
+                  </details>
+                </template>
+              </div>
               <div class="flex items-center gap-3 text-xs text-gray-400 dark:text-dark-500"><span class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></span><span>{{ t('feedback.replies') }}</span><span class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></span></div>
               <p v-if="!selected.replies?.length" class="py-6 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('feedback.noReplies') }}</p>
               <ol v-else class="space-y-3">
@@ -65,6 +80,19 @@
             </div>
           </section>
           <aside class="min-w-0 space-y-4">
+            <div v-if="selected.pelican" class="rounded-2xl border border-sky-200 bg-sky-50/40 p-4 dark:border-sky-900/50 dark:bg-sky-900/10">
+              <h4 class="mb-3 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white"><PelicanLogo :size="18" />{{ t('feedback.pelicanInfo') }}</h4>
+              <dl class="space-y-2 text-sm">
+                <div v-for="item in pelicanFields" :key="item.label" class="flex items-start justify-between gap-3">
+                  <dt class="shrink-0 text-xs text-gray-500 dark:text-dark-400">{{ item.label }}</dt>
+                  <dd class="min-w-0 break-all text-right" :class="item.mono ? 'font-mono text-xs' : ''">{{ item.value }}</dd>
+                </div>
+              </dl>
+              <div v-if="selected.pelican.note" class="mt-3 rounded-xl bg-white p-3 text-sm dark:bg-dark-800">
+                <div class="mb-1 text-xs text-gray-500 dark:text-dark-400">{{ t('feedback.pelicanNote') }}</div>
+                <p class="whitespace-pre-wrap break-words">{{ selected.pelican.note }}</p>
+              </div>
+            </div>
             <div class="rounded-2xl border border-gray-200 p-4 dark:border-dark-700">
               <h4 class="mb-3 text-sm font-medium text-gray-900 dark:text-white">{{ t('feedback.userContext') }}</h4>
               <template v-if="selected.snapshot">
@@ -119,8 +147,11 @@ import Pagination from '@/components/common/Pagination.vue'
 import FeedbackSettingsDialog from '@/components/feedback/FeedbackSettingsDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PelicanArtifactPreview from '@/components/pelican/PelicanArtifactPreview.vue'
+import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
+import { extractArtifact } from '@/lib/pelican/artifact'
 import { useFeedbackStore } from '@/stores/feedback'
-import { feedbackCategories, formatFeedbackTokens, listFeedback, getFeedback, replyFeedback, type FeedbackCategory, type FeedbackStatus, type FeedbackTicket } from '@/api/feedback'
+import { adminFeedbackCategories, formatFeedbackTokens, listFeedback, getFeedback, getPelicanReportSource, replyFeedback, type FeedbackCategory, type FeedbackStatus, type FeedbackTicket } from '@/api/feedback'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
@@ -143,6 +174,62 @@ const resolved = ref(false)
 const replying = ref(false)
 const replyError = ref('')
 const threadRef = ref<HTMLElement | null>(null)
+const pelicanSource = ref<{ source: string; truncated: boolean } | null>(null)
+const pelicanSourceOpen = ref(false)
+const pelicanSourceLoading = ref(false)
+const pelicanSourceError = ref('')
+// The stored source may be raw model output; extract the HTML document like the pelican page does.
+const pelicanSourceHtml = computed(() => {
+  const source = pelicanSource.value?.source ?? ''
+  return extractArtifact(source).html ?? source
+})
+const pelicanFields = computed(() => {
+  const report = selected.value?.pelican
+  if (!report) return []
+  const usage = report.usage
+  const ms = (value: number | null | undefined) => value == null ? '—' : value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(1)} s`
+  const account = `${usage.account_name || `#${usage.account_id}`}${usage.account_platform ? ` · ${usage.account_platform}` : ''}${usage.account_type ? ` / ${usage.account_type}` : ''}`
+  const group = usage.group_id == null ? t('feedback.noGroup') : `${usage.group_name || `#${usage.group_id}`}${usage.group_platform ? ` · ${usage.group_platform}` : ''}`
+  const upstream = usage.upstream_model && usage.upstream_model !== (usage.requested_model || usage.model) ? usage.upstream_model : ''
+  return [
+    { label: t('feedback.pelicanRunId'), value: report.run_id, mono: true },
+    { label: t('feedback.pelicanRequestId'), value: report.request_id, mono: true },
+    { label: t('feedback.pelicanModel'), value: usage.requested_model || report.model, mono: true },
+    ...(upstream ? [{ label: t('feedback.pelicanUpstreamModel'), value: upstream, mono: true }] : []),
+    { label: t('feedback.pelicanReasoning'), value: report.reasoning_effort || t('feedback.pelicanReasoningDefault'), mono: false },
+    { label: t('feedback.pelicanGroup'), value: group, mono: false },
+    { label: t('feedback.pelicanAccount'), value: account, mono: false },
+    { label: t('feedback.pelicanApiKey'), value: usage.api_key_name || `#${usage.api_key_id}`, mono: false },
+    { label: t('feedback.pelicanDuration'), value: ms(usage.duration_ms ?? report.client_duration_ms), mono: false },
+    { label: t('feedback.pelicanFirstToken'), value: ms(usage.first_token_ms ?? report.client_ttft_ms), mono: false },
+    { label: t('feedback.pelicanTokens'), value: `${usage.input_tokens.toLocaleString()} / ${usage.output_tokens.toLocaleString()}`, mono: false },
+    { label: t('feedback.pelicanCost'), value: `$${usage.total_cost.toFixed(4)}`, mono: false }
+  ]
+})
+function resetPelicanSource() {
+  pelicanSource.value = null
+  pelicanSourceOpen.value = false
+  pelicanSourceLoading.value = false
+  pelicanSourceError.value = ''
+}
+async function togglePelicanSource() {
+  const id = selected.value?.id
+  if (!id) return
+  if (pelicanSourceOpen.value) { pelicanSourceOpen.value = false; return }
+  if (pelicanSource.value) { pelicanSourceOpen.value = true; return }
+  pelicanSourceLoading.value = true
+  pelicanSourceError.value = ''
+  try {
+    const result = await getPelicanReportSource(id)
+    if (selected.value?.id !== id) return
+    pelicanSource.value = result
+    pelicanSourceOpen.value = true
+  } catch {
+    if (selected.value?.id === id) pelicanSourceError.value = t('feedback.pelicanSourceLoadFailed')
+  } finally {
+    if (selected.value?.id === id) pelicanSourceLoading.value = false
+  }
+}
 let listVersion = 0
 let detailVersion = 0
 const columns = computed(() => [
@@ -169,6 +256,7 @@ async function openTicket(id: number) {
   if (replying.value) return
   const version = ++detailVersion
   selected.value = null
+  resetPelicanSource()
   detailOpen.value = true
   detailLoading.value = true
   detailError.value = ''
@@ -208,6 +296,7 @@ function closeDetail() {
   detailOpen.value = false
   detailLoading.value = false
   selected.value = null
+  resetPelicanSource()
 }
 function setCategory(category: string) { filters.category = category; resetPage() }
 function resetPage() { filters.page = 1; void loadList() }

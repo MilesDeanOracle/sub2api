@@ -83,6 +83,20 @@ export default {
     toastCopied: '已复制',
     toastCopyFailed: '复制失败',
     toastDownloadFailed: '下载失败',
-    confirmDelete: '删除这条本地记录？'
+    confirmDelete: '删除这条本地记录？',
+    report: '上报管理员',
+    reported: '已上报',
+    reportHint: '把本次检测的模型、思考强度和生成结果发给管理员排查',
+    reportNotLocal: '仅支持上报通过本站 Base URL 完成的检测',
+    reportTitle: '上报给管理员',
+    reportIntro: '系统会自动生成问题反馈工单，附带本次检测的模型、思考强度、所用分组与账户以及生成的源码，无需手动填写。',
+    runId: '检测 ID',
+    reportNoteLabel: '补充说明（选填）',
+    reportNotePlaceholder: '例如：动画不动、画面错乱、输出了解释文字…',
+    reportNoteHint: '最多 {max} 字，不填也可以直接发送。',
+    reportSubmit: '发送上报',
+    reporting: '正在上报…',
+    reportSent: '已上报给管理员，可在回音壁“我的工单”中查看进度。',
+    reportFailed: '上报失败，请重试'
   }
 }

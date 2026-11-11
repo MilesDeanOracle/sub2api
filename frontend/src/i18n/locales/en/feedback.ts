@@ -11,7 +11,8 @@ export default {
       "usage": "Usage question",
       "suggestion": "Ideas & suggestions",
       "cooperation": "Partnership",
-      "other": "Other"
+      "other": "Other",
+      "pelican": "Pelican test report"
     },
     "content": "Content",
     "contentPlaceholder": "Describe your question or suggestion. Do not include passwords, API keys or other secrets.",
@@ -81,6 +82,27 @@ export default {
     "restoreNotice": "Restore default text",
     "settingsSaved": "Feedback settings saved.",
     "settingsLoadFailed": "Could not load settings. Click refresh to retry.",
-    "settingsSaveFailed": "Could not save settings. Please retry."
+    "settingsSaveFailed": "Could not save settings. Please retry.",
+    "pelicanInfo": "Pelican test report",
+    "pelicanRunId": "Run ID",
+    "pelicanRequestId": "Gateway request ID",
+    "pelicanModel": "Model",
+    "pelicanUpstreamModel": "Upstream model",
+    "pelicanReasoning": "Reasoning level",
+    "pelicanReasoningDefault": "Default (not sent)",
+    "pelicanGroup": "Group",
+    "pelicanAccount": "Serving account",
+    "pelicanApiKey": "API key",
+    "pelicanDuration": "Duration",
+    "pelicanFirstToken": "First token",
+    "pelicanTokens": "Input / output tokens",
+    "pelicanCost": "Cost",
+    "pelicanNote": "User note",
+    "pelicanSource": "Generated source",
+    "pelicanViewSource": "View and replay source",
+    "pelicanHideSource": "Hide source",
+    "pelicanSourceTruncated": "Source exceeded 2 MB and was truncated",
+    "pelicanSourceLoadFailed": "Failed to load source, please retry",
+    "pelicanNoRating": "No rating"
   }
 }

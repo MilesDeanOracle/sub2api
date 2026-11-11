@@ -1,7 +1,10 @@
 import { apiClient } from './client'
 
+// Categories users can pick in the feedback form.
 export const feedbackCategories = ['usage', 'suggestion', 'cooperation', 'other'] as const
-export type FeedbackCategory = typeof feedbackCategories[number]
+// Admin filters also include one-click pelican test reports.
+export const adminFeedbackCategories = [...feedbackCategories, 'pelican'] as const
+export type FeedbackCategory = typeof adminFeedbackCategories[number]
 export type FeedbackStatus = 'open' | 'replied' | 'resolved'
 export interface FeedbackInput {
   title: string
@@ -19,6 +22,44 @@ export interface FeedbackSnapshot {
   collected_at: string
   usage: { model: string; group_id: number | null; group_name: string; tokens: number }[]
 }
+export interface PelicanReportUsage {
+  usage_log_id: number
+  request_id: string
+  api_key_id: number
+  api_key_name: string
+  group_id: number | null
+  group_name: string
+  group_platform: string
+  account_id: number
+  account_name: string
+  account_platform: string
+  account_type: string
+  requested_model: string
+  model: string
+  upstream_model: string
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  total_cost: number
+  duration_ms: number | null
+  first_token_ms: number | null
+  created_at: string
+}
+export interface PelicanReportInfo {
+  run_id: string
+  request_id: string
+  model: string
+  reasoning_effort: string
+  prompt_version: string
+  note: string
+  client_duration_ms: number | null
+  client_ttft_ms: number | null
+  source_bytes: number
+  source_truncated: boolean
+  has_source: boolean
+  usage: PelicanReportUsage
+  reported_at: string
+}
 export interface FeedbackTicket extends FeedbackInput {
   id: number
   user_id: number
@@ -27,6 +68,8 @@ export interface FeedbackTicket extends FeedbackInput {
   unread_reply_count: number
   enrichment_status: 'pending' | 'ready' | 'failed'
   snapshot?: FeedbackSnapshot
+  /** Admin only: present on one-click pelican reports. */
+  pelican?: PelicanReportInfo
   created_at: string
   updated_at: string
   replies?: { id: number; author_role: 'admin' | 'user'; content: string; created_at: string; read_at?: string | null }[]
@@ -56,6 +99,10 @@ export async function replyFeedback(id: number, content: string, resolved: boole
 }
 export async function replyToMyFeedback(id: number, content: string) {
   await apiClient.post(`/feedback/${id}/replies`, { content })
+}
+
+export async function getPelicanReportSource(id: number) {
+  return (await apiClient.get<{ source: string; truncated: boolean }>(`/admin/feedback/${id}/pelican-source`)).data
 }
 
 export async function getFeedbackSummary(admin = false) {

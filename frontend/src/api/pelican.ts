@@ -67,6 +67,20 @@ export interface ListModelsOptions {
 export interface PelicanStreamHandlers {
   onDelta: (text: string) => void
   onUsage?: (usage: PelicanUsage) => void
+  /** Gateway request ID; only sent when the base URL is this site. */
+  onMeta?: (meta: { requestId: string }) => void
+}
+
+export interface PelicanReportPayload {
+  run_id: string
+  request_id: string
+  model: string
+  reasoning_effort?: string
+  note?: string
+  source: string
+  duration_ms?: number | null
+  ttft_ms?: number | null
+  prompt_version?: string
 }
 
 export class PelicanHttpError extends Error {
@@ -161,6 +175,13 @@ export async function streamRun(
         typeof parsed?.message === 'string' ? parsed.message : '上游连接中断，请重试'
       )
     }
+    if (message.event === 'pelican-meta') {
+      const parsed = parseJSON(message.data)
+      if (typeof parsed?.request_id === 'string' && parsed.request_id && handlers.onMeta) {
+        handlers.onMeta({ requestId: parsed.request_id })
+      }
+      return
+    }
     if (message.data === '[DONE]') {
       completed = true
       return
@@ -181,6 +202,11 @@ export async function streamRun(
   if (!completed) {
     throw new PelicanStreamError('STREAM_INCOMPLETE', '流式响应意外结束，请重试')
   }
+}
+
+export async function reportRun(payload: PelicanReportPayload): Promise<{ id: number }> {
+  const { data } = await apiClient.post<{ id: number }>('/pelican/reports', payload, { timeout: 60_000 })
+  return data
 }
 
 function authHeader(): Record<string, string> {

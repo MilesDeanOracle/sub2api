@@ -32,6 +32,7 @@ type FeedbackTicket struct {
 	Rating           int             `json:"rating"`
 	Status           string          `json:"status"`
 	Snapshot         json.RawMessage `json:"snapshot,omitempty"`
+	Pelican          json.RawMessage `json:"pelican,omitempty"`
 	EnrichmentStatus string          `json:"enrichment_status"`
 	ReplyCount       int             `json:"reply_count"`
 	UnreadReplyCount int             `json:"unread_reply_count"`
@@ -107,7 +108,7 @@ func NewFeedbackService(repo FeedbackRepository, settings SettingRepository) *Fe
 
 func ValidFeedbackCategory(category string) bool {
 	switch category {
-	case "usage", "suggestion", "cooperation", "other":
+	case "usage", "suggestion", "cooperation", "other", FeedbackCategoryPelican:
 		return true
 	}
 	return false
@@ -115,7 +116,8 @@ func ValidFeedbackCategory(category string) bool {
 
 func (s *FeedbackService) Create(ctx context.Context, userID int64, in FeedbackInput) (int64, error) {
 	in.Title, in.Content = strings.TrimSpace(in.Title), strings.TrimSpace(in.Content)
-	if userID <= 0 || in.Title == "" || utf8.RuneCountInString(in.Title) > 120 || in.Content == "" || utf8.RuneCountInString(in.Content) > 10000 || !ValidFeedbackCategory(in.Category) || in.Rating < 1 || in.Rating > 5 {
+	// Pelican reports are created only through CreatePelicanReport.
+	if userID <= 0 || in.Title == "" || utf8.RuneCountInString(in.Title) > 120 || in.Content == "" || utf8.RuneCountInString(in.Content) > 10000 || !ValidFeedbackCategory(in.Category) || in.Category == FeedbackCategoryPelican || in.Rating < 1 || in.Rating > 5 {
 		return 0, apperrors.BadRequest("INVALID_FEEDBACK", "Please provide a title, category, content and a rating from 1 to 5")
 	}
 	id, err := s.repo.Create(ctx, userID, in)

@@ -83,6 +83,20 @@ export default {
     toastCopied: 'Copied',
     toastCopyFailed: 'Copy failed',
     toastDownloadFailed: 'Download failed',
-    confirmDelete: 'Delete this local record?'
+    confirmDelete: 'Delete this local record?',
+    report: 'Report to admin',
+    reported: 'Reported',
+    reportHint: 'Send this run\'s model, reasoning level and output to the administrators',
+    reportNotLocal: 'Only runs completed through this site\'s Base URL can be reported',
+    reportTitle: 'Report to administrators',
+    reportIntro: 'A feedback ticket is created automatically with the model, reasoning level, group, account and generated source of this run. Nothing needs to be filled in.',
+    runId: 'Run ID',
+    reportNoteLabel: 'Note (optional)',
+    reportNotePlaceholder: 'e.g. the animation does not move, the layout is broken, extra explanation text…',
+    reportNoteHint: 'Up to {max} characters. You can also send it without a note.',
+    reportSubmit: 'Send report',
+    reporting: 'Reporting…',
+    reportSent: 'Reported to the administrators. Track it under "My tickets" in the Echo Wall.',
+    reportFailed: 'Report failed, please try again'
   }
 }
