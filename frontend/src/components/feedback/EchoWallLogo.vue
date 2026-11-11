@@ -2,32 +2,18 @@
   <svg
     :width="size"
     :height="size"
-    viewBox="0 0 32 32"
-    fill="none"
+    viewBox="0 0 1024 1024"
+    fill="currentColor"
     xmlns="http://www.w3.org/2000/svg"
-    role="img"
     aria-hidden="true"
     class="shrink-0"
   >
-    <defs>
-      <linearGradient :id="bgId" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stop-color="#a78bfa" />
-        <stop offset="1" stop-color="#db2777" />
-      </linearGradient>
-    </defs>
-    <!-- badge background -->
-    <rect x="0.5" y="0.5" width="31" height="31" rx="9" :fill="`url(#${bgId})`" />
-    <!-- speech bubble -->
-    <path d="M5 10.5C5 8 7 6 9.5 6h8C20 6 22 8 22 10.5v5c0 2.5-2 4.5-4.5 4.5H12l-4.6 3.6c-.5.4-1.2 0-1.1-.6l.6-3.3C5.8 19 5 17.4 5 15.5z" fill="#ffffff" />
-    <!-- voice bars -->
-    <path d="M10 11.6v2.8M13.5 9.8v6.4M17 11.6v2.8" stroke="#a21caf" stroke-width="1.9" stroke-linecap="round" />
-    <!-- echo arcs -->
-    <path d="M24.4 9.6a6.6 6.6 0 0 1 0 7.8" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" />
-    <path d="M27 7.4a10.2 10.2 0 0 1 0 12.2" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity="0.6" />
+    <path d="M 729.5 62.999 c -59.3001 0 -107.401 48.1001 -107.401 107.401 V 591 l 89.4 102.8 c 4.8 5.5 11.5001 8.3 18.2 8.3 c 6.8 0 13.6 -2.9 18.4 -8.6 l 86 -102.4 V 167.7 c 0 -57.8 -46.8 -104.7 -104.6 -104.7 Z m -43.4 460.1 V 170.4 c 0 -23.9001 19.5001 -43.4 43.4 -43.4 c 22.4 0 40.6 18.2 40.6 40.6 V 523 h -84 v 0.1 Z m 43 93.4 l -43 -49.4 h 84 v 0.6 l -41 48.8 Z" />
+    <path d="M 929.6 129.1 c -17.4 0 -31.4 14.1001 -31.4 31.4 V 641.001 l -1.1 0.8 V 863.001 H 126.999 V 193.1 h 399.7 c 17.4 0 31.4 -14.1001 31.4 -31.4 v -1.1 c 0 -17.4 -14.1001 -31.4 -31.4 -31.4 H 62.999 V 927.001 h 898 V 160.5 c 0 -17.3001 -14.1001 -31.4 -31.4 -31.4 Z" />
+    <path d="M 506 298 H 242 c -17.7001 0 -32 14.3001 -32 32 s 14.3001 32 32 32 h 264 c 17.7001 0 32 -14.3001 32 -32 s -14.3001 -32 -32 -32 Z M 506 429 H 242 c -17.7001 0 -32 14.3001 -32 32 s 14.3001 32 32 32 h 264 c 17.7001 0 32 -14.3001 32 -32 s -14.3001 -32 -32 -32 Z" />
   </svg>
 </template>
 
 <script setup lang="ts">
 withDefaults(defineProps<{ size?: number | string }>(), { size: 20 })
-const bgId = `echo-wall-bg-${Math.random().toString(36).slice(2, 8)}`
 </script>

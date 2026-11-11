@@ -625,7 +625,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Echo Wall',
+      title: '问题反馈',
       titleKey: 'feedback.title',
       descriptionKey: 'feedback.adminDescription'
     }

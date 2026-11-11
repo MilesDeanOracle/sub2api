@@ -167,7 +167,7 @@ export default {
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     pelican: 'Pelican Test',
-    qqGroup: 'Wuyou Token QQ Group ③',
+    qqGroup: 'Technical Discussion Group',
     qqGroupLinkMissing: 'The group link has not been configured yet. Please contact the administrator.',
     batchImage: 'Batch Images',
     usage: 'Usage',

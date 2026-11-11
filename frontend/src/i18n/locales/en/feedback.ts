@@ -1,6 +1,6 @@
 export default {
   "feedback": {
-    "title": "Echo Wall",
+    "title": "Feedback",
     "adminDescription": "Review feedback, usage context and reply to tickets",
     "newTicket": "Submit feedback",
     "myTickets": "My tickets",
@@ -57,12 +57,12 @@ export default {
     "noGroup": "No group",
     "noUsage": "No usage in the 7 days before submission",
     "writeReply": "Reply to user",
-    "replyPlaceholder": "Write a reply. The user can read it in Echo Wall under My tickets.",
+    "replyPlaceholder": "Write a reply. The user can read it in Feedback under My tickets.",
     "markResolved": "Mark as resolved with this reply",
     "sendReply": "Send reply",
     "sending": "Sending…",
     "replyFailed": "Could not send reply. Please retry.",
-    "replySent": "Reply sent. The user can read it in Echo Wall.",
+    "replySent": "Reply sent. The user can read it in Feedback.",
     "enrichment": {
       "pending": "Collecting usage context in the background. Refresh later.",
       "ready": "Context collected",
@@ -70,16 +70,16 @@ export default {
     },
     "pendingBadge": "{count} pending tickets",
     "unreadBadge": "{count} tickets with unread replies",
-    "newReply": "Echo Wall · New reply",
+    "newReply": "Feedback · New reply",
     "readReply": "Mark as read",
     "readFailed": "Could not save read status. Please retry.",
     "unreadReplies": "{count} unread replies",
     "settings": "Settings",
-    "settingsTitle": "Echo Wall settings",
+    "settingsTitle": "Feedback settings",
     "noticeLabel": "Feedback submission notice",
     "noticeHint": "Shown below the feedback form. Maximum 2,000 characters. Leave blank to hide the notice.",
     "restoreNotice": "Restore default text",
-    "settingsSaved": "Echo Wall settings saved.",
+    "settingsSaved": "Feedback settings saved.",
     "settingsLoadFailed": "Could not load settings. Click refresh to retry.",
     "settingsSaveFailed": "Could not save settings. Please retry."
   }

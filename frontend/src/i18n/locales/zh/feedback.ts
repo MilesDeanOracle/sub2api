@@ -1,6 +1,6 @@
 export default {
   "feedback": {
-    "title": "回音壁",
+    "title": "问题反馈",
     "adminDescription": "查看用户反馈、使用概况并回复工单",
     "newTicket": "提交反馈",
     "myTickets": "我的工单",
@@ -57,12 +57,12 @@ export default {
     "noGroup": "未分组",
     "noUsage": "提交前 7 天内没有使用记录",
     "writeReply": "回复用户",
-    "replyPlaceholder": "填写回复，用户可在回音壁的“我的工单”中查看。",
+    "replyPlaceholder": "填写回复，用户可在问题反馈的“我的工单”中查看。",
     "markResolved": "回复并标记为已解决",
     "sendReply": "发送回复",
     "sending": "正在发送…",
     "replyFailed": "回复发送失败，请重试。",
-    "replySent": "回复已发送，用户可在回音壁查看。",
+    "replySent": "回复已发送，用户可在问题反馈查看。",
     "enrichment": {
       "pending": "使用概况正在后台汇总，请稍后刷新",
       "ready": "汇总完成",
@@ -70,16 +70,16 @@ export default {
     },
     "pendingBadge": "{count} 个待处理工单",
     "unreadBadge": "{count} 个工单有未读回复",
-    "newReply": "回音壁 · 您收到了新回复",
+    "newReply": "问题反馈 · 您收到了新回复",
     "readReply": "我已阅读",
     "readFailed": "已读状态保存失败，请重试。",
     "unreadReplies": "{count} 条未读回复",
     "settings": "设置",
-    "settingsTitle": "回音壁设置",
+    "settingsTitle": "问题反馈设置",
     "noticeLabel": "提交反馈提示文案",
     "noticeHint": "用户提交反馈表单底部展示此内容，最多 2000 字。留空则隐藏提示。",
     "restoreNotice": "恢复默认文案",
-    "settingsSaved": "回音壁设置已保存。",
+    "settingsSaved": "问题反馈设置已保存。",
     "settingsLoadFailed": "设置加载失败，请点击刷新重试。",
     "settingsSaveFailed": "设置保存失败，请重试。"
   }

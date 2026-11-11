@@ -167,7 +167,7 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     pelican: '鹈鹕测智',
-    qqGroup: '无忧token③号群',
+    qqGroup: '技术交流群',
     qqGroupLinkMissing: '群链接尚未配置，请联系管理员。',
     batchImage: '批量生图',
     usage: '使用记录',

@@ -5,13 +5,13 @@
         <button
           type="button"
           data-testid="feedback-entry"
-          class="group relative inline-flex items-center gap-2 rounded-full border border-violet-200 bg-gradient-to-r from-violet-50 to-pink-50 py-1 pl-1 pr-4 text-base font-bold text-violet-700 shadow-sm transition-all hover:-translate-y-px hover:border-violet-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-violet-800/60 dark:from-violet-900/30 dark:to-pink-900/20 dark:text-violet-300 2xl:pointer-events-auto"
-          :class="{ 'border-violet-400 ring-2 ring-violet-400/30 dark:border-violet-500': route.path.startsWith('/admin/feedback') }"
+          class="group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-gray-700 transition-colors hover:bg-primary-50/70 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-gray-200 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 2xl:pointer-events-auto"
+          :class="{ 'bg-primary-50/70 text-primary-700': route.path.startsWith('/admin/feedback') }"
           :title="t('feedback.title')"
           :aria-label="t('feedback.title')"
           @click="openFeedback"
         >
-          <EchoWallLogo :size="28" class="transition-transform group-hover:rotate-6" />
+          <EchoWallLogo :size="22" class="saturate-75 transition-transform group-hover:rotate-6" />
           {{ t('feedback.title') }}
           <span v-if="feedbackBadge > 0" class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900" :aria-label="t(authStore.isAdmin ? 'feedback.pendingBadge' : 'feedback.unreadBadge', { count: feedbackBadge })">{{ feedbackBadge > 99 ? '99+' : feedbackBadge }}</span>
         </button>
@@ -23,12 +23,11 @@
           data-testid="qq-group-entry"
           :title="t('nav.qqGroup')"
           :aria-label="t('nav.qqGroup')"
-          class="group inline-flex items-center gap-2 rounded-full border border-blue-200 bg-gradient-to-r from-blue-50 to-white py-1 pl-1 pr-4 text-base font-bold text-blue-700 shadow-sm transition-all hover:-translate-y-px hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800/60 dark:from-blue-900/30 dark:to-dark-800 dark:text-blue-300 2xl:pointer-events-auto"
+          class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-cyan-700 transition-colors hover:bg-cyan-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:text-cyan-300 dark:hover:bg-cyan-900/20 2xl:pointer-events-auto"
           @click="onQqGroupClick"
         >
-          <QqGroupLogo :size="28" class="transition-transform group-hover:-translate-y-0.5" />
+          <QqGroupLogo :size="20" class="transition-transform group-hover:-translate-y-0.5" />
           {{ t('nav.qqGroup') }}
-          <Icon name="externalLink" size="xs" class="opacity-50 transition-opacity group-hover:opacity-100" />
         </a>
         <!-- Pelican Test badge -->
         <router-link
@@ -36,10 +35,10 @@
           data-testid="pelican-entry"
           :title="t('nav.pelican')"
           :aria-label="t('nav.pelican')"
-          class="group inline-flex items-center gap-2 rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-orange-50 py-1 pl-1 pr-4 text-base font-bold text-sky-700 shadow-sm transition-all hover:-translate-y-px hover:border-sky-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-800/60 dark:from-sky-900/30 dark:to-orange-900/20 dark:text-sky-300 2xl:pointer-events-auto"
-          active-class="border-sky-400 ring-2 ring-sky-400/30 dark:border-sky-500"
+          class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-gray-700 transition-colors hover:bg-primary-50/70 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-gray-200 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 2xl:pointer-events-auto"
+          active-class="bg-primary-50/70 text-primary-700"
         >
-          <PelicanLogo :size="28" class="transition-transform group-hover:-rotate-6" />
+          <PelicanLogo :size="22" class="saturate-75 transition-transform group-hover:-rotate-6" />
           {{ t('nav.pelican') }}
         </router-link>
       </div>
