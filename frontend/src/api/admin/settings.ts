@@ -740,6 +740,12 @@ export interface SystemSettings {
   channel_monitor_hide_user_ranking?: boolean;
 
   // Available Channels feature switch
+  pelican_enabled: boolean;
+  pelican_visibility: 'all' | 'admin';
+  feedback_enabled: boolean;
+  qq_group_enabled: boolean;
+  qq_group_name: string;
+  qq_group_url: string;
   available_channels_enabled: boolean;
 
   // Subscription feature switch (user sidebar "My Subscriptions" entry)
@@ -1056,6 +1062,12 @@ export interface UpdateSettingsRequest {
   channel_monitor_hide_user_ranking?: boolean;
 
   // Available Channels feature switch
+  pelican_enabled?: boolean;
+  pelican_visibility?: 'all' | 'admin';
+  feedback_enabled?: boolean;
+  qq_group_enabled?: boolean;
+  qq_group_name?: string;
+  qq_group_url?: string;
   available_channels_enabled?: boolean;
 
   // Subscription feature switch

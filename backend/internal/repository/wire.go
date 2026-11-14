@@ -71,6 +71,8 @@ func ProvideUserUsageAnalyticsReader(repo service.UsageLogRepository) service.Us
 
 // ProviderSet is the Wire provider set for all repositories
 var ProviderSet = wire.NewSet(
+	NewOperationsRepository,
+	NewOperationsObjectStoreFactory,
 	ProvideUserUsageAnalyticsReader,
 	NewUserRepository,
 	NewMCPOAuthRepository,

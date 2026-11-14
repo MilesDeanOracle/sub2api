@@ -249,6 +249,30 @@ func (f IdentityAdoptionDecisionFunc) Mutate(ctx context.Context, m ent.Mutation
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdentityAdoptionDecisionMutation", m)
 }
 
+// The OperationsPelicanResultFunc type is an adapter to allow the use of ordinary
+// function as OperationsPelicanResult mutator.
+type OperationsPelicanResultFunc func(context.Context, *ent.OperationsPelicanResultMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OperationsPelicanResultFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OperationsPelicanResultMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OperationsPelicanResultMutation", m)
+}
+
+// The OperationsPelicanTaskFunc type is an adapter to allow the use of ordinary
+// function as OperationsPelicanTask mutator.
+type OperationsPelicanTaskFunc func(context.Context, *ent.OperationsPelicanTaskMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OperationsPelicanTaskFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OperationsPelicanTaskMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OperationsPelicanTaskMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

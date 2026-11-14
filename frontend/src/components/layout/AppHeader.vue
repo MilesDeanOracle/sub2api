@@ -1,8 +1,9 @@
 <template>
   <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
     <div class="relative flex min-h-16 flex-wrap items-center justify-between gap-2 px-2 pb-2 sm:px-4 md:px-6 2xl:h-16 2xl:flex-nowrap 2xl:pb-0">
-      <div v-if="user" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
+      <div v-if="user && (feedbackEnabled || qqGroupEnabled || pelicanVisible)" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
         <button
+          v-if="feedbackEnabled"
           type="button"
           data-testid="feedback-entry"
           class="group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-gray-700 transition-colors hover:bg-primary-50/70 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-gray-200 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 2xl:pointer-events-auto"
@@ -17,20 +18,22 @@
         </button>
         <!-- QQ group (opens the join link in a new tab) -->
         <a
+          v-if="qqGroupEnabled"
           :href="qqGroupUrl || '#'"
           target="_blank"
           rel="noopener noreferrer"
           data-testid="qq-group-entry"
-          :title="t('nav.qqGroup')"
-          :aria-label="t('nav.qqGroup')"
+          :title="qqGroupName"
+          :aria-label="qqGroupName"
           class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-cyan-700 transition-colors hover:bg-cyan-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:text-cyan-300 dark:hover:bg-cyan-900/20 2xl:pointer-events-auto"
           @click="onQqGroupClick"
         >
           <QqGroupLogo :size="20" class="transition-transform group-hover:-translate-y-0.5" />
-          {{ t('nav.qqGroup') }}
+          {{ qqGroupName }}
         </a>
         <!-- Pelican Test badge -->
         <router-link
+          v-if="pelicanVisible"
           to="/pelican"
           data-testid="pelican-entry"
           :title="t('nav.pelican')"
@@ -307,11 +310,10 @@ import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
 import EchoWallLogo from '@/components/feedback/EchoWallLogo.vue'
 import QqGroupLogo from './QqGroupLogo.vue'
 
-// QQ 群加群链接（在 QQ 群资料页「分享群」中获取，形如 https://qm.qq.com/q/xxxxxx）。
-// 留空时点击按钮只会提示未配置，不会打开空白标签页。
+// Compatibility fallback for older backends without the community-link setting.
 const QQ_GROUP_URL: string = 'https://qm.qq.com/cgi-bin/qm/qr?k=z77tL_WEPI5-c3fdp_oJDFXJPnXVp-LF&jump_from=webapi&authKey=zR8OIdt3V5nYIkcXWBb70JeuoBtdsLIjNOMUM4+1uO9VaXPcidkgKvdn6DU4q0J5'
 import { sanitizeUrl } from '@/utils/url'
-import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { FeatureFlags, isFeatureFlagEnabled, isPelicanVisible } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
@@ -319,9 +321,13 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
-const qqGroupUrl = sanitizeUrl(QQ_GROUP_URL)
+const qqGroupUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.qq_group_url ?? QQ_GROUP_URL))
+const qqGroupName = computed(() => appStore.cachedPublicSettings?.qq_group_name?.trim() || t('nav.qqGroup'))
+const qqGroupEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.qqGroup))
+const feedbackEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.feedback))
+const pelicanVisible = computed(() => isPelicanVisible(appStore.cachedPublicSettings, authStore.isAdmin))
 function onQqGroupClick(event: MouseEvent) {
-  if (qqGroupUrl) return
+  if (qqGroupUrl.value) return
   event.preventDefault()
   appStore.showInfo(t('nav.qqGroupLinkMissing'))
 }
@@ -334,6 +340,7 @@ const dropdownOpen = ref(false)
 const feedbackStore = useFeedbackStore()
 const feedbackBadge = computed(() => authStore.isAdmin ? feedbackStore.pendingCount : feedbackStore.unreadCount)
 function openFeedback() {
+  if (!feedbackEnabled.value) return
   void feedbackStore.refresh()
   if (authStore.isAdmin) void router.push('/admin/feedback')
   else feedbackStore.openDialog()

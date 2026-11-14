@@ -32,6 +32,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -86,6 +88,8 @@ const (
 	TypeGroup                         = "Group"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
+	TypeOperationsPelicanResult       = "OperationsPelicanResult"
+	TypeOperationsPelicanTask         = "OperationsPelicanTask"
 	TypePaymentAuditLog               = "PaymentAuditLog"
 	TypePaymentOrder                  = "PaymentOrder"
 	TypePaymentProviderInstance       = "PaymentProviderInstance"
@@ -31078,6 +31082,3006 @@ func (m *IdentityAdoptionDecisionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown IdentityAdoptionDecision edge %s", name)
+}
+
+// OperationsPelicanResultMutation represents an operation that mutates the OperationsPelicanResult nodes in the graph.
+type OperationsPelicanResultMutation struct {
+	config
+	op                        Op
+	typ                       string
+	id                        *int64
+	task_id                   *int64
+	addtask_id                *int64
+	run_id                    *string
+	account_id                *int64
+	addaccount_id             *int64
+	trigger_key               *string
+	status                    *string
+	group_snapshots           *jsontext.Value
+	appendgroup_snapshots     jsontext.Value
+	payload                   *jsontext.Value
+	appendpayload             jsontext.Value
+	pool_slot                 *int
+	addpool_slot              *int
+	worker_token              *string
+	heartbeat_at              *time.Time
+	execution_deadline_at     *time.Time
+	storage_binding_encrypted *string
+	object_key                *string
+	version_id                *string
+	queued_at                 *time.Time
+	expires_at                *time.Time
+	cleanup_status            *string
+	cleanup_attempts          *int
+	addcleanup_attempts       *int
+	cleanup_error             *string
+	cleanup_next_at           *time.Time
+	created_at                *time.Time
+	updated_at                *time.Time
+	clearedFields             map[string]struct{}
+	done                      bool
+	oldValue                  func(context.Context) (*OperationsPelicanResult, error)
+	predicates                []predicate.OperationsPelicanResult
+}
+
+var _ ent.Mutation = (*OperationsPelicanResultMutation)(nil)
+
+// operationspelicanresultOption allows management of the mutation configuration using functional options.
+type operationspelicanresultOption func(*OperationsPelicanResultMutation)
+
+// newOperationsPelicanResultMutation creates new mutation for the OperationsPelicanResult entity.
+func newOperationsPelicanResultMutation(c config, op Op, opts ...operationspelicanresultOption) *OperationsPelicanResultMutation {
+	m := &OperationsPelicanResultMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOperationsPelicanResult,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOperationsPelicanResultID sets the ID field of the mutation.
+func withOperationsPelicanResultID(id int64) operationspelicanresultOption {
+	return func(m *OperationsPelicanResultMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OperationsPelicanResult
+		)
+		m.oldValue = func(ctx context.Context) (*OperationsPelicanResult, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OperationsPelicanResult.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOperationsPelicanResult sets the old OperationsPelicanResult of the mutation.
+func withOperationsPelicanResult(node *OperationsPelicanResult) operationspelicanresultOption {
+	return func(m *OperationsPelicanResultMutation) {
+		m.oldValue = func(context.Context) (*OperationsPelicanResult, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OperationsPelicanResultMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OperationsPelicanResultMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OperationsPelicanResultMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OperationsPelicanResultMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OperationsPelicanResult.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetTaskID sets the "task_id" field.
+func (m *OperationsPelicanResultMutation) SetTaskID(i int64) {
+	m.task_id = &i
+	m.addtask_id = nil
+}
+
+// TaskID returns the value of the "task_id" field in the mutation.
+func (m *OperationsPelicanResultMutation) TaskID() (r int64, exists bool) {
+	v := m.task_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTaskID returns the old "task_id" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldTaskID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTaskID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTaskID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTaskID: %w", err)
+	}
+	return oldValue.TaskID, nil
+}
+
+// AddTaskID adds i to the "task_id" field.
+func (m *OperationsPelicanResultMutation) AddTaskID(i int64) {
+	if m.addtask_id != nil {
+		*m.addtask_id += i
+	} else {
+		m.addtask_id = &i
+	}
+}
+
+// AddedTaskID returns the value that was added to the "task_id" field in this mutation.
+func (m *OperationsPelicanResultMutation) AddedTaskID() (r int64, exists bool) {
+	v := m.addtask_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTaskID resets all changes to the "task_id" field.
+func (m *OperationsPelicanResultMutation) ResetTaskID() {
+	m.task_id = nil
+	m.addtask_id = nil
+}
+
+// SetRunID sets the "run_id" field.
+func (m *OperationsPelicanResultMutation) SetRunID(s string) {
+	m.run_id = &s
+}
+
+// RunID returns the value of the "run_id" field in the mutation.
+func (m *OperationsPelicanResultMutation) RunID() (r string, exists bool) {
+	v := m.run_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRunID returns the old "run_id" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldRunID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRunID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRunID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRunID: %w", err)
+	}
+	return oldValue.RunID, nil
+}
+
+// ResetRunID resets all changes to the "run_id" field.
+func (m *OperationsPelicanResultMutation) ResetRunID() {
+	m.run_id = nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *OperationsPelicanResultMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *OperationsPelicanResultMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldAccountID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *OperationsPelicanResultMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *OperationsPelicanResultMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *OperationsPelicanResultMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+}
+
+// SetTriggerKey sets the "trigger_key" field.
+func (m *OperationsPelicanResultMutation) SetTriggerKey(s string) {
+	m.trigger_key = &s
+}
+
+// TriggerKey returns the value of the "trigger_key" field in the mutation.
+func (m *OperationsPelicanResultMutation) TriggerKey() (r string, exists bool) {
+	v := m.trigger_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTriggerKey returns the old "trigger_key" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldTriggerKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTriggerKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTriggerKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTriggerKey: %w", err)
+	}
+	return oldValue.TriggerKey, nil
+}
+
+// ResetTriggerKey resets all changes to the "trigger_key" field.
+func (m *OperationsPelicanResultMutation) ResetTriggerKey() {
+	m.trigger_key = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *OperationsPelicanResultMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *OperationsPelicanResultMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *OperationsPelicanResultMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetGroupSnapshots sets the "group_snapshots" field.
+func (m *OperationsPelicanResultMutation) SetGroupSnapshots(j jsontext.Value) {
+	m.group_snapshots = &j
+	m.appendgroup_snapshots = nil
+}
+
+// GroupSnapshots returns the value of the "group_snapshots" field in the mutation.
+func (m *OperationsPelicanResultMutation) GroupSnapshots() (r jsontext.Value, exists bool) {
+	v := m.group_snapshots
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupSnapshots returns the old "group_snapshots" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldGroupSnapshots(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupSnapshots is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupSnapshots requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupSnapshots: %w", err)
+	}
+	return oldValue.GroupSnapshots, nil
+}
+
+// AppendGroupSnapshots adds j to the "group_snapshots" field.
+func (m *OperationsPelicanResultMutation) AppendGroupSnapshots(j jsontext.Value) {
+	m.appendgroup_snapshots = append(m.appendgroup_snapshots, j...)
+}
+
+// AppendedGroupSnapshots returns the list of values that were appended to the "group_snapshots" field in this mutation.
+func (m *OperationsPelicanResultMutation) AppendedGroupSnapshots() (jsontext.Value, bool) {
+	if len(m.appendgroup_snapshots) == 0 {
+		return nil, false
+	}
+	return m.appendgroup_snapshots, true
+}
+
+// ResetGroupSnapshots resets all changes to the "group_snapshots" field.
+func (m *OperationsPelicanResultMutation) ResetGroupSnapshots() {
+	m.group_snapshots = nil
+	m.appendgroup_snapshots = nil
+}
+
+// SetPayload sets the "payload" field.
+func (m *OperationsPelicanResultMutation) SetPayload(j jsontext.Value) {
+	m.payload = &j
+	m.appendpayload = nil
+}
+
+// Payload returns the value of the "payload" field in the mutation.
+func (m *OperationsPelicanResultMutation) Payload() (r jsontext.Value, exists bool) {
+	v := m.payload
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPayload returns the old "payload" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldPayload(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPayload is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPayload requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPayload: %w", err)
+	}
+	return oldValue.Payload, nil
+}
+
+// AppendPayload adds j to the "payload" field.
+func (m *OperationsPelicanResultMutation) AppendPayload(j jsontext.Value) {
+	m.appendpayload = append(m.appendpayload, j...)
+}
+
+// AppendedPayload returns the list of values that were appended to the "payload" field in this mutation.
+func (m *OperationsPelicanResultMutation) AppendedPayload() (jsontext.Value, bool) {
+	if len(m.appendpayload) == 0 {
+		return nil, false
+	}
+	return m.appendpayload, true
+}
+
+// ResetPayload resets all changes to the "payload" field.
+func (m *OperationsPelicanResultMutation) ResetPayload() {
+	m.payload = nil
+	m.appendpayload = nil
+}
+
+// SetPoolSlot sets the "pool_slot" field.
+func (m *OperationsPelicanResultMutation) SetPoolSlot(i int) {
+	m.pool_slot = &i
+	m.addpool_slot = nil
+}
+
+// PoolSlot returns the value of the "pool_slot" field in the mutation.
+func (m *OperationsPelicanResultMutation) PoolSlot() (r int, exists bool) {
+	v := m.pool_slot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPoolSlot returns the old "pool_slot" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldPoolSlot(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPoolSlot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPoolSlot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPoolSlot: %w", err)
+	}
+	return oldValue.PoolSlot, nil
+}
+
+// AddPoolSlot adds i to the "pool_slot" field.
+func (m *OperationsPelicanResultMutation) AddPoolSlot(i int) {
+	if m.addpool_slot != nil {
+		*m.addpool_slot += i
+	} else {
+		m.addpool_slot = &i
+	}
+}
+
+// AddedPoolSlot returns the value that was added to the "pool_slot" field in this mutation.
+func (m *OperationsPelicanResultMutation) AddedPoolSlot() (r int, exists bool) {
+	v := m.addpool_slot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPoolSlot clears the value of the "pool_slot" field.
+func (m *OperationsPelicanResultMutation) ClearPoolSlot() {
+	m.pool_slot = nil
+	m.addpool_slot = nil
+	m.clearedFields[operationspelicanresult.FieldPoolSlot] = struct{}{}
+}
+
+// PoolSlotCleared returns if the "pool_slot" field was cleared in this mutation.
+func (m *OperationsPelicanResultMutation) PoolSlotCleared() bool {
+	_, ok := m.clearedFields[operationspelicanresult.FieldPoolSlot]
+	return ok
+}
+
+// ResetPoolSlot resets all changes to the "pool_slot" field.
+func (m *OperationsPelicanResultMutation) ResetPoolSlot() {
+	m.pool_slot = nil
+	m.addpool_slot = nil
+	delete(m.clearedFields, operationspelicanresult.FieldPoolSlot)
+}
+
+// SetWorkerToken sets the "worker_token" field.
+func (m *OperationsPelicanResultMutation) SetWorkerToken(s string) {
+	m.worker_token = &s
+}
+
+// WorkerToken returns the value of the "worker_token" field in the mutation.
+func (m *OperationsPelicanResultMutation) WorkerToken() (r string, exists bool) {
+	v := m.worker_token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkerToken returns the old "worker_token" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldWorkerToken(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkerToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkerToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkerToken: %w", err)
+	}
+	return oldValue.WorkerToken, nil
+}
+
+// ResetWorkerToken resets all changes to the "worker_token" field.
+func (m *OperationsPelicanResultMutation) ResetWorkerToken() {
+	m.worker_token = nil
+}
+
+// SetHeartbeatAt sets the "heartbeat_at" field.
+func (m *OperationsPelicanResultMutation) SetHeartbeatAt(t time.Time) {
+	m.heartbeat_at = &t
+}
+
+// HeartbeatAt returns the value of the "heartbeat_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) HeartbeatAt() (r time.Time, exists bool) {
+	v := m.heartbeat_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHeartbeatAt returns the old "heartbeat_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldHeartbeatAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHeartbeatAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHeartbeatAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHeartbeatAt: %w", err)
+	}
+	return oldValue.HeartbeatAt, nil
+}
+
+// ClearHeartbeatAt clears the value of the "heartbeat_at" field.
+func (m *OperationsPelicanResultMutation) ClearHeartbeatAt() {
+	m.heartbeat_at = nil
+	m.clearedFields[operationspelicanresult.FieldHeartbeatAt] = struct{}{}
+}
+
+// HeartbeatAtCleared returns if the "heartbeat_at" field was cleared in this mutation.
+func (m *OperationsPelicanResultMutation) HeartbeatAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicanresult.FieldHeartbeatAt]
+	return ok
+}
+
+// ResetHeartbeatAt resets all changes to the "heartbeat_at" field.
+func (m *OperationsPelicanResultMutation) ResetHeartbeatAt() {
+	m.heartbeat_at = nil
+	delete(m.clearedFields, operationspelicanresult.FieldHeartbeatAt)
+}
+
+// SetExecutionDeadlineAt sets the "execution_deadline_at" field.
+func (m *OperationsPelicanResultMutation) SetExecutionDeadlineAt(t time.Time) {
+	m.execution_deadline_at = &t
+}
+
+// ExecutionDeadlineAt returns the value of the "execution_deadline_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) ExecutionDeadlineAt() (r time.Time, exists bool) {
+	v := m.execution_deadline_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExecutionDeadlineAt returns the old "execution_deadline_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldExecutionDeadlineAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExecutionDeadlineAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExecutionDeadlineAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExecutionDeadlineAt: %w", err)
+	}
+	return oldValue.ExecutionDeadlineAt, nil
+}
+
+// ClearExecutionDeadlineAt clears the value of the "execution_deadline_at" field.
+func (m *OperationsPelicanResultMutation) ClearExecutionDeadlineAt() {
+	m.execution_deadline_at = nil
+	m.clearedFields[operationspelicanresult.FieldExecutionDeadlineAt] = struct{}{}
+}
+
+// ExecutionDeadlineAtCleared returns if the "execution_deadline_at" field was cleared in this mutation.
+func (m *OperationsPelicanResultMutation) ExecutionDeadlineAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicanresult.FieldExecutionDeadlineAt]
+	return ok
+}
+
+// ResetExecutionDeadlineAt resets all changes to the "execution_deadline_at" field.
+func (m *OperationsPelicanResultMutation) ResetExecutionDeadlineAt() {
+	m.execution_deadline_at = nil
+	delete(m.clearedFields, operationspelicanresult.FieldExecutionDeadlineAt)
+}
+
+// SetStorageBindingEncrypted sets the "storage_binding_encrypted" field.
+func (m *OperationsPelicanResultMutation) SetStorageBindingEncrypted(s string) {
+	m.storage_binding_encrypted = &s
+}
+
+// StorageBindingEncrypted returns the value of the "storage_binding_encrypted" field in the mutation.
+func (m *OperationsPelicanResultMutation) StorageBindingEncrypted() (r string, exists bool) {
+	v := m.storage_binding_encrypted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStorageBindingEncrypted returns the old "storage_binding_encrypted" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldStorageBindingEncrypted(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStorageBindingEncrypted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStorageBindingEncrypted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStorageBindingEncrypted: %w", err)
+	}
+	return oldValue.StorageBindingEncrypted, nil
+}
+
+// ResetStorageBindingEncrypted resets all changes to the "storage_binding_encrypted" field.
+func (m *OperationsPelicanResultMutation) ResetStorageBindingEncrypted() {
+	m.storage_binding_encrypted = nil
+}
+
+// SetObjectKey sets the "object_key" field.
+func (m *OperationsPelicanResultMutation) SetObjectKey(s string) {
+	m.object_key = &s
+}
+
+// ObjectKey returns the value of the "object_key" field in the mutation.
+func (m *OperationsPelicanResultMutation) ObjectKey() (r string, exists bool) {
+	v := m.object_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldObjectKey returns the old "object_key" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldObjectKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldObjectKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldObjectKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldObjectKey: %w", err)
+	}
+	return oldValue.ObjectKey, nil
+}
+
+// ResetObjectKey resets all changes to the "object_key" field.
+func (m *OperationsPelicanResultMutation) ResetObjectKey() {
+	m.object_key = nil
+}
+
+// SetVersionID sets the "version_id" field.
+func (m *OperationsPelicanResultMutation) SetVersionID(s string) {
+	m.version_id = &s
+}
+
+// VersionID returns the value of the "version_id" field in the mutation.
+func (m *OperationsPelicanResultMutation) VersionID() (r string, exists bool) {
+	v := m.version_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersionID returns the old "version_id" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldVersionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersionID: %w", err)
+	}
+	return oldValue.VersionID, nil
+}
+
+// ResetVersionID resets all changes to the "version_id" field.
+func (m *OperationsPelicanResultMutation) ResetVersionID() {
+	m.version_id = nil
+}
+
+// SetQueuedAt sets the "queued_at" field.
+func (m *OperationsPelicanResultMutation) SetQueuedAt(t time.Time) {
+	m.queued_at = &t
+}
+
+// QueuedAt returns the value of the "queued_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) QueuedAt() (r time.Time, exists bool) {
+	v := m.queued_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQueuedAt returns the old "queued_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldQueuedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQueuedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQueuedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQueuedAt: %w", err)
+	}
+	return oldValue.QueuedAt, nil
+}
+
+// ResetQueuedAt resets all changes to the "queued_at" field.
+func (m *OperationsPelicanResultMutation) ResetQueuedAt() {
+	m.queued_at = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *OperationsPelicanResultMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *OperationsPelicanResultMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetCleanupStatus sets the "cleanup_status" field.
+func (m *OperationsPelicanResultMutation) SetCleanupStatus(s string) {
+	m.cleanup_status = &s
+}
+
+// CleanupStatus returns the value of the "cleanup_status" field in the mutation.
+func (m *OperationsPelicanResultMutation) CleanupStatus() (r string, exists bool) {
+	v := m.cleanup_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCleanupStatus returns the old "cleanup_status" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldCleanupStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCleanupStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCleanupStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCleanupStatus: %w", err)
+	}
+	return oldValue.CleanupStatus, nil
+}
+
+// ResetCleanupStatus resets all changes to the "cleanup_status" field.
+func (m *OperationsPelicanResultMutation) ResetCleanupStatus() {
+	m.cleanup_status = nil
+}
+
+// SetCleanupAttempts sets the "cleanup_attempts" field.
+func (m *OperationsPelicanResultMutation) SetCleanupAttempts(i int) {
+	m.cleanup_attempts = &i
+	m.addcleanup_attempts = nil
+}
+
+// CleanupAttempts returns the value of the "cleanup_attempts" field in the mutation.
+func (m *OperationsPelicanResultMutation) CleanupAttempts() (r int, exists bool) {
+	v := m.cleanup_attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCleanupAttempts returns the old "cleanup_attempts" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldCleanupAttempts(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCleanupAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCleanupAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCleanupAttempts: %w", err)
+	}
+	return oldValue.CleanupAttempts, nil
+}
+
+// AddCleanupAttempts adds i to the "cleanup_attempts" field.
+func (m *OperationsPelicanResultMutation) AddCleanupAttempts(i int) {
+	if m.addcleanup_attempts != nil {
+		*m.addcleanup_attempts += i
+	} else {
+		m.addcleanup_attempts = &i
+	}
+}
+
+// AddedCleanupAttempts returns the value that was added to the "cleanup_attempts" field in this mutation.
+func (m *OperationsPelicanResultMutation) AddedCleanupAttempts() (r int, exists bool) {
+	v := m.addcleanup_attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCleanupAttempts resets all changes to the "cleanup_attempts" field.
+func (m *OperationsPelicanResultMutation) ResetCleanupAttempts() {
+	m.cleanup_attempts = nil
+	m.addcleanup_attempts = nil
+}
+
+// SetCleanupError sets the "cleanup_error" field.
+func (m *OperationsPelicanResultMutation) SetCleanupError(s string) {
+	m.cleanup_error = &s
+}
+
+// CleanupError returns the value of the "cleanup_error" field in the mutation.
+func (m *OperationsPelicanResultMutation) CleanupError() (r string, exists bool) {
+	v := m.cleanup_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCleanupError returns the old "cleanup_error" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldCleanupError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCleanupError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCleanupError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCleanupError: %w", err)
+	}
+	return oldValue.CleanupError, nil
+}
+
+// ResetCleanupError resets all changes to the "cleanup_error" field.
+func (m *OperationsPelicanResultMutation) ResetCleanupError() {
+	m.cleanup_error = nil
+}
+
+// SetCleanupNextAt sets the "cleanup_next_at" field.
+func (m *OperationsPelicanResultMutation) SetCleanupNextAt(t time.Time) {
+	m.cleanup_next_at = &t
+}
+
+// CleanupNextAt returns the value of the "cleanup_next_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) CleanupNextAt() (r time.Time, exists bool) {
+	v := m.cleanup_next_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCleanupNextAt returns the old "cleanup_next_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldCleanupNextAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCleanupNextAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCleanupNextAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCleanupNextAt: %w", err)
+	}
+	return oldValue.CleanupNextAt, nil
+}
+
+// ClearCleanupNextAt clears the value of the "cleanup_next_at" field.
+func (m *OperationsPelicanResultMutation) ClearCleanupNextAt() {
+	m.cleanup_next_at = nil
+	m.clearedFields[operationspelicanresult.FieldCleanupNextAt] = struct{}{}
+}
+
+// CleanupNextAtCleared returns if the "cleanup_next_at" field was cleared in this mutation.
+func (m *OperationsPelicanResultMutation) CleanupNextAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicanresult.FieldCleanupNextAt]
+	return ok
+}
+
+// ResetCleanupNextAt resets all changes to the "cleanup_next_at" field.
+func (m *OperationsPelicanResultMutation) ResetCleanupNextAt() {
+	m.cleanup_next_at = nil
+	delete(m.clearedFields, operationspelicanresult.FieldCleanupNextAt)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OperationsPelicanResultMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OperationsPelicanResultMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *OperationsPelicanResultMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *OperationsPelicanResultMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the OperationsPelicanResult entity.
+// If the OperationsPelicanResult object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanResultMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *OperationsPelicanResultMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the OperationsPelicanResultMutation builder.
+func (m *OperationsPelicanResultMutation) Where(ps ...predicate.OperationsPelicanResult) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OperationsPelicanResultMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OperationsPelicanResultMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OperationsPelicanResult, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OperationsPelicanResultMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OperationsPelicanResultMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OperationsPelicanResult).
+func (m *OperationsPelicanResultMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OperationsPelicanResultMutation) Fields() []string {
+	fields := make([]string, 0, 22)
+	if m.task_id != nil {
+		fields = append(fields, operationspelicanresult.FieldTaskID)
+	}
+	if m.run_id != nil {
+		fields = append(fields, operationspelicanresult.FieldRunID)
+	}
+	if m.account_id != nil {
+		fields = append(fields, operationspelicanresult.FieldAccountID)
+	}
+	if m.trigger_key != nil {
+		fields = append(fields, operationspelicanresult.FieldTriggerKey)
+	}
+	if m.status != nil {
+		fields = append(fields, operationspelicanresult.FieldStatus)
+	}
+	if m.group_snapshots != nil {
+		fields = append(fields, operationspelicanresult.FieldGroupSnapshots)
+	}
+	if m.payload != nil {
+		fields = append(fields, operationspelicanresult.FieldPayload)
+	}
+	if m.pool_slot != nil {
+		fields = append(fields, operationspelicanresult.FieldPoolSlot)
+	}
+	if m.worker_token != nil {
+		fields = append(fields, operationspelicanresult.FieldWorkerToken)
+	}
+	if m.heartbeat_at != nil {
+		fields = append(fields, operationspelicanresult.FieldHeartbeatAt)
+	}
+	if m.execution_deadline_at != nil {
+		fields = append(fields, operationspelicanresult.FieldExecutionDeadlineAt)
+	}
+	if m.storage_binding_encrypted != nil {
+		fields = append(fields, operationspelicanresult.FieldStorageBindingEncrypted)
+	}
+	if m.object_key != nil {
+		fields = append(fields, operationspelicanresult.FieldObjectKey)
+	}
+	if m.version_id != nil {
+		fields = append(fields, operationspelicanresult.FieldVersionID)
+	}
+	if m.queued_at != nil {
+		fields = append(fields, operationspelicanresult.FieldQueuedAt)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, operationspelicanresult.FieldExpiresAt)
+	}
+	if m.cleanup_status != nil {
+		fields = append(fields, operationspelicanresult.FieldCleanupStatus)
+	}
+	if m.cleanup_attempts != nil {
+		fields = append(fields, operationspelicanresult.FieldCleanupAttempts)
+	}
+	if m.cleanup_error != nil {
+		fields = append(fields, operationspelicanresult.FieldCleanupError)
+	}
+	if m.cleanup_next_at != nil {
+		fields = append(fields, operationspelicanresult.FieldCleanupNextAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, operationspelicanresult.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, operationspelicanresult.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OperationsPelicanResultMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		return m.TaskID()
+	case operationspelicanresult.FieldRunID:
+		return m.RunID()
+	case operationspelicanresult.FieldAccountID:
+		return m.AccountID()
+	case operationspelicanresult.FieldTriggerKey:
+		return m.TriggerKey()
+	case operationspelicanresult.FieldStatus:
+		return m.Status()
+	case operationspelicanresult.FieldGroupSnapshots:
+		return m.GroupSnapshots()
+	case operationspelicanresult.FieldPayload:
+		return m.Payload()
+	case operationspelicanresult.FieldPoolSlot:
+		return m.PoolSlot()
+	case operationspelicanresult.FieldWorkerToken:
+		return m.WorkerToken()
+	case operationspelicanresult.FieldHeartbeatAt:
+		return m.HeartbeatAt()
+	case operationspelicanresult.FieldExecutionDeadlineAt:
+		return m.ExecutionDeadlineAt()
+	case operationspelicanresult.FieldStorageBindingEncrypted:
+		return m.StorageBindingEncrypted()
+	case operationspelicanresult.FieldObjectKey:
+		return m.ObjectKey()
+	case operationspelicanresult.FieldVersionID:
+		return m.VersionID()
+	case operationspelicanresult.FieldQueuedAt:
+		return m.QueuedAt()
+	case operationspelicanresult.FieldExpiresAt:
+		return m.ExpiresAt()
+	case operationspelicanresult.FieldCleanupStatus:
+		return m.CleanupStatus()
+	case operationspelicanresult.FieldCleanupAttempts:
+		return m.CleanupAttempts()
+	case operationspelicanresult.FieldCleanupError:
+		return m.CleanupError()
+	case operationspelicanresult.FieldCleanupNextAt:
+		return m.CleanupNextAt()
+	case operationspelicanresult.FieldCreatedAt:
+		return m.CreatedAt()
+	case operationspelicanresult.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OperationsPelicanResultMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		return m.OldTaskID(ctx)
+	case operationspelicanresult.FieldRunID:
+		return m.OldRunID(ctx)
+	case operationspelicanresult.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case operationspelicanresult.FieldTriggerKey:
+		return m.OldTriggerKey(ctx)
+	case operationspelicanresult.FieldStatus:
+		return m.OldStatus(ctx)
+	case operationspelicanresult.FieldGroupSnapshots:
+		return m.OldGroupSnapshots(ctx)
+	case operationspelicanresult.FieldPayload:
+		return m.OldPayload(ctx)
+	case operationspelicanresult.FieldPoolSlot:
+		return m.OldPoolSlot(ctx)
+	case operationspelicanresult.FieldWorkerToken:
+		return m.OldWorkerToken(ctx)
+	case operationspelicanresult.FieldHeartbeatAt:
+		return m.OldHeartbeatAt(ctx)
+	case operationspelicanresult.FieldExecutionDeadlineAt:
+		return m.OldExecutionDeadlineAt(ctx)
+	case operationspelicanresult.FieldStorageBindingEncrypted:
+		return m.OldStorageBindingEncrypted(ctx)
+	case operationspelicanresult.FieldObjectKey:
+		return m.OldObjectKey(ctx)
+	case operationspelicanresult.FieldVersionID:
+		return m.OldVersionID(ctx)
+	case operationspelicanresult.FieldQueuedAt:
+		return m.OldQueuedAt(ctx)
+	case operationspelicanresult.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case operationspelicanresult.FieldCleanupStatus:
+		return m.OldCleanupStatus(ctx)
+	case operationspelicanresult.FieldCleanupAttempts:
+		return m.OldCleanupAttempts(ctx)
+	case operationspelicanresult.FieldCleanupError:
+		return m.OldCleanupError(ctx)
+	case operationspelicanresult.FieldCleanupNextAt:
+		return m.OldCleanupNextAt(ctx)
+	case operationspelicanresult.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case operationspelicanresult.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OperationsPelicanResult field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OperationsPelicanResultMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTaskID(v)
+		return nil
+	case operationspelicanresult.FieldRunID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRunID(v)
+		return nil
+	case operationspelicanresult.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case operationspelicanresult.FieldTriggerKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTriggerKey(v)
+		return nil
+	case operationspelicanresult.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case operationspelicanresult.FieldGroupSnapshots:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupSnapshots(v)
+		return nil
+	case operationspelicanresult.FieldPayload:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPayload(v)
+		return nil
+	case operationspelicanresult.FieldPoolSlot:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPoolSlot(v)
+		return nil
+	case operationspelicanresult.FieldWorkerToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkerToken(v)
+		return nil
+	case operationspelicanresult.FieldHeartbeatAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHeartbeatAt(v)
+		return nil
+	case operationspelicanresult.FieldExecutionDeadlineAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExecutionDeadlineAt(v)
+		return nil
+	case operationspelicanresult.FieldStorageBindingEncrypted:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStorageBindingEncrypted(v)
+		return nil
+	case operationspelicanresult.FieldObjectKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetObjectKey(v)
+		return nil
+	case operationspelicanresult.FieldVersionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersionID(v)
+		return nil
+	case operationspelicanresult.FieldQueuedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQueuedAt(v)
+		return nil
+	case operationspelicanresult.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case operationspelicanresult.FieldCleanupStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCleanupStatus(v)
+		return nil
+	case operationspelicanresult.FieldCleanupAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCleanupAttempts(v)
+		return nil
+	case operationspelicanresult.FieldCleanupError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCleanupError(v)
+		return nil
+	case operationspelicanresult.FieldCleanupNextAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCleanupNextAt(v)
+		return nil
+	case operationspelicanresult.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case operationspelicanresult.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanResult field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OperationsPelicanResultMutation) AddedFields() []string {
+	var fields []string
+	if m.addtask_id != nil {
+		fields = append(fields, operationspelicanresult.FieldTaskID)
+	}
+	if m.addaccount_id != nil {
+		fields = append(fields, operationspelicanresult.FieldAccountID)
+	}
+	if m.addpool_slot != nil {
+		fields = append(fields, operationspelicanresult.FieldPoolSlot)
+	}
+	if m.addcleanup_attempts != nil {
+		fields = append(fields, operationspelicanresult.FieldCleanupAttempts)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OperationsPelicanResultMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		return m.AddedTaskID()
+	case operationspelicanresult.FieldAccountID:
+		return m.AddedAccountID()
+	case operationspelicanresult.FieldPoolSlot:
+		return m.AddedPoolSlot()
+	case operationspelicanresult.FieldCleanupAttempts:
+		return m.AddedCleanupAttempts()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OperationsPelicanResultMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTaskID(v)
+		return nil
+	case operationspelicanresult.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case operationspelicanresult.FieldPoolSlot:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPoolSlot(v)
+		return nil
+	case operationspelicanresult.FieldCleanupAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCleanupAttempts(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanResult numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OperationsPelicanResultMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(operationspelicanresult.FieldPoolSlot) {
+		fields = append(fields, operationspelicanresult.FieldPoolSlot)
+	}
+	if m.FieldCleared(operationspelicanresult.FieldHeartbeatAt) {
+		fields = append(fields, operationspelicanresult.FieldHeartbeatAt)
+	}
+	if m.FieldCleared(operationspelicanresult.FieldExecutionDeadlineAt) {
+		fields = append(fields, operationspelicanresult.FieldExecutionDeadlineAt)
+	}
+	if m.FieldCleared(operationspelicanresult.FieldCleanupNextAt) {
+		fields = append(fields, operationspelicanresult.FieldCleanupNextAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OperationsPelicanResultMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OperationsPelicanResultMutation) ClearField(name string) error {
+	switch name {
+	case operationspelicanresult.FieldPoolSlot:
+		m.ClearPoolSlot()
+		return nil
+	case operationspelicanresult.FieldHeartbeatAt:
+		m.ClearHeartbeatAt()
+		return nil
+	case operationspelicanresult.FieldExecutionDeadlineAt:
+		m.ClearExecutionDeadlineAt()
+		return nil
+	case operationspelicanresult.FieldCleanupNextAt:
+		m.ClearCleanupNextAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanResult nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OperationsPelicanResultMutation) ResetField(name string) error {
+	switch name {
+	case operationspelicanresult.FieldTaskID:
+		m.ResetTaskID()
+		return nil
+	case operationspelicanresult.FieldRunID:
+		m.ResetRunID()
+		return nil
+	case operationspelicanresult.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case operationspelicanresult.FieldTriggerKey:
+		m.ResetTriggerKey()
+		return nil
+	case operationspelicanresult.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case operationspelicanresult.FieldGroupSnapshots:
+		m.ResetGroupSnapshots()
+		return nil
+	case operationspelicanresult.FieldPayload:
+		m.ResetPayload()
+		return nil
+	case operationspelicanresult.FieldPoolSlot:
+		m.ResetPoolSlot()
+		return nil
+	case operationspelicanresult.FieldWorkerToken:
+		m.ResetWorkerToken()
+		return nil
+	case operationspelicanresult.FieldHeartbeatAt:
+		m.ResetHeartbeatAt()
+		return nil
+	case operationspelicanresult.FieldExecutionDeadlineAt:
+		m.ResetExecutionDeadlineAt()
+		return nil
+	case operationspelicanresult.FieldStorageBindingEncrypted:
+		m.ResetStorageBindingEncrypted()
+		return nil
+	case operationspelicanresult.FieldObjectKey:
+		m.ResetObjectKey()
+		return nil
+	case operationspelicanresult.FieldVersionID:
+		m.ResetVersionID()
+		return nil
+	case operationspelicanresult.FieldQueuedAt:
+		m.ResetQueuedAt()
+		return nil
+	case operationspelicanresult.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case operationspelicanresult.FieldCleanupStatus:
+		m.ResetCleanupStatus()
+		return nil
+	case operationspelicanresult.FieldCleanupAttempts:
+		m.ResetCleanupAttempts()
+		return nil
+	case operationspelicanresult.FieldCleanupError:
+		m.ResetCleanupError()
+		return nil
+	case operationspelicanresult.FieldCleanupNextAt:
+		m.ResetCleanupNextAt()
+		return nil
+	case operationspelicanresult.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case operationspelicanresult.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanResult field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OperationsPelicanResultMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OperationsPelicanResultMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OperationsPelicanResultMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OperationsPelicanResultMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OperationsPelicanResultMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OperationsPelicanResultMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OperationsPelicanResultMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OperationsPelicanResult unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OperationsPelicanResultMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OperationsPelicanResult edge %s", name)
+}
+
+// OperationsPelicanTaskMutation represents an operation that mutates the OperationsPelicanTask nodes in the graph.
+type OperationsPelicanTaskMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int64
+	name                  *string
+	enabled               *bool
+	interval_hours        *int
+	addinterval_hours     *int
+	account_configs       *jsontext.Value
+	appendaccount_configs jsontext.Value
+	reasoning_effort      *string
+	prompt                *string
+	storage_source        *string
+	config_version        *int64
+	addconfig_version     *int64
+	last_triggered_at     *time.Time
+	next_run_at           *time.Time
+	created_by            *int64
+	addcreated_by         *int64
+	updated_by            *int64
+	addupdated_by         *int64
+	created_at            *time.Time
+	updated_at            *time.Time
+	deleted_at            *time.Time
+	clearedFields         map[string]struct{}
+	done                  bool
+	oldValue              func(context.Context) (*OperationsPelicanTask, error)
+	predicates            []predicate.OperationsPelicanTask
+}
+
+var _ ent.Mutation = (*OperationsPelicanTaskMutation)(nil)
+
+// operationspelicantaskOption allows management of the mutation configuration using functional options.
+type operationspelicantaskOption func(*OperationsPelicanTaskMutation)
+
+// newOperationsPelicanTaskMutation creates new mutation for the OperationsPelicanTask entity.
+func newOperationsPelicanTaskMutation(c config, op Op, opts ...operationspelicantaskOption) *OperationsPelicanTaskMutation {
+	m := &OperationsPelicanTaskMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOperationsPelicanTask,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOperationsPelicanTaskID sets the ID field of the mutation.
+func withOperationsPelicanTaskID(id int64) operationspelicantaskOption {
+	return func(m *OperationsPelicanTaskMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OperationsPelicanTask
+		)
+		m.oldValue = func(ctx context.Context) (*OperationsPelicanTask, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OperationsPelicanTask.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOperationsPelicanTask sets the old OperationsPelicanTask of the mutation.
+func withOperationsPelicanTask(node *OperationsPelicanTask) operationspelicantaskOption {
+	return func(m *OperationsPelicanTaskMutation) {
+		m.oldValue = func(context.Context) (*OperationsPelicanTask, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OperationsPelicanTaskMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OperationsPelicanTaskMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OperationsPelicanTaskMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OperationsPelicanTaskMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OperationsPelicanTask.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *OperationsPelicanTaskMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *OperationsPelicanTaskMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *OperationsPelicanTaskMutation) ResetName() {
+	m.name = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *OperationsPelicanTaskMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *OperationsPelicanTaskMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *OperationsPelicanTaskMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetIntervalHours sets the "interval_hours" field.
+func (m *OperationsPelicanTaskMutation) SetIntervalHours(i int) {
+	m.interval_hours = &i
+	m.addinterval_hours = nil
+}
+
+// IntervalHours returns the value of the "interval_hours" field in the mutation.
+func (m *OperationsPelicanTaskMutation) IntervalHours() (r int, exists bool) {
+	v := m.interval_hours
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIntervalHours returns the old "interval_hours" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldIntervalHours(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIntervalHours is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIntervalHours requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIntervalHours: %w", err)
+	}
+	return oldValue.IntervalHours, nil
+}
+
+// AddIntervalHours adds i to the "interval_hours" field.
+func (m *OperationsPelicanTaskMutation) AddIntervalHours(i int) {
+	if m.addinterval_hours != nil {
+		*m.addinterval_hours += i
+	} else {
+		m.addinterval_hours = &i
+	}
+}
+
+// AddedIntervalHours returns the value that was added to the "interval_hours" field in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedIntervalHours() (r int, exists bool) {
+	v := m.addinterval_hours
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIntervalHours resets all changes to the "interval_hours" field.
+func (m *OperationsPelicanTaskMutation) ResetIntervalHours() {
+	m.interval_hours = nil
+	m.addinterval_hours = nil
+}
+
+// SetAccountConfigs sets the "account_configs" field.
+func (m *OperationsPelicanTaskMutation) SetAccountConfigs(j jsontext.Value) {
+	m.account_configs = &j
+	m.appendaccount_configs = nil
+}
+
+// AccountConfigs returns the value of the "account_configs" field in the mutation.
+func (m *OperationsPelicanTaskMutation) AccountConfigs() (r jsontext.Value, exists bool) {
+	v := m.account_configs
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountConfigs returns the old "account_configs" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldAccountConfigs(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountConfigs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountConfigs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountConfigs: %w", err)
+	}
+	return oldValue.AccountConfigs, nil
+}
+
+// AppendAccountConfigs adds j to the "account_configs" field.
+func (m *OperationsPelicanTaskMutation) AppendAccountConfigs(j jsontext.Value) {
+	m.appendaccount_configs = append(m.appendaccount_configs, j...)
+}
+
+// AppendedAccountConfigs returns the list of values that were appended to the "account_configs" field in this mutation.
+func (m *OperationsPelicanTaskMutation) AppendedAccountConfigs() (jsontext.Value, bool) {
+	if len(m.appendaccount_configs) == 0 {
+		return nil, false
+	}
+	return m.appendaccount_configs, true
+}
+
+// ResetAccountConfigs resets all changes to the "account_configs" field.
+func (m *OperationsPelicanTaskMutation) ResetAccountConfigs() {
+	m.account_configs = nil
+	m.appendaccount_configs = nil
+}
+
+// SetReasoningEffort sets the "reasoning_effort" field.
+func (m *OperationsPelicanTaskMutation) SetReasoningEffort(s string) {
+	m.reasoning_effort = &s
+}
+
+// ReasoningEffort returns the value of the "reasoning_effort" field in the mutation.
+func (m *OperationsPelicanTaskMutation) ReasoningEffort() (r string, exists bool) {
+	v := m.reasoning_effort
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReasoningEffort returns the old "reasoning_effort" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldReasoningEffort(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReasoningEffort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReasoningEffort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReasoningEffort: %w", err)
+	}
+	return oldValue.ReasoningEffort, nil
+}
+
+// ResetReasoningEffort resets all changes to the "reasoning_effort" field.
+func (m *OperationsPelicanTaskMutation) ResetReasoningEffort() {
+	m.reasoning_effort = nil
+}
+
+// SetPrompt sets the "prompt" field.
+func (m *OperationsPelicanTaskMutation) SetPrompt(s string) {
+	m.prompt = &s
+}
+
+// Prompt returns the value of the "prompt" field in the mutation.
+func (m *OperationsPelicanTaskMutation) Prompt() (r string, exists bool) {
+	v := m.prompt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrompt returns the old "prompt" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldPrompt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrompt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrompt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrompt: %w", err)
+	}
+	return oldValue.Prompt, nil
+}
+
+// ResetPrompt resets all changes to the "prompt" field.
+func (m *OperationsPelicanTaskMutation) ResetPrompt() {
+	m.prompt = nil
+}
+
+// SetStorageSource sets the "storage_source" field.
+func (m *OperationsPelicanTaskMutation) SetStorageSource(s string) {
+	m.storage_source = &s
+}
+
+// StorageSource returns the value of the "storage_source" field in the mutation.
+func (m *OperationsPelicanTaskMutation) StorageSource() (r string, exists bool) {
+	v := m.storage_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStorageSource returns the old "storage_source" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldStorageSource(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStorageSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStorageSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStorageSource: %w", err)
+	}
+	return oldValue.StorageSource, nil
+}
+
+// ResetStorageSource resets all changes to the "storage_source" field.
+func (m *OperationsPelicanTaskMutation) ResetStorageSource() {
+	m.storage_source = nil
+}
+
+// SetConfigVersion sets the "config_version" field.
+func (m *OperationsPelicanTaskMutation) SetConfigVersion(i int64) {
+	m.config_version = &i
+	m.addconfig_version = nil
+}
+
+// ConfigVersion returns the value of the "config_version" field in the mutation.
+func (m *OperationsPelicanTaskMutation) ConfigVersion() (r int64, exists bool) {
+	v := m.config_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConfigVersion returns the old "config_version" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldConfigVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConfigVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConfigVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConfigVersion: %w", err)
+	}
+	return oldValue.ConfigVersion, nil
+}
+
+// AddConfigVersion adds i to the "config_version" field.
+func (m *OperationsPelicanTaskMutation) AddConfigVersion(i int64) {
+	if m.addconfig_version != nil {
+		*m.addconfig_version += i
+	} else {
+		m.addconfig_version = &i
+	}
+}
+
+// AddedConfigVersion returns the value that was added to the "config_version" field in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedConfigVersion() (r int64, exists bool) {
+	v := m.addconfig_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConfigVersion resets all changes to the "config_version" field.
+func (m *OperationsPelicanTaskMutation) ResetConfigVersion() {
+	m.config_version = nil
+	m.addconfig_version = nil
+}
+
+// SetLastTriggeredAt sets the "last_triggered_at" field.
+func (m *OperationsPelicanTaskMutation) SetLastTriggeredAt(t time.Time) {
+	m.last_triggered_at = &t
+}
+
+// LastTriggeredAt returns the value of the "last_triggered_at" field in the mutation.
+func (m *OperationsPelicanTaskMutation) LastTriggeredAt() (r time.Time, exists bool) {
+	v := m.last_triggered_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastTriggeredAt returns the old "last_triggered_at" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldLastTriggeredAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastTriggeredAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastTriggeredAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastTriggeredAt: %w", err)
+	}
+	return oldValue.LastTriggeredAt, nil
+}
+
+// ClearLastTriggeredAt clears the value of the "last_triggered_at" field.
+func (m *OperationsPelicanTaskMutation) ClearLastTriggeredAt() {
+	m.last_triggered_at = nil
+	m.clearedFields[operationspelicantask.FieldLastTriggeredAt] = struct{}{}
+}
+
+// LastTriggeredAtCleared returns if the "last_triggered_at" field was cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) LastTriggeredAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicantask.FieldLastTriggeredAt]
+	return ok
+}
+
+// ResetLastTriggeredAt resets all changes to the "last_triggered_at" field.
+func (m *OperationsPelicanTaskMutation) ResetLastTriggeredAt() {
+	m.last_triggered_at = nil
+	delete(m.clearedFields, operationspelicantask.FieldLastTriggeredAt)
+}
+
+// SetNextRunAt sets the "next_run_at" field.
+func (m *OperationsPelicanTaskMutation) SetNextRunAt(t time.Time) {
+	m.next_run_at = &t
+}
+
+// NextRunAt returns the value of the "next_run_at" field in the mutation.
+func (m *OperationsPelicanTaskMutation) NextRunAt() (r time.Time, exists bool) {
+	v := m.next_run_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextRunAt returns the old "next_run_at" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldNextRunAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextRunAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextRunAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextRunAt: %w", err)
+	}
+	return oldValue.NextRunAt, nil
+}
+
+// ClearNextRunAt clears the value of the "next_run_at" field.
+func (m *OperationsPelicanTaskMutation) ClearNextRunAt() {
+	m.next_run_at = nil
+	m.clearedFields[operationspelicantask.FieldNextRunAt] = struct{}{}
+}
+
+// NextRunAtCleared returns if the "next_run_at" field was cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) NextRunAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicantask.FieldNextRunAt]
+	return ok
+}
+
+// ResetNextRunAt resets all changes to the "next_run_at" field.
+func (m *OperationsPelicanTaskMutation) ResetNextRunAt() {
+	m.next_run_at = nil
+	delete(m.clearedFields, operationspelicantask.FieldNextRunAt)
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *OperationsPelicanTaskMutation) SetCreatedBy(i int64) {
+	m.created_by = &i
+	m.addcreated_by = nil
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *OperationsPelicanTaskMutation) CreatedBy() (r int64, exists bool) {
+	v := m.created_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// AddCreatedBy adds i to the "created_by" field.
+func (m *OperationsPelicanTaskMutation) AddCreatedBy(i int64) {
+	if m.addcreated_by != nil {
+		*m.addcreated_by += i
+	} else {
+		m.addcreated_by = &i
+	}
+}
+
+// AddedCreatedBy returns the value that was added to the "created_by" field in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedCreatedBy() (r int64, exists bool) {
+	v := m.addcreated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *OperationsPelicanTaskMutation) ResetCreatedBy() {
+	m.created_by = nil
+	m.addcreated_by = nil
+}
+
+// SetUpdatedBy sets the "updated_by" field.
+func (m *OperationsPelicanTaskMutation) SetUpdatedBy(i int64) {
+	m.updated_by = &i
+	m.addupdated_by = nil
+}
+
+// UpdatedBy returns the value of the "updated_by" field in the mutation.
+func (m *OperationsPelicanTaskMutation) UpdatedBy() (r int64, exists bool) {
+	v := m.updated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedBy returns the old "updated_by" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldUpdatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedBy: %w", err)
+	}
+	return oldValue.UpdatedBy, nil
+}
+
+// AddUpdatedBy adds i to the "updated_by" field.
+func (m *OperationsPelicanTaskMutation) AddUpdatedBy(i int64) {
+	if m.addupdated_by != nil {
+		*m.addupdated_by += i
+	} else {
+		m.addupdated_by = &i
+	}
+}
+
+// AddedUpdatedBy returns the value that was added to the "updated_by" field in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedUpdatedBy() (r int64, exists bool) {
+	v := m.addupdated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpdatedBy resets all changes to the "updated_by" field.
+func (m *OperationsPelicanTaskMutation) ResetUpdatedBy() {
+	m.updated_by = nil
+	m.addupdated_by = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OperationsPelicanTaskMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OperationsPelicanTaskMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OperationsPelicanTaskMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *OperationsPelicanTaskMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *OperationsPelicanTaskMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *OperationsPelicanTaskMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (m *OperationsPelicanTaskMutation) SetDeletedAt(t time.Time) {
+	m.deleted_at = &t
+}
+
+// DeletedAt returns the value of the "deleted_at" field in the mutation.
+func (m *OperationsPelicanTaskMutation) DeletedAt() (r time.Time, exists bool) {
+	v := m.deleted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletedAt returns the old "deleted_at" field's value of the OperationsPelicanTask entity.
+// If the OperationsPelicanTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OperationsPelicanTaskMutation) OldDeletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletedAt: %w", err)
+	}
+	return oldValue.DeletedAt, nil
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (m *OperationsPelicanTaskMutation) ClearDeletedAt() {
+	m.deleted_at = nil
+	m.clearedFields[operationspelicantask.FieldDeletedAt] = struct{}{}
+}
+
+// DeletedAtCleared returns if the "deleted_at" field was cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) DeletedAtCleared() bool {
+	_, ok := m.clearedFields[operationspelicantask.FieldDeletedAt]
+	return ok
+}
+
+// ResetDeletedAt resets all changes to the "deleted_at" field.
+func (m *OperationsPelicanTaskMutation) ResetDeletedAt() {
+	m.deleted_at = nil
+	delete(m.clearedFields, operationspelicantask.FieldDeletedAt)
+}
+
+// Where appends a list predicates to the OperationsPelicanTaskMutation builder.
+func (m *OperationsPelicanTaskMutation) Where(ps ...predicate.OperationsPelicanTask) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OperationsPelicanTaskMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OperationsPelicanTaskMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OperationsPelicanTask, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OperationsPelicanTaskMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OperationsPelicanTaskMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OperationsPelicanTask).
+func (m *OperationsPelicanTaskMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OperationsPelicanTaskMutation) Fields() []string {
+	fields := make([]string, 0, 15)
+	if m.name != nil {
+		fields = append(fields, operationspelicantask.FieldName)
+	}
+	if m.enabled != nil {
+		fields = append(fields, operationspelicantask.FieldEnabled)
+	}
+	if m.interval_hours != nil {
+		fields = append(fields, operationspelicantask.FieldIntervalHours)
+	}
+	if m.account_configs != nil {
+		fields = append(fields, operationspelicantask.FieldAccountConfigs)
+	}
+	if m.reasoning_effort != nil {
+		fields = append(fields, operationspelicantask.FieldReasoningEffort)
+	}
+	if m.prompt != nil {
+		fields = append(fields, operationspelicantask.FieldPrompt)
+	}
+	if m.storage_source != nil {
+		fields = append(fields, operationspelicantask.FieldStorageSource)
+	}
+	if m.config_version != nil {
+		fields = append(fields, operationspelicantask.FieldConfigVersion)
+	}
+	if m.last_triggered_at != nil {
+		fields = append(fields, operationspelicantask.FieldLastTriggeredAt)
+	}
+	if m.next_run_at != nil {
+		fields = append(fields, operationspelicantask.FieldNextRunAt)
+	}
+	if m.created_by != nil {
+		fields = append(fields, operationspelicantask.FieldCreatedBy)
+	}
+	if m.updated_by != nil {
+		fields = append(fields, operationspelicantask.FieldUpdatedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, operationspelicantask.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, operationspelicantask.FieldUpdatedAt)
+	}
+	if m.deleted_at != nil {
+		fields = append(fields, operationspelicantask.FieldDeletedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OperationsPelicanTaskMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case operationspelicantask.FieldName:
+		return m.Name()
+	case operationspelicantask.FieldEnabled:
+		return m.Enabled()
+	case operationspelicantask.FieldIntervalHours:
+		return m.IntervalHours()
+	case operationspelicantask.FieldAccountConfigs:
+		return m.AccountConfigs()
+	case operationspelicantask.FieldReasoningEffort:
+		return m.ReasoningEffort()
+	case operationspelicantask.FieldPrompt:
+		return m.Prompt()
+	case operationspelicantask.FieldStorageSource:
+		return m.StorageSource()
+	case operationspelicantask.FieldConfigVersion:
+		return m.ConfigVersion()
+	case operationspelicantask.FieldLastTriggeredAt:
+		return m.LastTriggeredAt()
+	case operationspelicantask.FieldNextRunAt:
+		return m.NextRunAt()
+	case operationspelicantask.FieldCreatedBy:
+		return m.CreatedBy()
+	case operationspelicantask.FieldUpdatedBy:
+		return m.UpdatedBy()
+	case operationspelicantask.FieldCreatedAt:
+		return m.CreatedAt()
+	case operationspelicantask.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case operationspelicantask.FieldDeletedAt:
+		return m.DeletedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OperationsPelicanTaskMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case operationspelicantask.FieldName:
+		return m.OldName(ctx)
+	case operationspelicantask.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case operationspelicantask.FieldIntervalHours:
+		return m.OldIntervalHours(ctx)
+	case operationspelicantask.FieldAccountConfigs:
+		return m.OldAccountConfigs(ctx)
+	case operationspelicantask.FieldReasoningEffort:
+		return m.OldReasoningEffort(ctx)
+	case operationspelicantask.FieldPrompt:
+		return m.OldPrompt(ctx)
+	case operationspelicantask.FieldStorageSource:
+		return m.OldStorageSource(ctx)
+	case operationspelicantask.FieldConfigVersion:
+		return m.OldConfigVersion(ctx)
+	case operationspelicantask.FieldLastTriggeredAt:
+		return m.OldLastTriggeredAt(ctx)
+	case operationspelicantask.FieldNextRunAt:
+		return m.OldNextRunAt(ctx)
+	case operationspelicantask.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case operationspelicantask.FieldUpdatedBy:
+		return m.OldUpdatedBy(ctx)
+	case operationspelicantask.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case operationspelicantask.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case operationspelicantask.FieldDeletedAt:
+		return m.OldDeletedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OperationsPelicanTask field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OperationsPelicanTaskMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case operationspelicantask.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case operationspelicantask.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case operationspelicantask.FieldIntervalHours:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIntervalHours(v)
+		return nil
+	case operationspelicantask.FieldAccountConfigs:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountConfigs(v)
+		return nil
+	case operationspelicantask.FieldReasoningEffort:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReasoningEffort(v)
+		return nil
+	case operationspelicantask.FieldPrompt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrompt(v)
+		return nil
+	case operationspelicantask.FieldStorageSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStorageSource(v)
+		return nil
+	case operationspelicantask.FieldConfigVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConfigVersion(v)
+		return nil
+	case operationspelicantask.FieldLastTriggeredAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastTriggeredAt(v)
+		return nil
+	case operationspelicantask.FieldNextRunAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextRunAt(v)
+		return nil
+	case operationspelicantask.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case operationspelicantask.FieldUpdatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedBy(v)
+		return nil
+	case operationspelicantask.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case operationspelicantask.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case operationspelicantask.FieldDeletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanTask field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OperationsPelicanTaskMutation) AddedFields() []string {
+	var fields []string
+	if m.addinterval_hours != nil {
+		fields = append(fields, operationspelicantask.FieldIntervalHours)
+	}
+	if m.addconfig_version != nil {
+		fields = append(fields, operationspelicantask.FieldConfigVersion)
+	}
+	if m.addcreated_by != nil {
+		fields = append(fields, operationspelicantask.FieldCreatedBy)
+	}
+	if m.addupdated_by != nil {
+		fields = append(fields, operationspelicantask.FieldUpdatedBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OperationsPelicanTaskMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case operationspelicantask.FieldIntervalHours:
+		return m.AddedIntervalHours()
+	case operationspelicantask.FieldConfigVersion:
+		return m.AddedConfigVersion()
+	case operationspelicantask.FieldCreatedBy:
+		return m.AddedCreatedBy()
+	case operationspelicantask.FieldUpdatedBy:
+		return m.AddedUpdatedBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OperationsPelicanTaskMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case operationspelicantask.FieldIntervalHours:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIntervalHours(v)
+		return nil
+	case operationspelicantask.FieldConfigVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConfigVersion(v)
+		return nil
+	case operationspelicantask.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreatedBy(v)
+		return nil
+	case operationspelicantask.FieldUpdatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpdatedBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanTask numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OperationsPelicanTaskMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(operationspelicantask.FieldLastTriggeredAt) {
+		fields = append(fields, operationspelicantask.FieldLastTriggeredAt)
+	}
+	if m.FieldCleared(operationspelicantask.FieldNextRunAt) {
+		fields = append(fields, operationspelicantask.FieldNextRunAt)
+	}
+	if m.FieldCleared(operationspelicantask.FieldDeletedAt) {
+		fields = append(fields, operationspelicantask.FieldDeletedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OperationsPelicanTaskMutation) ClearField(name string) error {
+	switch name {
+	case operationspelicantask.FieldLastTriggeredAt:
+		m.ClearLastTriggeredAt()
+		return nil
+	case operationspelicantask.FieldNextRunAt:
+		m.ClearNextRunAt()
+		return nil
+	case operationspelicantask.FieldDeletedAt:
+		m.ClearDeletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanTask nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OperationsPelicanTaskMutation) ResetField(name string) error {
+	switch name {
+	case operationspelicantask.FieldName:
+		m.ResetName()
+		return nil
+	case operationspelicantask.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case operationspelicantask.FieldIntervalHours:
+		m.ResetIntervalHours()
+		return nil
+	case operationspelicantask.FieldAccountConfigs:
+		m.ResetAccountConfigs()
+		return nil
+	case operationspelicantask.FieldReasoningEffort:
+		m.ResetReasoningEffort()
+		return nil
+	case operationspelicantask.FieldPrompt:
+		m.ResetPrompt()
+		return nil
+	case operationspelicantask.FieldStorageSource:
+		m.ResetStorageSource()
+		return nil
+	case operationspelicantask.FieldConfigVersion:
+		m.ResetConfigVersion()
+		return nil
+	case operationspelicantask.FieldLastTriggeredAt:
+		m.ResetLastTriggeredAt()
+		return nil
+	case operationspelicantask.FieldNextRunAt:
+		m.ResetNextRunAt()
+		return nil
+	case operationspelicantask.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case operationspelicantask.FieldUpdatedBy:
+		m.ResetUpdatedBy()
+		return nil
+	case operationspelicantask.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case operationspelicantask.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case operationspelicantask.FieldDeletedAt:
+		m.ResetDeletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OperationsPelicanTask field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OperationsPelicanTaskMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OperationsPelicanTaskMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OperationsPelicanTaskMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OperationsPelicanTaskMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OperationsPelicanTaskMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OperationsPelicanTask unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OperationsPelicanTaskMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OperationsPelicanTask edge %s", name)
 }
 
 // PaymentAuditLogMutation represents an operation that mutates the PaymentAuditLog nodes in the graph.

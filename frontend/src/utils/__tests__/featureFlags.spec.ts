@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
-import { FeatureFlags, isFeatureFlagEnabled, makeSidebarFlag, resolveFeatureFlag } from '@/utils/featureFlags'
+import { FeatureFlags, isFeatureFlagEnabled, isPelicanVisible, makeSidebarFlag, resolveFeatureFlag } from '@/utils/featureFlags'
 import type { PublicSettings } from '@/types'
 
 vi.mock('@/api/admin/system', () => ({
@@ -41,6 +41,15 @@ describe('FeatureFlags.subscription', () => {
 })
 
 describe('resolveFeatureFlag', () => {
+  it('enforces Pelican visibility while preserving legacy defaults', () => {
+    expect(isPelicanVisible(null, false)).toBe(true)
+    expect(isPelicanVisible({ pelican_enabled: true, pelican_visibility: 'all' }, false)).toBe(true)
+    expect(isPelicanVisible({ pelican_enabled: true, pelican_visibility: 'admin' }, false)).toBe(false)
+    expect(isPelicanVisible({ pelican_enabled: true, pelican_visibility: 'admin' }, true)).toBe(true)
+    expect(isPelicanVisible({ pelican_enabled: false }, true)).toBe(false)
+    expect(resolveFeatureFlag({ feedback_enabled: false }, FeatureFlags.feedback)).toBe(false)
+    expect(resolveFeatureFlag({ qq_group_enabled: false }, FeatureFlags.qqGroup)).toBe(false)
+  })
   beforeEach(() => {
     setActivePinia(createPinia())
   })

@@ -66,6 +66,12 @@ type IdempotencyRecord func(*sql.Selector)
 // IdentityAdoptionDecision is the predicate function for identityadoptiondecision builders.
 type IdentityAdoptionDecision func(*sql.Selector)
 
+// OperationsPelicanResult is the predicate function for operationspelicanresult builders.
+type OperationsPelicanResult func(*sql.Selector)
+
+// OperationsPelicanTask is the predicate function for operationspelicantask builders.
+type OperationsPelicanTask func(*sql.Selector)
+
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 

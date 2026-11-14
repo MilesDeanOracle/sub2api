@@ -28,6 +28,7 @@ func RegisterUserRoutes(
 		// Feedback submits only the form; private user enrichment runs asynchronously.
 		if h.Feedback != nil {
 			feedback := authenticated.Group("/feedback")
+			feedback.Use(middleware.FeedbackFeatureGuard(settingService))
 			feedback.POST("", panelRateLimiter.Heavy(), h.Feedback.Create)
 			feedback.GET("", h.Feedback.ListMine)
 			feedback.GET("/summary", h.Feedback.SummaryMine)
@@ -176,12 +177,13 @@ func RegisterUserRoutes(
 		// 鹈鹕测智：固定提示词生成单文件动画；结果只保存在浏览器。
 		if h.Pelican != nil {
 			pelican := authenticated.Group("/pelican")
+			pelican.Use(middleware.PelicanFeatureGuard(settingService))
 			pelican.GET("/config", panelRateLimiter.Heavy(), h.Pelican.Config)
 			pelican.GET("/models", panelRateLimiter.Heavy(), h.Pelican.Models)
 			pelican.POST("/runs", h.Pelican.Run)
 			// 一键上报：把成功的检测转成回音壁工单，源码保存在服务器文件系统。
 			if h.Feedback != nil {
-				pelican.POST("/reports", panelRateLimiter.Heavy(), h.Feedback.CreatePelicanReport)
+				pelican.POST("/reports", middleware.FeedbackFeatureGuard(settingService), panelRateLimiter.Heavy(), h.Feedback.CreatePelicanReport)
 			}
 		}
 	}

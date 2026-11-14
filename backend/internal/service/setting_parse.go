@@ -199,7 +199,14 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyGrokCrossClientModelMapEnabled: "true",
 		SettingKeyGrokDefaultBaseURLMode:         GrokDefaultBaseURLModeCLI,
 
-		// Available channels feature (default disabled; opt-in)
+		// Header features retain their existing enabled defaults.
+		SettingKeyPelicanEnabled:    "true",
+		SettingKeyPelicanVisibility: "all",
+		SettingKeyFeedbackEnabled:   "true",
+		SettingKeyQQGroupEnabled:    "true",
+		SettingKeyQQGroupName:       DefaultQQGroupName,
+		SettingKeyQQGroupURL:        DefaultQQGroupURL,
+
 		SettingKeyAvailableChannelsEnabled: "false",
 
 		// Subscription feature (default enabled; opt-out)
@@ -829,7 +836,14 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.GrokCrossClientModelMapEnabled = !isFalseSettingValue(settings[SettingKeyGrokCrossClientModelMapEnabled])
 	result.GrokDefaultBaseURLMode = normalizeGrokDefaultBaseURLMode(settings[SettingKeyGrokDefaultBaseURLMode])
 
-	// Available channels feature (default: disabled; strict true)
+	// Header features default to enabled for existing deployments.
+	result.PelicanEnabled = !isFalseSettingValue(settings[SettingKeyPelicanEnabled])
+	result.PelicanVisibility = normalizePelicanVisibility(settings[SettingKeyPelicanVisibility])
+	result.FeedbackEnabled = !isFalseSettingValue(settings[SettingKeyFeedbackEnabled])
+	result.QQGroupEnabled = !isFalseSettingValue(settings[SettingKeyQQGroupEnabled])
+	result.QQGroupName = s.getStringOrDefault(settings, SettingKeyQQGroupName, DefaultQQGroupName)
+	result.QQGroupURL = qqGroupURLFromSettings(settings)
+
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
 
 	// Subscription feature (default: enabled; only an explicit false disables)

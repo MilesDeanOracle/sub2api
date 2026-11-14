@@ -1,17 +1,17 @@
 ﻿# make dev (Windows)：先通过 SSH 隧道把远程后端服务转发到本机，再启动前端开发服务器。
 # 流程与 scripts/dev.sh 一致（Linux/macOS 使用 dev.sh）：
 #   1. 提示输入 SSH 用户名（密码由 ssh 在连接时提示输入，脚本不保存密码）
-#   2. 后台建立隧道 127.0.0.1:8090 -> 隧道服务器 154.51.40.64 上的后端服务
-#   3. 以 VITE_DEV_PROXY_TARGET=http://127.0.0.1:8090 启动 vite 开发服务器
+#   2. 后台建立隧道 127.0.0.1:8099 -> 隧道服务器 154.51.40.64 上的后端服务
+#   3. 以 VITE_DEV_PROXY_TARGET=http://127.0.0.1:8099 启动 vite 开发服务器
 #   4. 前端退出（Ctrl+C）时自动关闭隧道
 $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置 =====
 $TunnelHost = '154.51.40.64'   # 隧道服务器地址
 $SshPort    = 9922             # 隧道服务器 SSH 端口
-$LocalPort  = 8090             # 本机访问后端的端口
+$LocalPort  = 8099             # 本机访问后端的端口
 $RemoteHost = '127.0.0.1'      # 后端服务在隧道服务器上的地址
-$RemotePort = 8090             # 后端服务在隧道服务器上的端口
+$RemotePort = 8099             # 后端服务在隧道服务器上的端口
 # ============================
 
 Set-Location (Join-Path $PSScriptRoot '..')

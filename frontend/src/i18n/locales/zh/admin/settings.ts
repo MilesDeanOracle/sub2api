@@ -14,6 +14,19 @@ export default {
         payment: '支付设置',
       },
       features: {
+        headerEntries: {
+          title: '顶部功能入口',
+          description: '控制鹈鹕测智、问题反馈和技术交流群的入口及访问范围。',
+          pelican: '启用鹈鹕测智',
+          visibility: '鹈鹕测智可见范围',
+          allUsers: '全员可见',
+          adminOnly: '仅管理员可见',
+          feedback: '启用问题反馈',
+          feedbackHint: '关闭后隐藏用户和管理员入口，停止回复通知；已有工单和回复保留。',
+          qqGroup: '启用技术交流群',
+          name: '显示名称',
+          url: '链接地址（href）',
+        },
         channelMonitor: {
           title: '渠道监控',
           description: '启用后在 V1 主动探测与 V2 被动用量监控中二选一。关闭后两种模式的后台任务均停止，用户端入口隐藏。',

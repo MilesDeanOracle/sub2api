@@ -25,6 +25,8 @@
         </button>
       </div>
 
+      <PelicanReasoningPanel :key="record.id" :text="record.reasoningText ?? ''" />
+
       <div v-if="tab === 'play'">
         <PelicanArtifactPreview :html="record.html" :title="record.model" />
       </div>
@@ -84,6 +86,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import PelicanArtifactPreview from './PelicanArtifactPreview.vue'
+import PelicanReasoningPanel from './PelicanReasoningPanel.vue'
 import { useAppStore } from '@/stores/app'
 import type { PelicanRunRecord } from '@/lib/pelican/storage'
 

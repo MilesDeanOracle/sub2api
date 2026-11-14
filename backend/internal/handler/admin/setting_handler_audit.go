@@ -582,6 +582,24 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.ChannelMonitorDefaultIntervalSeconds != after.ChannelMonitorDefaultIntervalSeconds {
 		changed = append(changed, "channel_monitor_default_interval_seconds")
 	}
+	if before.PelicanEnabled != after.PelicanEnabled {
+		changed = append(changed, "pelican_enabled")
+	}
+	if before.PelicanVisibility != after.PelicanVisibility {
+		changed = append(changed, "pelican_visibility")
+	}
+	if before.FeedbackEnabled != after.FeedbackEnabled {
+		changed = append(changed, "feedback_enabled")
+	}
+	if before.QQGroupEnabled != after.QQGroupEnabled {
+		changed = append(changed, "qq_group_enabled")
+	}
+	if before.QQGroupName != after.QQGroupName {
+		changed = append(changed, "qq_group_name")
+	}
+	if before.QQGroupURL != after.QQGroupURL {
+		changed = append(changed, "qq_group_url")
+	}
 	if before.AvailableChannelsEnabled != after.AvailableChannelsEnabled {
 		changed = append(changed, "available_channels_enabled")
 	}

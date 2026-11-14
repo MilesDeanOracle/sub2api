@@ -176,19 +176,6 @@
             </div>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="!resultSource" :title="t('pelican.copy')" @click="copySource"><Icon name="copy" size="xs" /></button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="!resultSource" :title="t('pelican.download')" @click="downloadCurrent"><Icon name="download" size="xs" /></button>
-            <button
-              v-if="runState === 'done'"
-              type="button"
-              data-testid="pelican-report"
-              class="btn btn-sm"
-              :class="isReported ? 'btn-secondary' : 'btn-primary'"
-              :disabled="isReported || reporting || !gatewayRequestId || !resultSource"
-              :title="reportButtonTitle"
-              @click="openReportDialog"
-            >
-              <Icon :name="isReported ? 'checkCircle' : 'chatBubble'" size="xs" />
-              {{ isReported ? t('pelican.reported') : t('pelican.report') }}
-            </button>
           </div>
         </div>
 
@@ -199,7 +186,27 @@
           </div>
         </dl>
 
+        <div v-if="runState === 'done' && feedbackEnabled" class="flex flex-col gap-3 border-b border-orange-200 bg-orange-50 px-5 py-4 dark:border-orange-900/50 dark:bg-orange-950/30 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-orange-950 dark:text-orange-100">{{ isReported ? t('pelican.reported') : t('pelican.reportCallout') }}</p>
+            <p class="mt-1 text-xs text-orange-800 dark:text-orange-200">{{ reportButtonTitle }}</p>
+          </div>
+          <button
+            type="button"
+            data-testid="pelican-report"
+            class="btn shrink-0"
+            :class="canReport ? 'pelican-report-attention bg-orange-600 text-white shadow-lg shadow-orange-600/20 hover:bg-orange-700 focus-visible:ring-orange-500' : 'btn-secondary'"
+            :disabled="!canReport"
+            :title="reportButtonTitle"
+            @click="openReportDialog"
+          >
+            <Icon :name="isReported ? 'checkCircle' : 'chatBubble'" size="sm" />
+            {{ isReported ? t('pelican.reported') : reporting ? t('pelican.reporting') : t('pelican.report') }}
+          </button>
+        </div>
+
         <div class="flex-1 p-5">
+          <PelicanReasoningPanel :key="currentRunId" :text="reasoningText" :thinking="running && !rawText" />
           <div v-if="runState === 'idle'" class="flex h-full min-h-[24rem] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 px-4 text-center dark:border-dark-700">
             <div class="rounded-3xl bg-sky-50 p-3 dark:bg-sky-900/20">
               <PelicanLogo :size="56" />
@@ -211,7 +218,7 @@
           <div v-else-if="running" class="flex h-full flex-col">
             <p class="mb-2 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
               <span class="h-3 w-3 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></span>
-              {{ rawText ? t('pelican.running') : t('pelican.waiting') }}
+              {{ rawText ? t('pelican.running') : reasoningText ? t('pelican.thinking') : t('pelican.waiting') }}
               <span v-if="rawText">· {{ rawText.length.toLocaleString() }} chars</span>
             </p>
             <pre ref="streamRef" class="min-h-[24rem] flex-1 overflow-auto rounded-2xl bg-gray-950 p-4 text-xs leading-relaxed text-gray-100 lg:max-h-[65vh]">{{ rawText }}</pre>
@@ -341,6 +348,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import PelicanArtifactPreview from '@/components/pelican/PelicanArtifactPreview.vue'
 import PelicanHistoryDialog from '@/components/pelican/PelicanHistoryDialog.vue'
 import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
+import PelicanReasoningPanel from '@/components/pelican/PelicanReasoningPanel.vue'
 import keysAPI from '@/api/keys'
 import {
   PelicanHttpError,
@@ -367,6 +375,7 @@ import {
 } from '@/lib/pelican/storage'
 import type { ApiKey } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
 type RunState = 'idle' | 'running' | 'done' | 'cancelled' | 'error'
 type ResultTab = 'play' | 'source'
@@ -393,6 +402,7 @@ const baseUrl = ref('')
 
 const runState = ref<RunState>('idle')
 const rawText = ref('')
+const reasoningText = ref('')
 const usage = ref<PelicanUsage | null>(null)
 const errorMessage = ref('')
 const startedAt = ref(0)
@@ -677,6 +687,7 @@ async function startRun(): Promise<void> {
   runModel.value = selectedModel.value
   runReasoning.value = reasoningEffort.value
   rawText.value = ''
+  reasoningText.value = ''
   usage.value = null
   errorMessage.value = ''
   startedAt.value = performance.now()
@@ -707,10 +718,13 @@ async function startRun(): Promise<void> {
         test_id: 'pelican-riding'
       },
       {
+        onFirstToken: () => {
+          firstTokenAt.value = performance.now()
+        },
+        onReasoningDelta: (text) => {
+          reasoningText.value += text
+        },
         onDelta: (text) => {
-          if (firstTokenAt.value == null) {
-            firstTokenAt.value = performance.now()
-          }
           rawText.value += text
           void scrollStreamToBottom()
         },
@@ -760,7 +774,7 @@ function cancelRun(): void {
 }
 
 async function persistRun(keyName: string): Promise<void> {
-  if (!rawText.value.trim() || !userId.value) {
+  if ((!rawText.value.trim() && !reasoningText.value.trim()) || !userId.value) {
     return
   }
   const html = artifact.value.html
@@ -791,7 +805,8 @@ async function persistRun(keyName: string): Promise<void> {
     tps: outputTokens != null && durationMs > 0 ? outputTokens / (durationMs / 1000) : null,
     html,
     rawText: rawText.value,
-    byteSize: new Blob([html ?? rawText.value]).size,
+    reasoningText: reasoningText.value,
+    byteSize: new Blob([html ?? '', rawText.value, reasoningText.value]).size,
     baseUrl: baseUrl.value.trim() || config.value?.fallback_base_url || ''
   }
   try {
@@ -856,7 +871,9 @@ async function confirmHistoryAction(): Promise<void> {
   }
 }
 
+const feedbackEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.feedback))
 const isReported = computed(() => !!currentRunId.value && reportedRunIds.value.has(currentRunId.value))
+const canReport = computed(() => feedbackEnabled.value && runState.value === 'done' && !isReported.value && !reporting.value && !!gatewayRequestId.value && !!resultSource.value)
 const reportButtonTitle = computed(() => {
   if (isReported.value) return t('pelican.reported')
   if (!gatewayRequestId.value) return t('pelican.reportNotLocal')
@@ -1062,3 +1079,22 @@ async function scrollStreamToBottom(): Promise<void> {
 }
 
 </script>
+
+<style scoped>
+.pelican-report-attention {
+  animation: pelican-report-pulse 1.2s ease-in-out 3;
+}
+
+@keyframes pelican-report-pulse {
+  50% {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 6px rgb(234 88 12 / 18%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pelican-report-attention {
+    animation: none;
+  }
+}
+</style>

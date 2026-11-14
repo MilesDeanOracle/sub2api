@@ -1,7 +1,7 @@
 <template>
-  <div ref="shellRef" class="pelican-preview">
+  <div ref="shellRef" class="pelican-preview" :class="{ 'pelican-preview-embedded': embedded }">
     <div class="pelican-preview-toolbar">
-      <div class="text-xs text-gray-500 dark:text-dark-400">
+      <div v-if="!embedded" class="text-xs text-gray-500 dark:text-dark-400">
         {{ t('pelican.play') }}
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -11,17 +11,19 @@
         <button type="button" class="btn btn-secondary btn-sm" :disabled="!html" @click="toggleFullscreen">
           {{ t('pelican.fullscreen') }}
         </button>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="!html" @click="openNewTab">
+        <button v-if="allowNewTab" type="button" class="btn btn-secondary btn-sm" :disabled="!html" @click="openNewTab">
           {{ t('pelican.openNewTab') }}
         </button>
       </div>
     </div>
 
-    <div v-if="prepared" class="pelican-preview-stage">
+    <div v-if="prepared" ref="stageRef" class="pelican-preview-stage" :class="{ 'pelican-preview-fitted': fitContent }">
       <iframe
         :key="frameKey"
         :srcdoc="prepared"
         :title="title"
+        :style="frameStyle"
+        :scrolling="fitContent ? 'no' : undefined"
         class="pelican-preview-frame"
         sandbox="allow-scripts"
         referrerpolicy="no-referrer"
@@ -35,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { prepareArtifactDocument } from '@/lib/pelican/artifact'
 
@@ -43,23 +45,54 @@ const props = withDefaults(
   defineProps<{
     html: string | null
     title?: string
+    allowNewTab?: boolean
+    embedded?: boolean
+    fitContent?: boolean
   }>(),
-  { title: 'Pelican animation' }
+  { title: 'Pelican animation', allowNewTab: true, embedded: false, fitContent: false }
 )
 
 const { t } = useI18n()
 const shellRef = ref<HTMLElement | null>(null)
+const stageRef = ref<HTMLElement | null>(null)
+const stageSize = ref({ width: 0, height: 0 })
+let resizeObserver: ResizeObserver | undefined
 const frameKey = ref(0)
 const scriptNonce = ref<string | undefined>()
 
 const prepared = computed(() =>
-  props.html ? prepareArtifactDocument(props.html, scriptNonce.value) : ''
+  props.html ? prepareArtifactDocument(props.html, scriptNonce.value, props.fitContent) : ''
 )
+
+const frameStyle = computed<CSSProperties | undefined>(() => {
+  if (!props.fitContent) return undefined
+  const width = 1280, height = 800
+  const scale = Math.min(stageSize.value.width / width, stageSize.value.height / height) || 0
+  return { width: `${width}px`, height: `${height}px`, transform: `translate(-50%, -50%) scale(${scale})` }
+})
+
+function measureStage() {
+  const stage = stageRef.value
+  if (stage) stageSize.value = { width: stage.clientWidth, height: stage.clientHeight }
+}
+
+watch(stageRef, stage => {
+  resizeObserver?.disconnect()
+  if (stage) resizeObserver?.observe(stage)
+  measureStage()
+})
 
 onMounted(() => {
   const script = document.querySelector<HTMLScriptElement>('script[nonce]')
   scriptNonce.value = script?.nonce || undefined
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(measureStage)
+    if (stageRef.value) resizeObserver.observe(stageRef.value)
+  }
+  measureStage()
 })
+
+onUnmounted(() => resizeObserver?.disconnect())
 
 function replay(): void {
   frameKey.value += 1
@@ -82,7 +115,9 @@ async function toggleFullscreen(): Promise<void> {
 }
 
 function openNewTab(): void {
-  if (!prepared.value) {
+  // Operations artifacts must remain inside the iframe sandbox, including
+  // browsers where Fullscreen API is unavailable.
+  if (!props.allowNewTab || !prepared.value) {
     return
   }
   const blob = new Blob([prepared.value], { type: 'text/html;charset=utf-8' })
@@ -107,6 +142,38 @@ function openNewTab(): void {
   gap: 0.5rem;
 }
 
+/* Wall cards need an edge-to-edge canvas; the existing standalone preview
+   keeps its toolbar and frame. Controls overlay the canvas in embedded mode. */
+.pelican-preview-embedded {
+  position: relative;
+  gap: 0;
+}
+
+.pelican-preview-embedded .pelican-preview-toolbar {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.pelican-preview-embedded:hover .pelican-preview-toolbar,
+.pelican-preview-embedded:focus-within .pelican-preview-toolbar {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .pelican-preview-embedded .pelican-preview-toolbar {
+    opacity: 1;
+  }
+}
+
+.pelican-preview-embedded .pelican-preview-stage {
+  border: 0;
+  border-radius: 0;
+}
+
 .pelican-preview-stage {
   position: relative;
   width: 100%;
@@ -128,6 +195,14 @@ function openNewTab(): void {
   height: 100%;
   border: 0;
   background: #ffffff;
+}
+
+.pelican-preview-fitted .pelican-preview-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  transform-origin: center;
 }
 
 .pelican-preview-empty {

@@ -243,6 +243,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
 		SettingKeyChannelMonitorHideUserRanking,
+		SettingKeyPelicanEnabled,
+		SettingKeyPelicanVisibility,
+		SettingKeyFeedbackEnabled,
+		SettingKeyQQGroupEnabled,
+		SettingKeyQQGroupName,
+		SettingKeyQQGroupURL,
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeySubscriptionEnabled,
 		SettingKeyModelPlazaEnabled,
@@ -375,6 +381,13 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
 		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
 		ChannelMonitorHideUserRanking:        isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking]),
+
+		PelicanEnabled:    !isFalseSettingValue(settings[SettingKeyPelicanEnabled]),
+		PelicanVisibility: normalizePelicanVisibility(settings[SettingKeyPelicanVisibility]),
+		FeedbackEnabled:   !isFalseSettingValue(settings[SettingKeyFeedbackEnabled]),
+		QQGroupEnabled:    !isFalseSettingValue(settings[SettingKeyQQGroupEnabled]),
+		QQGroupName:       s.getStringOrDefault(settings, SettingKeyQQGroupName, DefaultQQGroupName),
+		QQGroupURL:        qqGroupURLFromSettings(settings),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 
@@ -649,18 +662,25 @@ type PublicSettingsInjectionPayload struct {
 	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
 	// ChannelMonitorHideUserRanking hides the user ranking tab and /users payload
 	// from non-admin channel-monitor v2 viewers; default false (visible).
-	ChannelMonitorHideUserRanking bool `json:"channel_monitor_hide_user_ranking"`
-	ChannelMonitorShowQuota       bool `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled      bool `json:"available_channels_enabled"`
-	SubscriptionEnabled           bool `json:"subscription_enabled"`
-	ModelPlazaEnabled             bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth         bool `json:"model_plaza_require_auth"`
-	PluginManagementEnabled       bool `json:"plugin_management_enabled"`
-	PublicTransitEnabled          bool `json:"public_transit_enabled"`
-	PublicTransitPageEnabled      bool `json:"public_transit_page_enabled"`
-	AffiliateEnabled              bool `json:"affiliate_enabled"`
-	RiskControlEnabled            bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorHideUserRanking bool   `json:"channel_monitor_hide_user_ranking"`
+	ChannelMonitorShowQuota       bool   `json:"channel_monitor_show_quota"`
+	PelicanEnabled                bool   `json:"pelican_enabled"`
+	PelicanVisibility             string `json:"pelican_visibility"`
+	FeedbackEnabled               bool   `json:"feedback_enabled"`
+	QQGroupEnabled                bool   `json:"qq_group_enabled"`
+	QQGroupName                   string `json:"qq_group_name"`
+	QQGroupURL                    string `json:"qq_group_url"`
+
+	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
+	SubscriptionEnabled        bool `json:"subscription_enabled"`
+	ModelPlazaEnabled          bool `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth      bool `json:"model_plaza_require_auth"`
+	PluginManagementEnabled    bool `json:"plugin_management_enabled"`
+	PublicTransitEnabled       bool `json:"public_transit_enabled"`
+	PublicTransitPageEnabled   bool `json:"public_transit_page_enabled"`
+	AffiliateEnabled           bool `json:"affiliate_enabled"`
+	RiskControlEnabled         bool `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -738,6 +758,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
 		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
+		PelicanEnabled:                       settings.PelicanEnabled,
+		PelicanVisibility:                    settings.PelicanVisibility,
+		FeedbackEnabled:                      settings.FeedbackEnabled,
+		QQGroupEnabled:                       settings.QQGroupEnabled,
+		QQGroupName:                          settings.QQGroupName,
+		QQGroupURL:                           settings.QQGroupURL,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		SubscriptionEnabled:                  settings.SubscriptionEnabled,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,

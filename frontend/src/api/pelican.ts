@@ -66,6 +66,9 @@ export interface ListModelsOptions {
 
 export interface PelicanStreamHandlers {
   onDelta: (text: string) => void
+  onReasoningDelta?: (text: string) => void
+  /** Fires once for the first non-empty reasoning or content delta. */
+  onFirstToken?: () => void
   onUsage?: (usage: PelicanUsage) => void
   /** Gateway request ID; only sent when the base URL is this site. */
   onMeta?: (meta: { requestId: string }) => void
@@ -135,6 +138,8 @@ interface PelicanChunk {
   choices?: Array<{
     delta?: {
       content?: string | null
+      reasoning_content?: string | null
+      reasoning?: string | null
     }
   }>
   usage?: PelicanUsage | null
@@ -167,6 +172,7 @@ export async function streamRun(
   }
 
   let completed = false
+  let receivedFirstToken = false
   await readSSE(response.body, (message) => {
     if (message.event === 'pelican-error') {
       const parsed = parseJSON(message.data)
@@ -190,9 +196,20 @@ export async function streamRun(
     if (!chunk) {
       return
     }
-    const delta = chunk.choices?.[0]?.delta?.content
-    if (typeof delta === 'string' && delta.length > 0) {
-      handlers.onDelta(delta)
+    const delta = chunk.choices?.[0]?.delta
+    const reasoning = delta?.reasoning_content || delta?.reasoning
+    const content = delta?.content
+    const hasReasoning = typeof reasoning === 'string' && reasoning.length > 0
+    const hasContent = typeof content === 'string' && content.length > 0
+    if (!receivedFirstToken && (hasReasoning || hasContent)) {
+      receivedFirstToken = true
+      handlers.onFirstToken?.()
+    }
+    if (hasReasoning) {
+      handlers.onReasoningDelta?.(reasoning)
+    }
+    if (hasContent) {
+      handlers.onDelta(content)
     }
     if (chunk.usage && handlers.onUsage) {
       handlers.onUsage(chunk.usage)

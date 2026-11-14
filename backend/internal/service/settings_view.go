@@ -210,7 +210,14 @@ type SystemSettings struct {
 	GrokCrossClientModelMapEnabled bool   `json:"grok_cross_client_model_map_enabled"`
 	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
 
-	// Available Channels feature (user-facing aggregate view)
+	// Header feature switches and community link.
+	PelicanEnabled    bool   `json:"pelican_enabled"`
+	PelicanVisibility string `json:"pelican_visibility"`
+	FeedbackEnabled   bool   `json:"feedback_enabled"`
+	QQGroupEnabled    bool   `json:"qq_group_enabled"`
+	QQGroupName       string `json:"qq_group_name"`
+	QQGroupURL        string `json:"qq_group_url"`
+
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
 	// Subscription feature switch: gates the whole user-facing subscription surface
@@ -406,7 +413,14 @@ type PublicSettings struct {
 	GrokCrossClientModelMapEnabled bool   `json:"grok_cross_client_model_map_enabled"`
 	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
 
-	// Available Channels feature (user-facing aggregate view)
+	// Header feature switches and community link.
+	PelicanEnabled    bool   `json:"pelican_enabled"`
+	PelicanVisibility string `json:"pelican_visibility"`
+	FeedbackEnabled   bool   `json:"feedback_enabled"`
+	QQGroupEnabled    bool   `json:"qq_group_enabled"`
+	QQGroupName       string `json:"qq_group_name"`
+	QQGroupURL        string `json:"qq_group_url"`
+
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
 	// Subscription feature switch (see SystemSettings.SubscriptionEnabled)

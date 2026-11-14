@@ -276,6 +276,12 @@ export interface PublicSettings {
   channel_monitor_show_quota?: boolean
   /** When true, user monitor hides the user ranking tab and /users payload. */
   channel_monitor_hide_user_ranking?: boolean
+  pelican_enabled?: boolean
+  pelican_visibility?: 'all' | 'admin'
+  feedback_enabled?: boolean
+  qq_group_enabled?: boolean
+  qq_group_name?: string
+  qq_group_url?: string
   available_channels_enabled: boolean
   /** When false, the whole user-facing subscription surface is hidden. Default true. */
   subscription_enabled: boolean

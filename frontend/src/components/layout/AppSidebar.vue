@@ -76,6 +76,18 @@
                 </router-link>
               </div>
             </template>
+            <a
+              v-else-if="item.path === '/operations'"
+              :href="item.path"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
+              :title="item.label"
+            >
+              <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ item.label }} ↗</span>
+            </a>
             <!-- Normal item (no children) -->
             <router-link
               v-else
@@ -823,6 +835,7 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
       ],
     },
+    { path: '/operations', label: t('operationsConsole.title'), icon: ChartIcon },
     { path: '/admin/operations', label: t('operations.title'), icon: ChartIcon },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }

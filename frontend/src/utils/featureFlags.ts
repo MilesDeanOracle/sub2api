@@ -94,6 +94,9 @@ function defineFlag<K extends keyof PublicSettings>(
  * public-settings-driven switch; see the "Adding a new flag" checklist above.
  */
 export const FeatureFlags = {
+  pelican: defineFlag({ key: 'pelican_enabled', mode: 'opt-out', label: 'Pelican Test' }),
+  feedback: defineFlag({ key: 'feedback_enabled', mode: 'opt-out', label: 'Feedback' }),
+  qqGroup: defineFlag({ key: 'qq_group_enabled', mode: 'opt-out', label: 'Technical Community' }),
   channelMonitor: defineFlag({
     key: 'channel_monitor_enabled',
     mode: 'opt-out',
@@ -148,6 +151,11 @@ export const FeatureFlags = {
 } as const
 
 export type RegisteredFeatureFlag = keyof typeof FeatureFlags
+
+export function isPelicanVisible(settings: Partial<PublicSettings> | null | undefined, isAdmin: boolean): boolean {
+  return resolveFeatureFlag(settings, FeatureFlags.pelican) &&
+    (!settings?.pelican_visibility || settings.pelican_visibility === 'all' || isAdmin)
+}
 
 /**
  * Read the current value of a flag, honoring the mode's fallback.

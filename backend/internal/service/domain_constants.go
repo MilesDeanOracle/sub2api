@@ -532,6 +532,13 @@ const (
 	// SettingKeyAvailableChannelsEnabled is a DB-backed soft switch for the "Available Channels"
 	// user-facing aggregate view. When false: user endpoint returns an empty list and the
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
+	SettingKeyPelicanEnabled    = "pelican_enabled"
+	SettingKeyPelicanVisibility = "pelican_visibility"
+	SettingKeyFeedbackEnabled   = "feedback_enabled"
+	SettingKeyQQGroupEnabled    = "qq_group_enabled"
+	SettingKeyQQGroupName       = "qq_group_name"
+	SettingKeyQQGroupURL        = "qq_group_url"
+
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
 	// SettingKeySubscriptionEnabled is a DB-backed soft switch for the user-facing

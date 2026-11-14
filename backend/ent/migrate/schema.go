@@ -1149,6 +1149,102 @@ var (
 			},
 		},
 	}
+	// OperationsPelicanResultsColumns holds the columns for the "operations_pelican_results" table.
+	OperationsPelicanResultsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "task_id", Type: field.TypeInt64},
+		{Name: "run_id", Type: field.TypeString},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "trigger_key", Type: field.TypeString},
+		{Name: "status", Type: field.TypeString},
+		{Name: "group_snapshots", Type: field.TypeJSON},
+		{Name: "payload", Type: field.TypeJSON},
+		{Name: "pool_slot", Type: field.TypeInt, Nullable: true},
+		{Name: "worker_token", Type: field.TypeString, Default: ""},
+		{Name: "heartbeat_at", Type: field.TypeTime, Nullable: true},
+		{Name: "execution_deadline_at", Type: field.TypeTime, Nullable: true},
+		{Name: "storage_binding_encrypted", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "object_key", Type: field.TypeString, Default: ""},
+		{Name: "version_id", Type: field.TypeString, Default: ""},
+		{Name: "queued_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "cleanup_status", Type: field.TypeString, Default: "active"},
+		{Name: "cleanup_attempts", Type: field.TypeInt, Default: 0},
+		{Name: "cleanup_error", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "cleanup_next_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// OperationsPelicanResultsTable holds the schema information for the "operations_pelican_results" table.
+	OperationsPelicanResultsTable = &schema.Table{
+		Name:       "operations_pelican_results",
+		Columns:    OperationsPelicanResultsColumns,
+		PrimaryKey: []*schema.Column{OperationsPelicanResultsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "operationspelicanresult_run_id_account_id",
+				Unique:  true,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[2], OperationsPelicanResultsColumns[3]},
+			},
+			{
+				Name:    "operationspelicanresult_pool_slot",
+				Unique:  true,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[8]},
+			},
+			{
+				Name:    "operationspelicanresult_task_id_account_id_id",
+				Unique:  false,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[1], OperationsPelicanResultsColumns[3], OperationsPelicanResultsColumns[0]},
+			},
+			{
+				Name:    "operationspelicanresult_task_id_trigger_key",
+				Unique:  false,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[1], OperationsPelicanResultsColumns[4]},
+			},
+			{
+				Name:    "operationspelicanresult_status_queued_at",
+				Unique:  false,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[5], OperationsPelicanResultsColumns[15]},
+			},
+			{
+				Name:    "operationspelicanresult_expires_at_cleanup_next_at",
+				Unique:  false,
+				Columns: []*schema.Column{OperationsPelicanResultsColumns[16], OperationsPelicanResultsColumns[20]},
+			},
+		},
+	}
+	// OperationsPelicanTasksColumns holds the columns for the "operations_pelican_tasks" table.
+	OperationsPelicanTasksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 200},
+		{Name: "enabled", Type: field.TypeBool, Default: false},
+		{Name: "interval_hours", Type: field.TypeInt},
+		{Name: "account_configs", Type: field.TypeJSON},
+		{Name: "reasoning_effort", Type: field.TypeString, Default: ""},
+		{Name: "prompt", Type: field.TypeString, Size: 2147483647},
+		{Name: "storage_source", Type: field.TypeString},
+		{Name: "config_version", Type: field.TypeInt64, Default: 1},
+		{Name: "last_triggered_at", Type: field.TypeTime, Nullable: true},
+		{Name: "next_run_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_by", Type: field.TypeInt64},
+		{Name: "updated_by", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true},
+	}
+	// OperationsPelicanTasksTable holds the schema information for the "operations_pelican_tasks" table.
+	OperationsPelicanTasksTable = &schema.Table{
+		Name:       "operations_pelican_tasks",
+		Columns:    OperationsPelicanTasksColumns,
+		PrimaryKey: []*schema.Column{OperationsPelicanTasksColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "operationspelicantask_next_run_at",
+				Unique:  false,
+				Columns: []*schema.Column{OperationsPelicanTasksColumns[10]},
+			},
+		},
+	}
 	// PaymentAuditLogsColumns holds the columns for the "payment_audit_logs" table.
 	PaymentAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2188,6 +2284,8 @@ var (
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		OperationsPelicanResultsTable,
+		OperationsPelicanTasksTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -2289,6 +2387,12 @@ func init() {
 	IdentityAdoptionDecisionsTable.ForeignKeys[1].RefTable = PendingAuthSessionsTable
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
+	}
+	OperationsPelicanResultsTable.Annotation = &entsql.Annotation{
+		Table: "operations_pelican_results",
+	}
+	OperationsPelicanTasksTable.Annotation = &entsql.Annotation{
+		Table: "operations_pelican_tasks",
 	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",

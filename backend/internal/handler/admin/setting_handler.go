@@ -389,6 +389,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		GrokCrossClientModelMapEnabled: settings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         settings.GrokDefaultBaseURLMode,
 
+		PelicanEnabled:           settings.PelicanEnabled,
+		PelicanVisibility:        settings.PelicanVisibility,
+		FeedbackEnabled:          settings.FeedbackEnabled,
+		QQGroupEnabled:           settings.QQGroupEnabled,
+		QQGroupName:              settings.QQGroupName,
+		QQGroupURL:               settings.QQGroupURL,
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 		SubscriptionEnabled:      settings.SubscriptionEnabled,
 

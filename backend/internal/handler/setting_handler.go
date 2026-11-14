@@ -112,6 +112,12 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
 
+		PelicanEnabled:           settings.PelicanEnabled,
+		PelicanVisibility:        settings.PelicanVisibility,
+		FeedbackEnabled:          settings.FeedbackEnabled,
+		QQGroupEnabled:           settings.QQGroupEnabled,
+		QQGroupName:              settings.QQGroupName,
+		QQGroupURL:               settings.QQGroupURL,
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 		SubscriptionEnabled:      settings.SubscriptionEnabled,
 

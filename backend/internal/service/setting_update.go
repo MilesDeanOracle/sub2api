@@ -429,7 +429,17 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyGrokCrossClientModelMapEnabled] = strconv.FormatBool(settings.GrokCrossClientModelMapEnabled)
 	updates[SettingKeyGrokDefaultBaseURLMode] = normalizeGrokDefaultBaseURLMode(settings.GrokDefaultBaseURLMode)
 
-	// Available channels feature switch
+	// Header feature switches and community link.
+	if err := validateHeaderFeatureSettings(settings); err != nil {
+		return nil, err
+	}
+	updates[SettingKeyPelicanEnabled] = strconv.FormatBool(settings.PelicanEnabled)
+	updates[SettingKeyPelicanVisibility] = normalizePelicanVisibility(settings.PelicanVisibility)
+	updates[SettingKeyFeedbackEnabled] = strconv.FormatBool(settings.FeedbackEnabled)
+	updates[SettingKeyQQGroupEnabled] = strconv.FormatBool(settings.QQGroupEnabled)
+	updates[SettingKeyQQGroupName] = strings.TrimSpace(settings.QQGroupName)
+	updates[SettingKeyQQGroupURL] = strings.TrimSpace(settings.QQGroupURL)
+
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
 
 	// Subscription feature switch

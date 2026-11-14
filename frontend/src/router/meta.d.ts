@@ -60,6 +60,8 @@ declare module 'vue-router' {
      * @default false
      */
     requiresSubscription?: boolean
+    requiresPelican?: boolean
+    requiresFeedback?: boolean
 
     /**
      * i18n key for the page title

@@ -7125,6 +7125,51 @@
 	        <!-- Tab: Features (功能开关) -->
         <div v-show="activeTab === 'features'" class="space-y-6">
 
+        <div class="card" data-testid="header-feature-settings">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.settings.features.headerEntries.title') }}</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.headerEntries.description') }}</p>
+          </div>
+          <div class="space-y-6 p-6">
+            <div class="space-y-3">
+              <div class="flex items-center justify-between gap-4">
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.settings.features.headerEntries.pelican') }}</label>
+                <Toggle v-model="form.pelican_enabled" data-testid="pelican-enabled" />
+              </div>
+              <div v-if="form.pelican_enabled">
+                <label for="pelican-visibility" class="input-label">{{ t('admin.settings.features.headerEntries.visibility') }}</label>
+                <select id="pelican-visibility" v-model="form.pelican_visibility" class="input max-w-md">
+                  <option value="all">{{ t('admin.settings.features.headerEntries.allUsers') }}</option>
+                  <option value="admin">{{ t('admin.settings.features.headerEntries.adminOnly') }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-4 border-t border-gray-100 pt-6 dark:border-dark-700">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.settings.features.headerEntries.feedback') }}</label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.headerEntries.feedbackHint') }}</p>
+              </div>
+              <Toggle v-model="form.feedback_enabled" data-testid="feedback-enabled" />
+            </div>
+            <div class="space-y-3 border-t border-gray-100 pt-6 dark:border-dark-700">
+              <div class="flex items-center justify-between gap-4">
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.settings.features.headerEntries.qqGroup') }}</label>
+                <Toggle v-model="form.qq_group_enabled" data-testid="qq-group-enabled" />
+              </div>
+              <div v-if="form.qq_group_enabled" class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="qq-group-name" class="input-label">{{ t('admin.settings.features.headerEntries.name') }}</label>
+                  <input id="qq-group-name" v-model="form.qq_group_name" type="text" maxlength="50" class="input" :placeholder="t('nav.qqGroup')" />
+                </div>
+                <div>
+                  <label for="qq-group-url" class="input-label">{{ t('admin.settings.features.headerEntries.url') }}</label>
+                  <input id="qq-group-url" v-model="form.qq_group_url" type="url" maxlength="2048" class="input" placeholder="https://qm.qq.com/..." />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -10076,6 +10121,12 @@ const form = reactive<SettingsForm>({
   channel_monitor_show_quota: false,
   channel_monitor_hide_user_ranking: false,
   // Available Channels feature switch
+  pelican_enabled: true,
+  pelican_visibility: 'all' as 'all' | 'admin',
+  feedback_enabled: true,
+  qq_group_enabled: true,
+  qq_group_name: '',
+  qq_group_url: '',
   available_channels_enabled: false,
   // Subscription feature switch (user sidebar "My Subscriptions" entry)
   subscription_enabled: true,
@@ -11814,6 +11865,12 @@ async function saveSettings() {
       channel_monitor_show_quota: Boolean(form.channel_monitor_show_quota),
       channel_monitor_hide_user_ranking: Boolean(form.channel_monitor_hide_user_ranking),
       // Available Channels feature switch
+      pelican_enabled: form.pelican_enabled,
+      pelican_visibility: form.pelican_visibility,
+      feedback_enabled: form.feedback_enabled,
+      qq_group_enabled: form.qq_group_enabled,
+      qq_group_name: form.qq_group_name,
+      qq_group_url: form.qq_group_url,
       available_channels_enabled: form.available_channels_enabled,
       // Subscription feature switch
       subscription_enabled: form.subscription_enabled,

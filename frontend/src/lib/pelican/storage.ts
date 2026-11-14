@@ -31,6 +31,7 @@ export interface PelicanRunRecord {
   tps: number | null
   html: string | null
   rawText: string
+  reasoningText?: string
   byteSize: number
   baseUrl: string
 }

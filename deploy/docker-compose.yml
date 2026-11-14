@@ -38,7 +38,7 @@ services:
       # in config.yaml.
       # - ./codex-instructions.md.tmpl:/app/data/codex-instructions.md.tmpl:ro
       # 鹈鹕测智上报的生成源码（PELICAN_REPORT_DIR，默认 /data/tihucezhi）。
-      # The host directory must be writable by the container user.
+      # The default entrypoint fixes ownership before switching to sub2api.
       - /data/tihucezhi:/data/tihucezhi
     environment:
       # =======================================================================

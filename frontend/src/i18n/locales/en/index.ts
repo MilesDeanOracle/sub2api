@@ -9,12 +9,14 @@ import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
 import operations from './operations'
+import operationsConsole from './operationsConsole'
 import publicTransit from './publicTransit'
 import pelican from './pelican'
 
 export default {
   ...feedback,
   operations,
+  operationsConsole,
   adminAccessKeys,
   mcp,
   ...landing,

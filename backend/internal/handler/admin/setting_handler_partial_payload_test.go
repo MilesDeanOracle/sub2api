@@ -11,6 +11,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestUpdateSettingsHeaderFeatures(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
+	rec := doUpdateSettings(t, h, map[string]any{
+		"pelican_enabled": true, "pelican_visibility": "admin", "feedback_enabled": false,
+		"qq_group_enabled": true, "qq_group_name": "模型交流群", "qq_group_url": "https://example.com/group",
+	}, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "admin", repo.values[service.SettingKeyPelicanVisibility])
+	require.Equal(t, "false", repo.values[service.SettingKeyFeedbackEnabled])
+	require.Equal(t, "模型交流群", repo.values[service.SettingKeyQQGroupName])
+	require.Equal(t, "https://example.com/group", repo.values[service.SettingKeyQQGroupURL])
+
+	rec = doUpdateSettings(t, h, map[string]any{"site_name": "Unrelated save"}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "admin", repo.values[service.SettingKeyPelicanVisibility])
+	require.Equal(t, "false", repo.values[service.SettingKeyFeedbackEnabled])
+	require.Equal(t, "https://example.com/group", repo.values[service.SettingKeyQQGroupURL])
+
+	rec = doUpdateSettings(t, h, map[string]any{"qq_group_url": "javascript:alert(1)"}, nil)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "https://example.com/group", repo.values[service.SettingKeyQQGroupURL])
+	rec = doUpdateSettings(t, h, map[string]any{"qq_group_url": ""}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Empty(t, repo.values[service.SettingKeyQQGroupURL])
+}
+
 // Saving settings is a whole-document PUT. A client that sends only the field it
 // cares about must not reset everything else: a payload as small as
 // `{"risk_control_enabled":true}` used to clear site_name, after which

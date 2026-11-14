@@ -25,6 +25,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -1351,6 +1353,82 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	operationspelicanresultFields := schema.OperationsPelicanResult{}.Fields()
+	_ = operationspelicanresultFields
+	// operationspelicanresultDescWorkerToken is the schema descriptor for worker_token field.
+	operationspelicanresultDescWorkerToken := operationspelicanresultFields[8].Descriptor()
+	// operationspelicanresult.DefaultWorkerToken holds the default value on creation for the worker_token field.
+	operationspelicanresult.DefaultWorkerToken = operationspelicanresultDescWorkerToken.Default.(string)
+	// operationspelicanresultDescStorageBindingEncrypted is the schema descriptor for storage_binding_encrypted field.
+	operationspelicanresultDescStorageBindingEncrypted := operationspelicanresultFields[11].Descriptor()
+	// operationspelicanresult.DefaultStorageBindingEncrypted holds the default value on creation for the storage_binding_encrypted field.
+	operationspelicanresult.DefaultStorageBindingEncrypted = operationspelicanresultDescStorageBindingEncrypted.Default.(string)
+	// operationspelicanresultDescObjectKey is the schema descriptor for object_key field.
+	operationspelicanresultDescObjectKey := operationspelicanresultFields[12].Descriptor()
+	// operationspelicanresult.DefaultObjectKey holds the default value on creation for the object_key field.
+	operationspelicanresult.DefaultObjectKey = operationspelicanresultDescObjectKey.Default.(string)
+	// operationspelicanresultDescVersionID is the schema descriptor for version_id field.
+	operationspelicanresultDescVersionID := operationspelicanresultFields[13].Descriptor()
+	// operationspelicanresult.DefaultVersionID holds the default value on creation for the version_id field.
+	operationspelicanresult.DefaultVersionID = operationspelicanresultDescVersionID.Default.(string)
+	// operationspelicanresultDescQueuedAt is the schema descriptor for queued_at field.
+	operationspelicanresultDescQueuedAt := operationspelicanresultFields[14].Descriptor()
+	// operationspelicanresult.DefaultQueuedAt holds the default value on creation for the queued_at field.
+	operationspelicanresult.DefaultQueuedAt = operationspelicanresultDescQueuedAt.Default.(func() time.Time)
+	// operationspelicanresultDescCleanupStatus is the schema descriptor for cleanup_status field.
+	operationspelicanresultDescCleanupStatus := operationspelicanresultFields[16].Descriptor()
+	// operationspelicanresult.DefaultCleanupStatus holds the default value on creation for the cleanup_status field.
+	operationspelicanresult.DefaultCleanupStatus = operationspelicanresultDescCleanupStatus.Default.(string)
+	// operationspelicanresultDescCleanupAttempts is the schema descriptor for cleanup_attempts field.
+	operationspelicanresultDescCleanupAttempts := operationspelicanresultFields[17].Descriptor()
+	// operationspelicanresult.DefaultCleanupAttempts holds the default value on creation for the cleanup_attempts field.
+	operationspelicanresult.DefaultCleanupAttempts = operationspelicanresultDescCleanupAttempts.Default.(int)
+	// operationspelicanresultDescCleanupError is the schema descriptor for cleanup_error field.
+	operationspelicanresultDescCleanupError := operationspelicanresultFields[18].Descriptor()
+	// operationspelicanresult.DefaultCleanupError holds the default value on creation for the cleanup_error field.
+	operationspelicanresult.DefaultCleanupError = operationspelicanresultDescCleanupError.Default.(string)
+	// operationspelicanresultDescCreatedAt is the schema descriptor for created_at field.
+	operationspelicanresultDescCreatedAt := operationspelicanresultFields[20].Descriptor()
+	// operationspelicanresult.DefaultCreatedAt holds the default value on creation for the created_at field.
+	operationspelicanresult.DefaultCreatedAt = operationspelicanresultDescCreatedAt.Default.(func() time.Time)
+	// operationspelicanresultDescUpdatedAt is the schema descriptor for updated_at field.
+	operationspelicanresultDescUpdatedAt := operationspelicanresultFields[21].Descriptor()
+	// operationspelicanresult.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	operationspelicanresult.DefaultUpdatedAt = operationspelicanresultDescUpdatedAt.Default.(func() time.Time)
+	// operationspelicanresult.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	operationspelicanresult.UpdateDefaultUpdatedAt = operationspelicanresultDescUpdatedAt.UpdateDefault.(func() time.Time)
+	operationspelicantaskFields := schema.OperationsPelicanTask{}.Fields()
+	_ = operationspelicantaskFields
+	// operationspelicantaskDescName is the schema descriptor for name field.
+	operationspelicantaskDescName := operationspelicantaskFields[0].Descriptor()
+	// operationspelicantask.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	operationspelicantask.NameValidator = operationspelicantaskDescName.Validators[0].(func(string) error)
+	// operationspelicantaskDescEnabled is the schema descriptor for enabled field.
+	operationspelicantaskDescEnabled := operationspelicantaskFields[1].Descriptor()
+	// operationspelicantask.DefaultEnabled holds the default value on creation for the enabled field.
+	operationspelicantask.DefaultEnabled = operationspelicantaskDescEnabled.Default.(bool)
+	// operationspelicantaskDescIntervalHours is the schema descriptor for interval_hours field.
+	operationspelicantaskDescIntervalHours := operationspelicantaskFields[2].Descriptor()
+	// operationspelicantask.IntervalHoursValidator is a validator for the "interval_hours" field. It is called by the builders before save.
+	operationspelicantask.IntervalHoursValidator = operationspelicantaskDescIntervalHours.Validators[0].(func(int) error)
+	// operationspelicantaskDescReasoningEffort is the schema descriptor for reasoning_effort field.
+	operationspelicantaskDescReasoningEffort := operationspelicantaskFields[4].Descriptor()
+	// operationspelicantask.DefaultReasoningEffort holds the default value on creation for the reasoning_effort field.
+	operationspelicantask.DefaultReasoningEffort = operationspelicantaskDescReasoningEffort.Default.(string)
+	// operationspelicantaskDescConfigVersion is the schema descriptor for config_version field.
+	operationspelicantaskDescConfigVersion := operationspelicantaskFields[7].Descriptor()
+	// operationspelicantask.DefaultConfigVersion holds the default value on creation for the config_version field.
+	operationspelicantask.DefaultConfigVersion = operationspelicantaskDescConfigVersion.Default.(int64)
+	// operationspelicantaskDescCreatedAt is the schema descriptor for created_at field.
+	operationspelicantaskDescCreatedAt := operationspelicantaskFields[12].Descriptor()
+	// operationspelicantask.DefaultCreatedAt holds the default value on creation for the created_at field.
+	operationspelicantask.DefaultCreatedAt = operationspelicantaskDescCreatedAt.Default.(func() time.Time)
+	// operationspelicantaskDescUpdatedAt is the schema descriptor for updated_at field.
+	operationspelicantaskDescUpdatedAt := operationspelicantaskFields[13].Descriptor()
+	// operationspelicantask.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	operationspelicantask.DefaultUpdatedAt = operationspelicantaskDescUpdatedAt.Default.(func() time.Time)
+	// operationspelicantask.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	operationspelicantask.UpdateDefaultUpdatedAt = operationspelicantaskDescUpdatedAt.UpdateDefault.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

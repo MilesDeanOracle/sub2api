@@ -347,7 +347,14 @@ type UpdateSettingsRequest struct {
 	GrokCrossClientModelMapEnabled *bool   `json:"grok_cross_client_model_map_enabled"`
 	GrokDefaultBaseURLMode         *string `json:"grok_default_base_url_mode"`
 
-	// Available Channels feature switch (user-facing)
+	// Header feature switches and community link.
+	PelicanEnabled    *bool   `json:"pelican_enabled"`
+	PelicanVisibility *string `json:"pelican_visibility"`
+	FeedbackEnabled   *bool   `json:"feedback_enabled"`
+	QQGroupEnabled    *bool   `json:"qq_group_enabled"`
+	QQGroupName       *string `json:"qq_group_name"`
+	QQGroupURL        *string `json:"qq_group_url"`
+
 	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
 
 	// Subscription feature switch (user-facing subscription surface; see SettingKeySubscriptionEnabled)
@@ -1976,6 +1983,42 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.GrokDefaultBaseURLMode
 		}(),
+		PelicanEnabled: func() bool {
+			if req.PelicanEnabled != nil {
+				return *req.PelicanEnabled
+			}
+			return previousSettings.PelicanEnabled
+		}(),
+		PelicanVisibility: func() string {
+			if req.PelicanVisibility != nil {
+				return *req.PelicanVisibility
+			}
+			return previousSettings.PelicanVisibility
+		}(),
+		FeedbackEnabled: func() bool {
+			if req.FeedbackEnabled != nil {
+				return *req.FeedbackEnabled
+			}
+			return previousSettings.FeedbackEnabled
+		}(),
+		QQGroupEnabled: func() bool {
+			if req.QQGroupEnabled != nil {
+				return *req.QQGroupEnabled
+			}
+			return previousSettings.QQGroupEnabled
+		}(),
+		QQGroupName: func() string {
+			if req.QQGroupName != nil {
+				return *req.QQGroupName
+			}
+			return previousSettings.QQGroupName
+		}(),
+		QQGroupURL: func() string {
+			if req.QQGroupURL != nil {
+				return *req.QQGroupURL
+			}
+			return previousSettings.QQGroupURL
+		}(),
 		AvailableChannelsEnabled: func() bool {
 			if req.AvailableChannelsEnabled != nil {
 				return *req.AvailableChannelsEnabled
@@ -2457,6 +2500,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GrokCrossClientModelMapEnabled: updatedSettings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         updatedSettings.GrokDefaultBaseURLMode,
 
+		PelicanEnabled:           updatedSettings.PelicanEnabled,
+		PelicanVisibility:        updatedSettings.PelicanVisibility,
+		FeedbackEnabled:          updatedSettings.FeedbackEnabled,
+		QQGroupEnabled:           updatedSettings.QQGroupEnabled,
+		QQGroupName:              updatedSettings.QQGroupName,
+		QQGroupURL:               updatedSettings.QQGroupURL,
 		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
 		SubscriptionEnabled:      updatedSettings.SubscriptionEnabled,
 

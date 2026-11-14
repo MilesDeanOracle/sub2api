@@ -28,6 +28,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -648,6 +650,60 @@ func (f TraverseIdentityAdoptionDecision) Traverse(ctx context.Context, q ent.Qu
 	return fmt.Errorf("unexpected query type %T. expect *ent.IdentityAdoptionDecisionQuery", q)
 }
 
+// The OperationsPelicanResultFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OperationsPelicanResultFunc func(context.Context, *ent.OperationsPelicanResultQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OperationsPelicanResultFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OperationsPelicanResultQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanResultQuery", q)
+}
+
+// The TraverseOperationsPelicanResult type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOperationsPelicanResult func(context.Context, *ent.OperationsPelicanResultQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOperationsPelicanResult) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOperationsPelicanResult) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OperationsPelicanResultQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanResultQuery", q)
+}
+
+// The OperationsPelicanTaskFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OperationsPelicanTaskFunc func(context.Context, *ent.OperationsPelicanTaskQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OperationsPelicanTaskFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OperationsPelicanTaskQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanTaskQuery", q)
+}
+
+// The TraverseOperationsPelicanTask type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOperationsPelicanTask func(context.Context, *ent.OperationsPelicanTaskQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOperationsPelicanTask) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOperationsPelicanTask) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OperationsPelicanTaskQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanTaskQuery", q)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary function as a Querier.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogQuery) (ent.Value, error)
 
@@ -1258,6 +1314,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.IdempotencyRecordQuery, predicate.IdempotencyRecord, idempotencyrecord.OrderOption]{typ: ent.TypeIdempotencyRecord, tq: q}, nil
 	case *ent.IdentityAdoptionDecisionQuery:
 		return &query[*ent.IdentityAdoptionDecisionQuery, predicate.IdentityAdoptionDecision, identityadoptiondecision.OrderOption]{typ: ent.TypeIdentityAdoptionDecision, tq: q}, nil
+	case *ent.OperationsPelicanResultQuery:
+		return &query[*ent.OperationsPelicanResultQuery, predicate.OperationsPelicanResult, operationspelicanresult.OrderOption]{typ: ent.TypeOperationsPelicanResult, tq: q}, nil
+	case *ent.OperationsPelicanTaskQuery:
+		return &query[*ent.OperationsPelicanTaskQuery, predicate.OperationsPelicanTask, operationspelicantask.OrderOption]{typ: ent.TypeOperationsPelicanTask, tq: q}, nil
 	case *ent.PaymentAuditLogQuery:
 		return &query[*ent.PaymentAuditLogQuery, predicate.PaymentAuditLog, paymentauditlog.OrderOption]{typ: ent.TypePaymentAuditLog, tq: q}, nil
 	case *ent.PaymentOrderQuery:

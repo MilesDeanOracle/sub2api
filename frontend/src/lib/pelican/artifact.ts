@@ -62,12 +62,35 @@ export function extractArtifact(raw: string): PelicanArtifact {
  *   `'unsafe-inline'`. The nonce only lets the sandboxed artwork run its own
  *   animation code; it still cannot reach the parent or the network.
  */
-export function prepareArtifactDocument(html: string, scriptNonce?: string): string {
-  const doc = html
+export function prepareArtifactDocument(html: string, scriptNonce?: string, fitPreview = false): string {
+  let doc = html
     .replace(/<base\b[^>]*>/gi, '')
     .replace(/<meta\b[^>]*http-equiv\s*=\s*(?:"refresh"|'refresh'|refresh)[^>]*>/gi, '')
     .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
     .replace(/<iframe\b[^>]*\/?>/gi, '')
+
+  if (fitPreview) {
+    // Fit inside a stable virtual viewport. Growing the iframe to scrollHeight
+    // would also grow 100vh artwork and could keep clipping its bottom edge.
+    const measurement = `<script>window.addEventListener('load',async()=>{
+      await document.fonts?.ready;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        const root=document.documentElement,body=document.body;
+        let left=0,top=0,right=Math.max(root.scrollWidth,body?.scrollWidth||0,innerWidth),bottom=Math.max(root.scrollHeight,body?.scrollHeight||0,innerHeight);
+        for(const element of body?.children||[]){
+          const rect=element.getBoundingClientRect();
+          left=Math.min(left,rect.left);top=Math.min(top,rect.top);right=Math.max(right,rect.right);bottom=Math.max(bottom,rect.bottom);
+        }
+        const width=right-left,height=bottom-top;
+        const scale=Math.min(innerWidth/width,innerHeight/height);
+        if(scale<1){
+          root.style.setProperty('transform-origin','0 0','important');
+          root.style.setProperty('transform','translate('+((innerWidth-width*scale)/2-left*scale)+'px,'+((innerHeight-height*scale)/2-top*scale)+'px) scale('+scale+')','important');
+        }
+      }));
+    },{once:true});</script>`
+    doc = /<\/body\s*>/i.test(doc) ? doc.replace(/<\/body\s*>/i, `${measurement}</body>`) : doc + measurement
+  }
 
   const needsViewport = !/<meta\b[^>]*name\s*=\s*(?:"viewport"|'viewport'|viewport)/i.test(doc)
   const tags = needsViewport ? CSP_META + VIEWPORT_META : CSP_META

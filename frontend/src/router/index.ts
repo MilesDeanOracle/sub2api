@@ -7,6 +7,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { redirectLegacyAccounts, redirectLegacyGroups } from '@/views/admin/resourcePoolRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { isPelicanVisible } from '@/utils/featureFlags'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
@@ -19,6 +20,16 @@ import { resolveRouteDocumentTitle } from './title'
  * Route definitions with lazy loading
  */
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/operations',
+    component: () => import('@/views/operations/OperationsLayout.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.title' },
+    children: [
+      { path: '', redirect: '/operations/pelican' },
+      { path: 'pelican', name: 'OperationsPelican', component: () => import('@/views/operations/OperationsWallView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.wall' } },
+      { path: 'config', name: 'OperationsConfig', component: () => import('@/views/operations/OperationsConfigView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.config' } }
+    ]
+  },
   // ==================== Setup Routes ====================
   {
     path: '/setup',
@@ -233,6 +244,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Pelican Test',
+      requiresPelican: true,
       titleKey: 'pelican.title',
       descriptionKey: 'pelican.description'
     }
@@ -626,6 +638,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: true,
       title: '问题反馈',
+      requiresFeedback: true,
       titleKey: 'feedback.title',
       descriptionKey: 'feedback.adminDescription'
     }
@@ -1001,7 +1014,7 @@ router.beforeEach(async (to, _from, next) => {
   // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
   // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
   // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
-  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresSubscription) && !appStore.publicSettingsLoaded) {
+  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresSubscription || to.meta.requiresPelican || to.meta.requiresFeedback) && !appStore.publicSettingsLoaded) {
     try {
       await appStore.fetchPublicSettings()
     } catch (error) {
@@ -1010,6 +1023,13 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // Only an explicit value from successfully loaded settings can disable a route.
+  if (
+    (to.meta.requiresPelican && !isPelicanVisible(appStore.cachedPublicSettings, authStore.isAdmin)) ||
+    (to.meta.requiresFeedback && appStore.cachedPublicSettings?.feedback_enabled === false)
+  ) {
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    return
+  }
   // A transient settings failure is unknown state, not a confirmed feature toggle.
   if (
     to.meta.requiresPayment &&

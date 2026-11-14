@@ -14,6 +14,19 @@ export default {
         payment: 'Payment',
       },
       features: {
+        headerEntries: {
+          title: 'Header features',
+          description: 'Configure Pelican Test, feedback and the technical community link.',
+          pelican: 'Enable Pelican Test',
+          visibility: 'Pelican Test visibility',
+          allUsers: 'All users',
+          adminOnly: 'Administrators only',
+          feedback: 'Enable feedback',
+          feedbackHint: 'Hides user and administrator entries and stops reply notifications when disabled. Existing tickets and replies are retained.',
+          qqGroup: 'Enable technical community',
+          name: 'Display name',
+          url: 'Link URL (href)',
+        },
         channelMonitor: {
           title: 'Channel Monitor',
           description: 'Choose either V1 active probes or V2 passive usage monitoring. When disabled, both background jobs stop and the user entry is hidden.',

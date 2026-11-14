@@ -26,6 +26,9 @@ const appStore = vi.hoisted(() => ({
     payment_enabled?: boolean
     risk_control_enabled?: boolean
     subscription_enabled?: boolean
+    pelican_enabled?: boolean
+    pelican_visibility?: 'all' | 'admin'
+    feedback_enabled?: boolean
     custom_menu_items?: []
   },
   fetchPublicSettings: vi.fn(),
@@ -138,6 +141,31 @@ describe('feature route guard', () => {
     await navigation
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith()
+  })
+
+  it('blocks direct Pelican access for users when only admins can view it', async () => {
+    appStore.cachedPublicSettings = { pelican_enabled: true, pelican_visibility: 'admin' }
+    appStore.publicSettingsLoaded = true
+    const user = runGuard({ requiresPelican: true }, '/pelican')
+    await user.navigation
+    expect(user.next).toHaveBeenCalledWith('/dashboard')
+    authStore.isAdmin = true
+    const admin = runGuard({ requiresPelican: true }, '/pelican')
+    await admin.navigation
+    expect(admin.next).toHaveBeenCalledWith()
+    appStore.cachedPublicSettings.pelican_enabled = false
+    const disabled = runGuard({ requiresPelican: true }, '/pelican')
+    await disabled.navigation
+    expect(disabled.next).toHaveBeenCalledWith('/admin/dashboard')
+  })
+
+  it('blocks the admin feedback page when feedback is disabled', async () => {
+    authStore.isAdmin = true
+    appStore.cachedPublicSettings = { feedback_enabled: false }
+    appStore.publicSettingsLoaded = true
+    const { navigation, next } = runGuard({ requiresFeedback: true, requiresAdmin: true }, '/admin/feedback')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/admin/dashboard')
   })
 
   it.each([

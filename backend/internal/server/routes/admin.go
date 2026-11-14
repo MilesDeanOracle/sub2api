@@ -36,6 +36,8 @@ func RegisterAdminRoutes(
 		// 部署与运营合规确认
 		registerAdminComplianceRoutes(admin, h)
 
+		registerOperationsPelicanRoutes(admin, h)
+
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 
@@ -52,6 +54,7 @@ func RegisterAdminRoutes(
 		registerAnnouncementRoutes(admin, h)
 		if h.Feedback != nil {
 			feedback := admin.Group("/feedback")
+			feedback.Use(middleware.FeedbackFeatureGuard(settingService))
 			feedback.GET("", h.Feedback.ListAdmin)
 			feedback.GET("/summary", h.Feedback.SummaryAdmin)
 			feedback.GET("/settings", h.Feedback.GetSettings)

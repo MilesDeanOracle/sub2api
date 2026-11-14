@@ -5,6 +5,8 @@ import { reactive } from 'vue'
 import FeedbackReplyPopup from '../FeedbackReplyPopup.vue'
 import { useFeedbackStore } from '@/stores/feedback'
 import { getFeedbackSummary } from '@/api/feedback'
+import { useAppStore } from '@/stores/app'
+import type { PublicSettings } from '@/types'
 
 const mocks = vi.hoisted(() => ({ auth: { user: { id: 7 }, isAuthenticated: true, isAdmin: false }, announcements: { currentPopup: null as unknown } }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => reactive(mocks.auth) }))
@@ -28,6 +30,24 @@ function render() {
 }
 
 describe('reply popup visibility', () => {
+  it('stops notifications and summary requests when feedback is disabled', async () => {
+    vi.useFakeTimers()
+    useAppStore().cachedPublicSettings = { feedback_enabled: false } as PublicSettings
+    const wrapper = render()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(getFeedbackSummary).not.toHaveBeenCalled()
+    expect(wrapper.find('section').exists()).toBe(false)
+    useAppStore().cachedPublicSettings = { feedback_enabled: true } as PublicSettings
+    await flushPromises()
+    expect(getFeedbackSummary).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('section').exists()).toBe(true)
+    useAppStore().cachedPublicSettings = { feedback_enabled: false } as PublicSettings
+    await flushPromises()
+    expect(wrapper.find('section').exists()).toBe(false)
+    expect(useFeedbackStore().unreadCount).toBe(0)
+    wrapper.unmount()
+  })
   it('opens My tickets immediately on login and leaves it closed after dismissal', async () => {
     const wrapper = render()
     await flushPromises()

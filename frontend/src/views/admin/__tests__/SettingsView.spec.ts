@@ -8,6 +8,10 @@ import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
 
+vi.mock('@/components/admin/settings/RechargeQuickButtonEditor.vue', () => ({
+  default: { template: '<div />' },
+}));
+
 const {
   getSettings,
   updateSettings,
@@ -564,6 +568,8 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        RechargeQuickButtonEditor: true,
+        RouterLink: true,
       },
     },
   });
@@ -764,6 +770,27 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ compact_home_enabled: true }),
     );
+  });
+
+  it("loads and saves header features, visibility and the community link", async () => {
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      pelican_enabled: true, pelican_visibility: 'all', feedback_enabled: true,
+      qq_group_enabled: true, qq_group_name: '旧交流群', qq_group_url: 'https://example.com/old',
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('#pelican-visibility').setValue('admin');
+    await wrapper.get('[data-testid="feedback-enabled"]').setValue(false);
+    await wrapper.get('#qq-group-name').setValue('技术交流新群');
+    await wrapper.get('#qq-group-url').setValue('https://qm.qq.com/q/new');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      pelican_enabled: true, pelican_visibility: 'admin', feedback_enabled: false,
+      qq_group_enabled: true, qq_group_name: '技术交流新群', qq_group_url: 'https://qm.qq.com/q/new',
+    }));
+    wrapper.unmount();
   });
 
   it("renders panel rate limit card and saves settings", async () => {
