@@ -7,6 +7,7 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
+import { initGoogleTagManager } from '@/utils/tagManager'
 import './style.css'
 import 'element-plus/dist/index.css'
 // 暗色模式变量挂在 html.dark 上，与项目 initThemeClass 的写法一致
@@ -63,6 +64,11 @@ async function bootstrap() {
   // 等待路由器完成初始导航后再挂载，避免竞态条件导致的空白渲染
   await router.isReady()
   app.mount('#app')
+
+  // Load once after initial navigation; local development must not send analytics.
+  if (import.meta.env.PROD) {
+    initGoogleTagManager()
+  }
 }
 
 bootstrap()
