@@ -213,11 +213,17 @@ func TestOperationsResultNeverSerializesSecrets(t *testing.T) {
 
 type operationsCleanupRepo struct {
 	OperationsRepository
-	items           []*OperationsResult
-	removed, failed bool
+	items              []*OperationsResult
+	removed, failed    bool
+	accountID, groupID int64
 }
 
 func (r *operationsCleanupRepo) PrepareGroupCleanup(context.Context, int64) (*OperationsGroupCleanupBatch, error) {
+	return &OperationsGroupCleanupBatch{Items: r.items, Detached: 1}, nil
+}
+
+func (r *operationsCleanupRepo) PrepareAccountCleanup(_ context.Context, accountID, groupID int64) (*OperationsGroupCleanupBatch, error) {
+	r.accountID, r.groupID = accountID, groupID
 	return &OperationsGroupCleanupBatch{Items: r.items, Detached: 1}, nil
 }
 
@@ -286,5 +292,39 @@ func TestOperationsManualGroupCleanup(t *testing.T) {
 			require.Equal(t, 1, out.Removed)
 			require.True(t, repo.removed)
 		}
+	}
+}
+
+func TestOperationsManualAccountCleanup(t *testing.T) {
+	for _, groupID := range []int64{0, -1, 2} {
+		for _, fail := range []bool{false, true} {
+			t.Run(fmt.Sprintf("group-%d/failure-%t", groupID, fail), func(t *testing.T) {
+				repo := &operationsCleanupRepo{items: []*OperationsResult{{ID: 9, ObjectKey: OperationsPelicanPrefix + "account.html", StorageBinding: `{"bucket":"test","access_key_id":"key","secret_access_key":"secret"}`}}}
+				store := &operationsCleanupStore{}
+				if fail {
+					store.deleteError = errors.New("denied")
+				}
+				svc := &OperationsPelicanService{repo: repo, encryptor: operationsTestEncryptor{}, stores: func(context.Context, *BackupS3Config) (OperationsObjectStore, error) { return store, nil }}
+				out, err := svc.CleanAccount(context.Background(), 5, groupID)
+				require.NoError(t, err)
+				require.EqualValues(t, 5, repo.accountID)
+				require.Equal(t, groupID, repo.groupID)
+				require.Equal(t, 1, out.Detached)
+				require.True(t, store.deleted)
+				require.Equal(t, !fail, repo.removed)
+				require.Equal(t, fail, repo.failed)
+				if fail {
+					require.Equal(t, 1, out.Failed)
+				} else {
+					require.Equal(t, 1, out.Removed)
+				}
+			})
+		}
+	}
+	// Validation must reject broad or malformed deletion targets before repository access.
+	svc := &OperationsPelicanService{}
+	for _, ids := range [][2]int64{{0, 0}, {-1, 0}, {1, -2}} {
+		_, err := svc.CleanAccount(context.Background(), ids[0], ids[1])
+		require.Error(t, err)
 	}
 }

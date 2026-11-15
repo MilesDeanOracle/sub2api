@@ -480,6 +480,14 @@ const MCPIcon = {
   render: () => h(Icon, { name: 'mcp' })
 }
 
+const OperationsConsoleIcon = {
+  render: () => h(Icon, { name: 'terminal' })
+}
+
+const OperationsManagementIcon = {
+  render: () => h(Icon, { name: 'trendingUp' })
+}
+
 const BellIcon = {
   render: () =>
     h(
@@ -835,8 +843,8 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
       ],
     },
-    { path: '/operations', label: t('operationsConsole.title'), icon: ChartIcon },
-    { path: '/admin/operations', label: t('operations.title'), icon: ChartIcon },
+    { path: '/operations', label: t('operationsConsole.title'), icon: OperationsConsoleIcon },
+    { path: '/admin/operations', label: t('operations.title'), icon: OperationsManagementIcon },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
   ]

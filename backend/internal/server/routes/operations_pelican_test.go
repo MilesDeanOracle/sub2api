@@ -35,9 +35,11 @@ func TestOperationsRequiresAdminAuthentication(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/admin/operations"+path, nil))
 		require.Equal(t, 401, w.Code)
 	}
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/v1/admin/operations/results/groups/2", nil))
-	require.Equal(t, 401, w.Code)
+	for _, path := range []string{"/results/groups/2", "/results/accounts/2"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/v1/admin/operations"+path, nil))
+		require.Equal(t, 401, w.Code)
+	}
 }
 func TestOperationsRejectsRestrictedAdminKeys(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -58,12 +60,26 @@ func TestOperationsRejectsRestrictedAdminKeys(t *testing.T) {
 		if restricted {
 			require.Equal(t, 403, w.Code)
 			require.False(t, repo.read)
-			denied := httptest.NewRecorder()
-			r.ServeHTTP(denied, httptest.NewRequest("DELETE", "/api/v1/admin/operations/results/groups/2", nil))
-			require.Equal(t, 403, denied.Code)
+			for _, path := range []string{"/results/groups/2", "/results/accounts/2"} {
+				denied := httptest.NewRecorder()
+				r.ServeHTTP(denied, httptest.NewRequest("DELETE", "/api/v1/admin/operations"+path, nil))
+				require.Equal(t, 403, denied.Code)
+			}
 		} else {
 			require.Equal(t, 200, w.Code)
 			require.True(t, repo.read)
 		}
+	}
+}
+
+func TestOperationsAccountCleanupRejectsInvalidTargets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := admin.NewOperationsPelicanHandler(nil, nil)
+	registerOperationsPelicanRoutes(r.Group("/api/v1/admin"), &handler.Handlers{Admin: &handler.AdminHandlers{OperationsPelican: h}})
+	for _, target := range []string{"0", "-1", "not-an-id", "1?group_id=-2", "1?group_id=bad"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/api/v1/admin/operations/results/accounts/"+target, nil))
+		require.Equal(t, 400, w.Code)
 	}
 }

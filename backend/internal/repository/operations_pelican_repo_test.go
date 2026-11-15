@@ -43,7 +43,7 @@ func operationsTestDatabase(t *testing.T) *sql.DB {
 	require.NoError(t, e)
 	_, e = db.Exec(string(migration))
 	require.NoError(t, e)
-	_, e = db.Exec(`CREATE TABLE accounts(id bigint PRIMARY KEY,name text,platform text,deleted_at timestamptz); CREATE TABLE groups(id bigint PRIMARY KEY,name text,deleted_at timestamptz); CREATE TABLE account_groups(account_id bigint,group_id bigint)`)
+	_, e = db.Exec(`CREATE TABLE accounts(id bigint PRIMARY KEY,name text,platform text,deleted_at timestamptz,priority integer NOT NULL DEFAULT 50); CREATE TABLE groups(id bigint PRIMARY KEY,name text,deleted_at timestamptz); CREATE TABLE account_groups(account_id bigint,group_id bigint)`)
 	require.NoError(t, e)
 	return db
 }
@@ -278,15 +278,15 @@ func TestOperationsAccountRowsPaginationAndFilters(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, page.HasMore)
 	require.EqualValues(t, 2, page.NextAccountID)
-	require.Len(t, page.Items, 5)
-	require.Equal(t, []int64{quietID, activeID, ids[5], ids[4], ids[3]}, operationsResultIDs(page.Items))
+	require.Len(t, page.Items, 4)
+	require.Equal(t, []int64{quietID, activeID, ids[5], ids[4]}, operationsResultIDs(page.Items))
 	require.Equal(t, map[int64]bool{3: false, 2: true}, page.AccountHasMore)
-	// Per-row history continues immediately after the fourth displayed test.
-	older, err := repo.ListResults(ctx, service.OperationsResultFilter{History: true, AccountID: 2, BeforeID: ids[3], Limit: 3})
+	// The folded batch continues immediately after the third displayed test.
+	older, err := repo.ListResults(ctx, service.OperationsResultFilter{History: true, AccountID: 2, BeforeID: ids[4], Limit: 3})
 	require.NoError(t, err)
-	require.Equal(t, []int64{ids[2], ids[1], ids[0]}, operationsResultIDs(older.Items))
-	require.False(t, older.HasMore)
-	require.Equal(t, ids[0], older.NextID)
+	require.Equal(t, []int64{ids[3], ids[2], ids[1]}, operationsResultIDs(older.Items))
+	require.True(t, older.HasMore)
+	require.Equal(t, ids[1], older.NextID)
 	// An ID inserted later with an older timestamp must still paginate correctly.
 	backdated := insert(second.ID, 2, "failed", 2, now.Add(-24*time.Hour))
 	older, err = repo.ListResults(ctx, service.OperationsResultFilter{History: true, AccountID: 2, BeforeID: ids[3], Limit: 3})
@@ -316,7 +316,7 @@ func TestOperationsAccountRowsPaginationAndFilters(t *testing.T) {
 	until := now.Add(-7 * time.Hour)
 	page, err = repo.ListResults(ctx, service.OperationsResultFilter{GroupByAccount: true, History: true, AccountID: 2, To: &until})
 	require.NoError(t, err)
-	require.Equal(t, []int64{ids[3], ids[2], ids[1], ids[0]}, operationsResultIDs(page.Items))
+	require.Equal(t, []int64{ids[3], ids[2], ids[1]}, operationsResultIDs(page.Items))
 }
 
 func operationsResultIDs(items []*service.OperationsResult) []int64 {
@@ -332,7 +332,7 @@ func TestOperationsGroupLifecycleAndCleanup(t *testing.T) {
 	ctx := context.Background()
 	repo := NewOperationsRepository(db)
 	task := operationsTestTask(t, repo, 1) // Disabled schedules still configure detection.
-	_, err := db.Exec(`INSERT INTO accounts VALUES(1,'Selected','openai',NULL),(2,'Past','openai',NULL),(3,'Unused','openai',NULL); INSERT INTO groups VALUES(1,'Current',NULL),(2,'Past',NULL),(3,'Never configured',NULL); INSERT INTO account_groups VALUES(1,1),(2,2),(3,3)`)
+	_, err := db.Exec(`INSERT INTO accounts(id,name,platform,deleted_at) VALUES(1,'Selected','openai',NULL),(2,'Past','openai',NULL),(3,'Unused','openai',NULL); INSERT INTO groups VALUES(1,'Current',NULL),(2,'Past',NULL),(3,'Never configured',NULL); INSERT INTO account_groups VALUES(1,1),(2,2),(3,3)`)
 	require.NoError(t, err)
 	insert := func(account int64, groups, status string) int64 {
 		var id int64
@@ -403,7 +403,7 @@ func TestOperationsUngroupedLifecycle(t *testing.T) {
 	repo := NewOperationsRepository(db)
 	ctx := context.Background()
 	task := operationsTestTask(t, repo, 1)
-	_, err := db.Exec(`INSERT INTO accounts VALUES(1,'No group','openai',NULL)`)
+	_, err := db.Exec(`INSERT INTO accounts(id,name,platform,deleted_at) VALUES(1,'No group','openai',NULL)`)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO operations_pelican_results(task_id,run_id,account_id,trigger_key,status,group_snapshots,payload,expires_at) VALUES($1,$2,1,'test','succeeded','[]','{}',now()+interval '7 days')`, task.ID, uuid.NewString())
 	require.NoError(t, err)
@@ -436,7 +436,7 @@ func TestOperationsMixedGroupAccountConfiguration(t *testing.T) {
 	repo := NewOperationsRepository(db)
 	ctx := context.Background()
 	task := operationsTestTask(t, repo, 1) // Account 1 stays selected in a disabled plan.
-	_, err := db.Exec(`INSERT INTO accounts VALUES(1,'Configured','openai',NULL),(2,'Removed','openai',NULL),(3,'Never tested','openai',NULL); INSERT INTO groups VALUES(1,'Mixed',NULL); INSERT INTO account_groups VALUES(1,1),(2,1),(3,1)`)
+	_, err := db.Exec(`INSERT INTO accounts(id,name,platform,deleted_at) VALUES(1,'Configured','openai',NULL),(2,'Removed','openai',NULL),(3,'Never tested','openai',NULL); INSERT INTO groups VALUES(1,'Mixed',NULL); INSERT INTO account_groups VALUES(1,1),(2,1),(3,1)`)
 	require.NoError(t, err)
 	insert := func(account int64) int64 {
 		var id int64
@@ -464,12 +464,12 @@ func TestOperationsMixedGroupAccountConfiguration(t *testing.T) {
 	require.Equal(t, []int64{currentID}, operationsResultIDs(live.Items))
 	past, err := repo.ListResults(ctx, service.OperationsResultFilter{Scope: "past", History: true, GroupByAccount: true, GroupID: 1, Limit: 1})
 	require.NoError(t, err)
-	require.Equal(t, []int64{pastIDs[6], pastIDs[5], pastIDs[4], pastIDs[3]}, operationsResultIDs(past.Items))
+	require.Equal(t, []int64{pastIDs[6], pastIDs[5], pastIDs[4]}, operationsResultIDs(past.Items))
 	require.True(t, past.AccountHasMore[2])
-	older, err := repo.ListResults(ctx, service.OperationsResultFilter{Scope: "past", History: true, GroupID: 1, AccountID: 2, BeforeID: pastIDs[3], Limit: 3})
+	older, err := repo.ListResults(ctx, service.OperationsResultFilter{Scope: "past", History: true, GroupID: 1, AccountID: 2, BeforeID: pastIDs[4], Limit: 3})
 	require.NoError(t, err)
-	require.Equal(t, []int64{pastIDs[2], pastIDs[1], pastIDs[0]}, operationsResultIDs(older.Items))
-	require.False(t, older.HasMore)
+	require.Equal(t, []int64{pastIDs[3], pastIDs[2], pastIDs[1]}, operationsResultIDs(older.Items))
+	require.True(t, older.HasMore)
 	wrong, err := repo.ListResults(ctx, service.OperationsResultFilter{Scope: "past", History: true, GroupID: 1, AccountID: 1})
 	require.NoError(t, err)
 	require.Empty(t, wrong.Items)
@@ -498,4 +498,98 @@ func TestOperationsMixedGroupAccountConfiguration(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, catalog.Past)
 	require.Len(t, catalog.Current, 1)
+}
+
+func TestOperationsAccountCleanupScopesAndConfiguredMemberships(t *testing.T) {
+	db := operationsTestDatabase(t)
+	repo := NewOperationsRepository(db)
+	ctx := context.Background()
+	task := operationsTestTask(t, repo, 1)
+	_, err := db.Exec(`INSERT INTO accounts(id,name,platform,deleted_at) VALUES(1,'Configured','openai',NULL),(2,'Removed','openai',NULL),(3,'Other','openai',NULL); INSERT INTO groups VALUES(1,'One',NULL),(2,'Two',NULL); INSERT INTO account_groups VALUES(1,1),(2,1),(2,2),(3,1)`)
+	require.NoError(t, err)
+	insert := func(account int64, groups, status string) int64 {
+		t.Helper()
+		var id int64
+		err := db.QueryRow(`INSERT INTO operations_pelican_results(task_id,run_id,account_id,trigger_key,status,group_snapshots,payload,object_key,expires_at) VALUES($1,$2,$3,'test',$4,$5,'{}','operations/pelican/keep-location.html',now()+interval '7 days') RETURNING id`, task.ID, uuid.NewString(), account, status, groups).Scan(&id)
+		require.NoError(t, err)
+		return id
+	}
+	one := `[{"id":1,"name":"One"}]`
+	both := `[{"id":1,"name":"One"},{"id":2,"name":"Two"}]`
+	currentID := insert(1, one, "succeeded")
+	sharedCurrentID := insert(1, both, "succeeded")
+	sharedPastID := insert(2, both, "succeeded")
+	exclusiveID := insert(2, one, "failed")
+	queuedID := insert(2, `[]`, "queued")
+	otherID := insert(3, one, "succeeded")
+
+	// The selected account and selected group both constrain cleanup.
+	batch, err := repo.PrepareAccountCleanup(ctx, 2, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, batch.Detached)
+	require.Equal(t, []int64{exclusiveID}, operationsResultIDs(batch.Items))
+	shared, err := repo.GetResult(ctx, sharedPastID)
+	require.NoError(t, err)
+	require.Equal(t, []service.OperationsGroup{{ID: 2, Name: "Two"}}, shared.Groups)
+	require.True(t, shared.ExpiresAt.After(time.Now()))
+	require.Equal(t, "operations/pelican/keep-location.html", shared.ObjectKey)
+	require.NoError(t, repo.CompleteCleanup(ctx, exclusiveID))
+
+	// Without a group filter, clear every remaining historical membership for
+	// the account, including ungrouped queued work; keep locations for deletion.
+	batch, err = repo.PrepareAccountCleanup(ctx, 2, 0)
+	require.NoError(t, err)
+	require.Zero(t, batch.Detached)
+	require.Equal(t, []int64{sharedPastID, queuedID}, operationsResultIDs(batch.Items))
+	queued, err := repo.GetResult(ctx, queuedID)
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", queued.Status)
+	require.False(t, queued.ExpiresAt.After(time.Now()))
+	require.NotEmpty(t, queued.ObjectKey)
+
+	// A configured account may also have historical group associations: only
+	// detach those associations and preserve its configured result and artifact.
+	batch, err = repo.PrepareAccountCleanup(ctx, 1, 0)
+	require.NoError(t, err)
+	require.Empty(t, batch.Items)
+	require.Equal(t, 1, batch.Detached)
+	shared, err = repo.GetResult(ctx, sharedCurrentID)
+	require.NoError(t, err)
+	require.Equal(t, []service.OperationsGroup{{ID: 1, Name: "One"}}, shared.Groups)
+	for _, id := range []int64{currentID, sharedCurrentID, otherID} {
+		kept, err := repo.GetResult(ctx, id)
+		require.NoError(t, err)
+		require.True(t, kept.ExpiresAt.After(time.Now()))
+		require.NotEmpty(t, kept.ObjectKey)
+	}
+	_, err = repo.PrepareAccountCleanup(ctx, 1, 0)
+	require.ErrorIs(t, err, service.ErrOperationsConflict)
+	batch, err = repo.PrepareAccountCleanup(ctx, 2, 0)
+	require.NoError(t, err)
+	require.Empty(t, batch.Items) // Repeated deletion cannot reclaim expired work.
+}
+
+func TestOperationsAccountCleanupProtectsRunningWork(t *testing.T) {
+	for _, state := range []string{"running", "uploading"} {
+		t.Run(state, func(t *testing.T) {
+			db := operationsTestDatabase(t)
+			repo := NewOperationsRepository(db)
+			ctx := context.Background()
+			task := operationsTestTask(t, repo, 0)
+			_, err := db.Exec(`INSERT INTO operations_pelican_results(task_id,run_id,account_id,trigger_key,status,group_snapshots,payload,pool_slot,expires_at) VALUES($1,$2,5,'test','succeeded','[]','{}',NULL,now()+interval '7 days'),($1,$3,5,'test',$4,'[]','{}',1,now()+interval '7 days')`, task.ID, uuid.NewString(), uuid.NewString(), state)
+			require.NoError(t, err)
+			for _, groupID := range []int64{0, -1} {
+				_, err := repo.PrepareAccountCleanup(ctx, 5, groupID)
+				require.ErrorIs(t, err, service.ErrOperationsConflict)
+			}
+			page, err := repo.ListResults(ctx, service.OperationsResultFilter{History: true, Scope: "past", AccountID: 5})
+			require.NoError(t, err)
+			require.Len(t, page.Items, 2) // No earlier eligible row was changed.
+			_, err = db.Exec(`UPDATE operations_pelican_results SET status='failed',pool_slot=NULL WHERE status=$1`, state)
+			require.NoError(t, err)
+			batch, err := repo.PrepareAccountCleanup(ctx, 5, -1)
+			require.NoError(t, err)
+			require.Len(t, batch.Items, 2)
+		})
+	}
 }

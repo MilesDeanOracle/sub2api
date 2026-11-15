@@ -4,7 +4,7 @@ export interface OperationsGroup { id: number; name: string }
 export interface OperationsWallGroup extends OperationsGroup { accounts: OperationsAccount[] }
 export interface OperationsWallGroups { current: OperationsWallGroup[]; past: OperationsWallGroup[] }
 export interface OperationsGroupCleanup { removed: number; detached: number; failed: number }
-export interface OperationsAccount { id: number; name: string; platform: string; protocol: string; groups: OperationsGroup[]; has_ungrouped?: boolean }
+export interface OperationsAccount { id: number; name: string; priority?: number; platform: string; protocol: string; groups: OperationsGroup[]; has_ungrouped?: boolean }
 export interface AccountChoice { account_id: number; model_id: string }
 export interface OperationsTask {
   id: number; name: string; enabled: boolean; interval_hours: number; account_configs: AccountChoice[]
@@ -44,6 +44,7 @@ export const operationsApi = {
   async filters() { return (await apiClient.get<OperationsAccount[]>(`${base}/results/filters`)).data },
   async groups() { return (await apiClient.get<OperationsWallGroups>(`${base}/results/groups`)).data },
   async cleanGroup(id: number) { return (await apiClient.delete<OperationsGroupCleanup>(`${base}/results/groups/${id}`, { timeout: 180000 })).data },
+  async cleanAccount(id: number, groupID?: number) { return (await apiClient.delete<OperationsGroupCleanup>(`${base}/results/accounts/${id}`, { params: { group_id: groupID }, timeout: 180000 })).data },
   async content(id: number) { return (await apiClient.get<{ html: string }>(`${base}/results/${id}/content`)).data.html },
   async status() { return (await apiClient.get<OperationsStatus>(`${base}/status`)).data },
   async run(id: string) { return (await apiClient.get<OperationsResult[]>(`${base}/runs/${id}`)).data }

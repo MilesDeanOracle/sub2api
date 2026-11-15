@@ -15,6 +15,7 @@ import (
 
 	apperrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 type OperationsPelicanService struct {
@@ -41,7 +42,7 @@ func ProvideOperationsPelicanService(repo OperationsRepository, accounts Account
 }
 
 func NewOperationsPelicanService(repo OperationsRepository, accounts AccountRepository, tests *AccountTestService, backup *BackupService, images *ImageStorageSettingService, encryptor SecretEncryptor, stores OperationsObjectStoreFactory) *OperationsPelicanService {
-	return &OperationsPelicanService{repo: repo, accounts: accounts, tests: tests, backup: backup, images: images, encryptor: encryptor, stores: stores, modelsGate: make(chan struct{}, 2), wake: make(chan struct{}, 4)}
+	return &OperationsPelicanService{repo: repo, accounts: accounts, tests: tests, backup: backup, images: images, encryptor: encryptor, stores: stores, modelsGate: make(chan struct{}, 2), wake: make(chan struct{}, OperationsPelicanWorkers)}
 }
 func operationsBad(message string) error { return apperrors.BadRequest("OPERATIONS_INVALID", message) }
 func operationsGroups(a *Account) []OperationsGroup {
@@ -408,12 +409,25 @@ func (s *OperationsPelicanService) Content(ctx context.Context, id int64) (strin
 }
 func (s *OperationsPelicanService) CleanGroup(ctx context.Context, groupID int64) (*OperationsGroupCleanup, error) {
 	if groupID == 0 || groupID < -1 {
-		return nil, operationsBad("Select a previously detected group")
+		return nil, operationsBad("Select a group from test history")
 	}
 	batch, err := s.repo.PrepareGroupCleanup(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
+	return s.cleanPrepared(ctx, batch), nil
+}
+func (s *OperationsPelicanService) CleanAccount(ctx context.Context, accountID, groupID int64) (*OperationsGroupCleanup, error) {
+	if accountID <= 0 || groupID < -1 {
+		return nil, operationsBad("Select an account and valid group scope")
+	}
+	batch, err := s.repo.PrepareAccountCleanup(ctx, accountID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return s.cleanPrepared(ctx, batch), nil
+}
+func (s *OperationsPelicanService) cleanPrepared(ctx context.Context, batch *OperationsGroupCleanupBatch) *OperationsGroupCleanup {
 	out := &OperationsGroupCleanup{Detached: batch.Detached}
 	for _, item := range batch.Items {
 		if err := s.cleanupResult(ctx, item); err != nil {
@@ -422,7 +436,7 @@ func (s *OperationsPelicanService) CleanGroup(ctx context.Context, groupID int64
 			out.Removed++
 		}
 	}
-	return out, nil
+	return out
 }
 func (s *OperationsPelicanService) cleanupResult(ctx context.Context, r *OperationsResult) error {
 	var err error
@@ -466,7 +480,7 @@ func (s *OperationsPelicanService) boundStore(ctx context.Context, r *Operations
 	return s.stores(ctx, &c)
 }
 func (s *OperationsPelicanService) signal() {
-	for i := 0; i < 4; i++ {
+	for i := 0; i < OperationsPelicanWorkers; i++ {
 		select {
 		case s.wake <- struct{}{}:
 		default:
@@ -477,7 +491,7 @@ func (s *OperationsPelicanService) Start() {
 	s.once.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		s.cancel = cancel
-		for i := 0; i < 4; i++ {
+		for i := 0; i < OperationsPelicanWorkers; i++ {
 			s.wg.Add(1)
 			go s.worker(ctx)
 		}
@@ -550,14 +564,25 @@ func (s *OperationsPelicanService) scan(ctx context.Context) {
 		slog.Warn("operations schedule scan failed", "error", e)
 		return
 	}
+	// Prepare and enqueue independent due plans concurrently. A slow account
+	// lookup in one plan must not prevent the others from reaching the pool.
+	var triggers errgroup.Group
+	triggers.SetLimit(OperationsPelicanWorkers)
 	for _, t := range tasks {
+		if ctx.Err() != nil {
+			break
+		}
 		if t.Enabled && t.NextRunAt != nil && !t.NextRunAt.After(time.Now()) {
-			key := fmt.Sprintf("scheduled:%d:%d", t.ID, t.NextRunAt.Unix())
-			if _, e = s.Trigger(ctx, t.ID, key, 0, t.NextRunAt); e != nil {
-				slog.Warn("operations scheduled trigger failed", "task_id", t.ID, "error", e)
-			}
+			triggers.Go(func() error {
+				key := fmt.Sprintf("scheduled:%d:%d", t.ID, t.NextRunAt.Unix())
+				if _, err := s.Trigger(ctx, t.ID, key, 0, t.NextRunAt); err != nil {
+					slog.Warn("operations scheduled trigger failed", "task_id", t.ID, "error", err)
+				}
+				return nil // Other plans must still enqueue after one plan fails.
+			})
 		}
 	}
+	_ = triggers.Wait()
 	s.signal()
 }
 func (s *OperationsPelicanService) execute(parent context.Context, r *OperationsResult) {

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import OperationsWallView from '../OperationsWallView.vue'
 
-const { results, groups, cleanGroup, tasks, showError, showSuccess } = vi.hoisted(() => ({ results: vi.fn(), groups: vi.fn(), cleanGroup: vi.fn(), tasks: vi.fn(), showError: vi.fn(), showSuccess: vi.fn() }))
-vi.mock('@/api/admin/operationsConsole', () => ({ operationsApi: { results, groups, cleanGroup, tasks } }))
+const { results, groups, cleanGroup, cleanAccount, tasks, showError, showSuccess } = vi.hoisted(() => ({ results: vi.fn(), groups: vi.fn(), cleanGroup: vi.fn(), cleanAccount: vi.fn(), tasks: vi.fn(), showError: vi.fn(), showSuccess: vi.fn() }))
+vi.mock('@/api/admin/operationsConsole', () => ({ operationsApi: { results, groups, cleanGroup, cleanAccount, tasks } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const select = { props: ['modelValue', 'options'], emits: ['update:modelValue'], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', Number($event.target.value))"><option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option></select>' }
-function render() { return mount(OperationsWallView, { global: { stubs: { Select: select, ConfirmDialog: { props: ['show', 'message'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-confirm><p>{{ message }}</p><button @click="$emit(\'confirm\')">confirm</button><button @click="$emit(\'cancel\')">cancel</button></div>' }, OperationsResultCard: { props: ['result'], template: '<article :data-id="result.id">{{ result.status }}</article>' } } } }) }
+function render(realSelect = false) { return mount(OperationsWallView, { attachTo: realSelect ? document.body : undefined, global: { stubs: { Select: realSelect ? false : select, ConfirmDialog: { props: ['show', 'message'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-confirm><p>{{ message }}</p><button @click="$emit(\'confirm\')">confirm</button><button @click="$emit(\'cancel\')">cancel</button></div>' }, OperationsResultCard: { props: ['result'], template: '<article :data-id="result.id">{{ result.status }}</article>' }, OperationsResultStack: { props: ['results', 'loaded', 'loading'], emits: ['expand', 'reveal'], template: '<div><article v-for="result in results" :key="result.id" :data-id="result.id">{{ result.status }}</article><button v-if="!loaded" :disabled="loading" @click="$emit(\'expand\'); $emit(\'reveal\')">reveal</button></div>' } } } }) }
 beforeEach(() => {
   vi.resetAllMocks()
   results.mockResolvedValue({ items: [{ id: 1, account_id: 1, account_name: 'A', status: 'failed' }], has_more: false, next_id: 1, next_account_id: 1 })
@@ -15,6 +15,92 @@ beforeEach(() => {
   tasks.mockResolvedValue([])
 })
 describe('Operations wall', () => {
+  it.each([undefined, 30, -1])('cleans one account after confirmation within group scope %s', async (groupID) => {
+    groups.mockResolvedValue({ current: [], past: [{ id: 30, name: 'Old group', accounts: [{ id: 1, name: 'A', groups: [] }] }, { id: -1, name: '', accounts: [{ id: 1, name: 'A', groups: [] }] }] })
+    const wrapper = render()
+    try {
+      await flushPromises()
+      expect(wrapper.findAll('button').some(b => b.text() === 'operationsConsole.cleanAccount')).toBe(false)
+      await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+      if (groupID !== undefined) { await wrapper.findAll('select')[0]!.setValue(String(groupID)); await flushPromises() }
+      await wrapper.findAll('button').find(b => b.text() === 'operationsConsole.cleanAccount')!.trigger('click')
+      expect(wrapper.get('[data-confirm]').text()).toContain('operationsConsole.cleanupAccountConfirm')
+      expect(cleanAccount).not.toHaveBeenCalled()
+      cleanAccount.mockResolvedValueOnce({ removed: 1, detached: 1, failed: 0 })
+      results.mockResolvedValue({ items: [], has_more: false })
+      await wrapper.get('[data-confirm] button').trigger('click'); await flushPromises()
+      expect(cleanAccount).toHaveBeenCalledWith(1, groupID)
+      expect(cleanGroup).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-confirm]').exists()).toBe(false)
+      expect(wrapper.findAll('article')).toHaveLength(0)
+      expect(showSuccess).toHaveBeenCalledWith('operationsConsole.cleaned')
+    } finally { wrapper.unmount() }
+  })
+  it('cancels account cleanup and preserves results on API failure until retry succeeds', async () => {
+    const wrapper = render()
+    try {
+      await flushPromises()
+      await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+      const open = async () => { await wrapper.findAll('button').find(b => b.text() === 'operationsConsole.cleanAccount')!.trigger('click') }
+      await open()
+      await wrapper.findAll('[data-confirm] button')[1]!.trigger('click')
+      expect(cleanAccount).not.toHaveBeenCalled()
+      expect(cleanGroup).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-confirm]').exists()).toBe(false)
+      await open()
+      cleanAccount.mockRejectedValueOnce({ message: 'Account is currently running' })
+      await wrapper.get('[data-confirm] button').trigger('click'); await flushPromises()
+      expect(showError).toHaveBeenCalledWith('Account is currently running')
+      expect(wrapper.find('[data-confirm]').exists()).toBe(true)
+      expect(wrapper.findAll('article')).toHaveLength(1)
+      cleanAccount.mockResolvedValueOnce({ removed: 0, detached: 0, failed: 1 })
+      await wrapper.get('[data-confirm] button').trigger('click'); await flushPromises()
+      expect(showError).toHaveBeenCalledWith('operationsConsole.cleanupPartial')
+      expect(wrapper.find('[data-confirm]').exists()).toBe(false)
+    } finally { wrapper.unmount() }
+  })
+  it('allows selecting a past group with the real dropdown before confirming cleanup', async () => {
+    const wrapper = render(true)
+    try {
+      await flushPromises()
+      await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+      await wrapper.get('button[aria-label="operationsConsole.groups"]').trigger('click'); await flushPromises()
+      const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(item => item.textContent?.includes('Old group'))!
+      expect(option).toBeDefined()
+      option.click(); await flushPromises()
+      expect(wrapper.get('button[aria-label="operationsConsole.groups"]').text()).toContain('Old group')
+      expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ scope: 'past', group_id: 30 })
+      const cleanup = wrapper.findAll('button').find(b => b.text() === 'operationsConsole.cleanGroup')!
+      expect(cleanup.attributes('disabled')).toBeUndefined()
+      await cleanup.trigger('click')
+      expect(cleanGroup).not.toHaveBeenCalled()
+      cleanGroup.mockResolvedValue({ removed: 1, detached: 0, failed: 0 })
+      await wrapper.get('[data-confirm] button').trigger('click'); await flushPromises()
+      expect(cleanGroup).toHaveBeenCalledWith(30)
+    } finally { wrapper.unmount() }
+  })
+  it('keeps the group catalog usable when task loading fails', async () => {
+    tasks.mockRejectedValue({ message: 'Task list unavailable' })
+    const wrapper = render(); await flushPromises()
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+    expect(wrapper.findAll('select')[0]!.text()).toContain('Old group')
+    await wrapper.findAll('select')[0]!.setValue('30'); await flushPromises()
+    expect(wrapper.findAll('button').find(b => b.text() === 'operationsConsole.cleanGroup')!.attributes('disabled')).toBeUndefined()
+    expect(showError).toHaveBeenCalledWith('Task list unavailable')
+    wrapper.unmount()
+  })
+  it('reports group loading errors and retries catalog loading with the refresh button', async () => {
+    const catalog = await groups()
+    groups.mockRejectedValue({ message: 'Group service unavailable' })
+    const wrapper = render(); await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Group service unavailable')
+    groups.mockResolvedValue(catalog)
+    await wrapper.findAll('button').find(b => b.text() === 'operationsConsole.refresh')!.trigger('click'); await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+    expect(wrapper.findAll('select')[0]!.text()).toContain('Old group')
+    wrapper.unmount()
+  })
   it('loads consecutive tests from history immediately without mode buttons', async () => {
     const wrapper = render(); await flushPromises()
     expect(wrapper.get('article').text()).toBe('failed')
@@ -22,31 +108,28 @@ describe('Operations wall', () => {
     expect(wrapper.findAll('button').some(b => ['operationsConsole.history', 'operationsConsole.latest'].includes(b.text()))).toBe(false)
     wrapper.unmount()
   })
-  it('groups four initial tests across plans by account ID and keeps same-name accounts separate', async () => {
-    results.mockResolvedValue({ items: [3, 6, 4, 5].map(id => ({ id, account_id: 1, account_name: 'Same name', task_id: id % 2, status: 'failed' })).concat([{ id: 7, account_id: 2, account_name: 'Same name', task_id: 1, status: 'succeeded' }]), has_more: false, account_has_more: { 1: true, 2: false } })
+  it('groups three initial tests across plans by account ID and keeps same-name accounts separate', async () => {
+    results.mockResolvedValue({ items: [3, 4, 5].map(id => ({ id, account_id: 1, account_name: 'Same name', task_id: id % 2, status: 'failed' })).concat([{ id: 7, account_id: 2, account_name: 'Same name', task_id: 1, status: 'succeeded' }]), has_more: false, account_has_more: { 1: true, 2: false } })
     const wrapper = render(); await flushPromises()
     const rows = wrapper.findAll('[data-account-row]')
     expect(rows).toHaveLength(2)
     expect(rows[0]!.findAll('article').map(card => card.attributes('data-id'))).toEqual(['7'])
-    expect(rows[1]!.findAll('article').map(card => card.attributes('data-id'))).toEqual(['6', '5', '4', '3'])
-    expect(rows[0]!.text()).toContain('operationsConsole.noMoreResults')
+    expect(rows[1]!.findAll('article').map(card => card.attributes('data-id'))).toEqual(['5', '4', '3'])
+    expect(rows[0]!.find('button').exists()).toBe(false)
     wrapper.unmount()
   })
-  it('appends three older tests only to the clicked account and exhausts the row', async () => {
-    const initial = [10, 9, 8, 7].map(id => ({ id, account_id: 1, account_name: 'A', status: 'failed' }))
+  it('loads three older tests only when the account stack requests them and caches that batch', async () => {
+    const initial = [10, 9, 8].map(id => ({ id, account_id: 1, account_name: 'A', status: 'failed' }))
     results.mockResolvedValueOnce({ items: [...initial, { id: 11, account_id: 2, account_name: 'B', status: 'succeeded' }], has_more: false, account_has_more: { 1: true, 2: false } })
     const wrapper = render(); await flushPromises()
-    results.mockResolvedValueOnce({ items: [6, 5, 4].map(id => ({ id, account_id: 1, account_name: 'A', status: 'succeeded' })), has_more: true, next_id: 4 })
+    results.mockResolvedValueOnce({ items: [7, 6, 5].map(id => ({ id, account_id: 1, account_name: 'A', status: 'succeeded' })), has_more: true, next_id: 5 })
     const more = () => wrapper.findAll('[data-account-row]')[1]!.find('button')
     await more().trigger('click'); await flushPromises()
-    expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'history', account_id: 1, before_id: 7, limit: 3 })
+    expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'history', account_id: 1, before_id: 8, limit: 3 })
     expect(results.mock.calls.at(-1)?.[0]).not.toHaveProperty('group_by')
-    expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article').map(c => c.attributes('data-id'))).toEqual(['10', '9', '8', '7', '6', '5', '4'])
+    expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article').map(c => c.attributes('data-id'))).toEqual(['10', '9', '8', '7', '6', '5'])
     expect(wrapper.findAll('[data-account-row]')[0]!.findAll('article')).toHaveLength(1)
-    results.mockResolvedValueOnce({ items: [{ id: 3, account_id: 1, account_name: 'A', status: 'failed' }], has_more: false, next_id: 3 })
-    await more().trigger('click'); await flushPromises()
-    expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ before_id: 4, limit: 3 })
-    expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article')).toHaveLength(8)
+    expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article')).toHaveLength(6)
     expect(wrapper.findAll('[data-account-row]')[1]!.find('button').exists()).toBe(false)
     wrapper.unmount()
   })

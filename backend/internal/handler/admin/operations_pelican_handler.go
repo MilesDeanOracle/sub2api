@@ -153,6 +153,23 @@ func (h *OperationsPelicanHandler) CleanGroup(c *gin.Context) {
 	v, e := h.svc.CleanGroup(c.Request.Context(), id)
 	operationsReply(c, v, e)
 }
+func (h *OperationsPelicanHandler) CleanAccount(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("accountId"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	groupID := int64(0)
+	if raw := c.Query("group_id"); raw != "" {
+		groupID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || groupID < -1 {
+			response.BadRequest(c, "Invalid group ID")
+			return
+		}
+	}
+	v, err := h.svc.CleanAccount(c.Request.Context(), accountID, groupID)
+	operationsReply(c, v, err)
+}
 func (h *OperationsPelicanHandler) Results(c *gin.Context) {
 	parse := func(key string) int64 { n, _ := strconv.ParseInt(c.Query(key), 10, 64); return n }
 	f := service.OperationsResultFilter{History: c.Query("view") == "history", GroupID: parse("group_id"), AccountID: parse("account_id"), TaskID: parse("task_id"), Status: c.Query("status"), BeforeID: parse("before_id"), Limit: int(parse("limit"))}

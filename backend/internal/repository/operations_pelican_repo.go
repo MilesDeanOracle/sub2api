@@ -291,7 +291,9 @@ func (r *operationsRepository) Claim(ctx context.Context) (*service.OperationsRe
 	if e != nil {
 		return nil, e
 	}
-	v, e := scanOperationsResult(tx.QueryRowContext(ctx, `SELECT `+operationsResultColumns+` FROM operations_pelican_results r WHERE status='queued' AND expires_at>now() ORDER BY queued_at,id FOR UPDATE SKIP LOCKED LIMIT 1`))
+	// Share free slots across plans rather than draining one plan's entire
+	// account queue first. The transaction's global lock keeps slot counts exact.
+	v, e := scanOperationsResult(tx.QueryRowContext(ctx, `WITH active_plans AS (SELECT task_id,count(*) AS running FROM operations_pelican_results WHERE pool_slot IS NOT NULL GROUP BY task_id) SELECT `+operationsResultColumns+` FROM operations_pelican_results r LEFT JOIN active_plans a ON a.task_id=r.task_id WHERE r.status='queued' AND r.expires_at>now() ORDER BY COALESCE(a.running,0),r.queued_at,r.id FOR UPDATE OF r SKIP LOCKED LIMIT 1`))
 	if errors.Is(e, service.ErrOperationsNotFound) {
 		return nil, nil
 	}
@@ -416,8 +418,8 @@ func (r *operationsRepository) ListResults(ctx context.Context, f service.Operat
 	}
 	if f.GroupByAccount {
 		// Rank after filters, and page whole accounts rather than individual results.
-		// The legacy latest-per-plan query cannot provide four tests across plans.
-		query = `WITH ranked AS (SELECT r.*,row_number() OVER (PARTITION BY r.account_id ORDER BY r.created_at DESC,r.id DESC) AS account_rank FROM operations_pelican_results r WHERE ` + strings.Join(where, " AND ") + `), accounts AS (SELECT DISTINCT account_id FROM ranked ORDER BY account_id DESC LIMIT ` + fmt.Sprintf("$%d", len(args)) + `) SELECT ` + columns + ` FROM ranked r WHERE r.account_rank<=5 AND r.account_id IN (SELECT account_id FROM accounts) ORDER BY r.account_id DESC,r.created_at DESC,r.id DESC`
+		// Read one extra row to report older history without sending it to the wall.
+		query = `WITH ranked AS (SELECT r.*,row_number() OVER (PARTITION BY r.account_id ORDER BY r.created_at DESC,r.id DESC) AS account_rank FROM operations_pelican_results r WHERE ` + strings.Join(where, " AND ") + `), accounts AS (SELECT DISTINCT account_id FROM ranked ORDER BY account_id DESC LIMIT ` + fmt.Sprintf("$%d", len(args)) + `) SELECT ` + columns + ` FROM ranked r WHERE r.account_rank<=4 AND r.account_id IN (SELECT account_id FROM accounts) ORDER BY r.account_id DESC,r.created_at DESC,r.id DESC`
 	}
 	if f.Scope == "current" || f.Scope == "past" {
 		if strings.HasPrefix(query, "WITH ") {
@@ -453,8 +455,8 @@ func (r *operationsRepository) ListResults(ctx context.Context, f service.Operat
 				break
 			}
 			resultCount++
-			page.AccountHasMore[item.AccountID] = resultCount > 4
-			if resultCount <= 4 {
+			page.AccountHasMore[item.AccountID] = resultCount > 3
+			if resultCount <= 3 {
 				page.Items = append(page.Items, item)
 			}
 		}

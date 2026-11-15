@@ -42,9 +42,10 @@ func (r *operationsRepository) WallGroups(ctx context.Context) (*service.Operati
  FROM operations_pelican_results r CROSS JOIN LATERAL jsonb_array_elements(
  CASE WHEN r.group_snapshots='[]'::jsonb THEN '[{"id":-1,"name":""}]'::jsonb ELSE r.group_snapshots END) g
  WHERE r.expires_at>now()
- ) SELECT group_id,group_name,account_id,account_name,platform,
- EXISTS(SELECT 1 FROM configured_members c WHERE c.group_id=members.group_id AND c.account_id=members.account_id)
- FROM members ORDER BY group_id,source_rank,result_order DESC,account_id`)
+ ) SELECT m.group_id,m.group_name,m.account_id,m.account_name,m.platform,
+ EXISTS(SELECT 1 FROM configured_members c WHERE c.group_id=m.group_id AND c.account_id=m.account_id),a.priority
+ FROM members m LEFT JOIN accounts a ON a.id=m.account_id AND a.deleted_at IS NULL
+ ORDER BY m.group_id,m.source_rank,m.result_order DESC,m.account_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func (r *operationsRepository) WallGroups(ctx context.Context) (*service.Operati
 		var name string
 		var a service.OperationsAccount
 		var live bool
-		if err := rows.Scan(&groupID, &name, &a.ID, &a.Name, &a.Platform, &live); err != nil {
+		if err := rows.Scan(&groupID, &name, &a.ID, &a.Name, &a.Platform, &live, &a.Priority); err != nil {
 			return nil, err
 		}
 		key := groupKey{groupID, live}
@@ -105,6 +106,14 @@ func (r *operationsRepository) WallGroups(ctx context.Context) (*service.Operati
 }
 
 func (r *operationsRepository) PrepareGroupCleanup(ctx context.Context, groupID int64) (*service.OperationsGroupCleanupBatch, error) {
+	return r.prepareCleanup(ctx, groupID, 0)
+}
+
+func (r *operationsRepository) PrepareAccountCleanup(ctx context.Context, accountID, groupID int64) (*service.OperationsGroupCleanupBatch, error) {
+	return r.prepareCleanup(ctx, groupID, accountID)
+}
+
+func (r *operationsRepository) prepareCleanup(ctx context.Context, groupID, accountID int64) (*service.OperationsGroupCleanupBatch, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -115,10 +124,10 @@ func (r *operationsRepository) PrepareGroupCleanup(ctx context.Context, groupID 
 		return nil, err
 	}
 	var current bool
-	if err = tx.QueryRowContext(ctx, operationsConfiguredGroups+` SELECT EXISTS(SELECT 1 FROM configured_groups WHERE group_id=$1)`, groupID).Scan(&current); err != nil {
+	if err = tx.QueryRowContext(ctx, operationsConfiguredGroups+` SELECT EXISTS(SELECT 1 FROM configured_members WHERE ($1::bigint=0 OR group_id=$1) AND ($2::bigint=0 OR account_id=$2))`, groupID, accountID).Scan(&current); err != nil {
 		return nil, err
 	}
-	condition := `r.group_snapshots @> $1::jsonb`
+	condition := `($2::bigint=0 OR r.group_snapshots @> $1::jsonb)`
 	arg := fmt.Sprintf(`[{"id":%d}]`, groupID)
 	if groupID == -1 {
 		condition = `r.group_snapshots=$1::jsonb`
@@ -126,7 +135,7 @@ func (r *operationsRepository) PrepareGroupCleanup(ctx context.Context, groupID 
 	}
 	// A group may contain both configured and removed accounts. Only the past
 	// membership is eligible, so cleanup cannot touch its current accounts.
-	rows, err := tx.QueryContext(ctx, operationsConfiguredGroups+` SELECT `+operationsResultColumns+` FROM operations_pelican_results r WHERE `+condition+` AND NOT EXISTS(SELECT 1 FROM configured_members c WHERE c.account_id=r.account_id AND c.group_id=$2) AND r.expires_at>now() ORDER BY r.id FOR UPDATE OF r`, arg, groupID)
+	rows, err := tx.QueryContext(ctx, operationsConfiguredGroups+` SELECT `+operationsResultColumns+` FROM operations_pelican_results r WHERE `+condition+` AND ($3::bigint=0 OR r.account_id=$3) AND `+operationsScopePredicate("past")+` AND ($2::bigint=0 OR NOT EXISTS(SELECT 1 FROM configured_members c WHERE c.account_id=r.account_id AND c.group_id=$2)) AND r.expires_at>now() ORDER BY r.id FOR UPDATE OF r`, arg, groupID, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +146,26 @@ func (r *operationsRepository) PrepareGroupCleanup(ctx context.Context, groupID 
 	if len(items) == 0 && current {
 		return nil, service.ErrOperationsConflict
 	}
+	configured := map[int64]bool{}
+	if groupID == 0 {
+		members, err := tx.QueryContext(ctx, operationsConfiguredGroups+` SELECT group_id FROM configured_members WHERE account_id=$1`, accountID)
+		if err != nil {
+			return nil, err
+		}
+		for members.Next() {
+			var id int64
+			if err := members.Scan(&id); err != nil {
+				members.Close()
+				return nil, err
+			}
+			configured[id] = true
+		}
+		err = members.Err()
+		members.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, item := range items {
 		if item.Status == "running" || item.Status == "uploading" {
 			return nil, service.ErrOperationsConflict
@@ -144,13 +173,13 @@ func (r *operationsRepository) PrepareGroupCleanup(ctx context.Context, groupID 
 	}
 	out := &service.OperationsGroupCleanupBatch{Items: []*service.OperationsResult{}}
 	for _, item := range items {
-		if len(item.Groups) > 1 {
-			kept := []service.OperationsGroup{}
-			for _, g := range item.Groups {
-				if g.ID != groupID {
-					kept = append(kept, g)
-				}
+		kept := []service.OperationsGroup{}
+		for _, g := range item.Groups {
+			if (groupID != 0 && g.ID != groupID) || (groupID == 0 && configured[g.ID]) {
+				kept = append(kept, g)
 			}
+		}
+		if len(kept) > 0 {
 			raw, _ := json.Marshal(kept)
 			if _, err = tx.ExecContext(ctx, `UPDATE operations_pelican_results SET group_snapshots=$2,updated_at=now() WHERE id=$1`, item.ID, string(raw)); err != nil {
 				return nil, err

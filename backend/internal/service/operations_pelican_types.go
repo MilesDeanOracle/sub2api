@@ -26,6 +26,7 @@ type OperationsGroup struct {
 type OperationsAccount struct {
 	ID           int64             `json:"id"`
 	Name         string            `json:"name"`
+	Priority     *int              `json:"priority,omitempty"`
 	Platform     string            `json:"platform"`
 	Protocol     string            `json:"protocol"`
 	Groups       []OperationsGroup `json:"groups"`
@@ -175,6 +176,7 @@ type OperationsRepository interface {
 	FilterSnapshots(context.Context) ([]*OperationsResult, error)
 	WallGroups(context.Context) (*OperationsWallGroups, error)
 	PrepareGroupCleanup(context.Context, int64) (*OperationsGroupCleanupBatch, error)
+	PrepareAccountCleanup(context.Context, int64, int64) (*OperationsGroupCleanupBatch, error)
 	RunResults(context.Context, string) ([]*OperationsResult, error)
 	Status(context.Context) (*OperationsStatus, error)
 	Recover(context.Context) error

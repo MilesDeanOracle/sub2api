@@ -6,7 +6,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import PelicanArtifactPreview from './PelicanArtifactPreview.vue'
 import { operationsApi, type OperationsResult } from '@/api/admin/operationsConsole'
 
-const props = defineProps<{ result: OperationsResult; active?: boolean }>()
+const props = withDefaults(defineProps<{ result: OperationsResult; active?: boolean; previewEnabled?: boolean; retainPreview?: boolean }>(), { previewEnabled: true, retainPreview: false })
 const { t } = useI18n()
 const root = ref<HTMLElement | null>(null)
 const visible = ref(false)
@@ -25,11 +25,11 @@ const metrics = computed(() => [
   { key: 'outputTokens', value: props.result.output_tokens?.toLocaleString() ?? t('operationsConsole.unavailable'), hint: '' }
 ])
 async function load() {
-  if (loading.value || html.value || props.result.status !== 'succeeded') return
+  if (!props.previewEnabled || loading.value || html.value !== null || props.result.status !== 'succeeded') return
   loading.value = true; failed.value = false
   try { html.value = await operationsApi.content(props.result.id) } catch { failed.value = true } finally { loading.value = false }
 }
-watch(visible, value => { if (value) void load() })
+watch([visible, () => props.previewEnabled], ([inView, enabled]) => { if (inView && enabled) void load() })
 watch(() => props.result.status, () => { if (visible.value) void load() })
 onMounted(() => {
   if (!('IntersectionObserver' in window)) { visible.value = true; return }
@@ -67,7 +67,7 @@ onUnmounted(() => observer?.disconnect())
 
     <div class="border-t border-slate-100 dark:border-dark-700">
       <template v-if="result.status === 'succeeded'">
-        <PelicanArtifactPreview v-if="visible && html" :html="html" embedded fit-content :allow-new-tab="false" :title="`${result.account_name} · ${result.model_id}`" />
+        <PelicanArtifactPreview v-if="html && (visible || retainPreview)" :html="html" embedded fit-content :allow-new-tab="false" :title="`${result.account_name} · ${result.model_id}`" />
         <div v-else class="flex aspect-[16/10] items-center justify-center bg-slate-100 text-xs text-slate-500 dark:bg-dark-800">
           <div class="p-4 text-center">
             <p>{{ t(failed ? 'operationsConsole.previewFailed' : loading ? 'operationsConsole.loading' : 'operationsConsole.pendingPreview') }}</p>

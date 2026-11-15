@@ -28,6 +28,7 @@ func registerOperationsPelicanRoutes(admin *gin.RouterGroup, h *handler.Handlers
 	ops.GET("/results/filters", handler.Filters)
 	ops.GET("/results/groups", handler.Groups)
 	ops.DELETE("/results/groups/:groupId", handler.CleanGroup)
+	ops.DELETE("/results/accounts/:accountId", handler.CleanAccount)
 	ops.GET("/results/:id", handler.Result)
 	ops.GET("/results/:id/content", handler.Content)
 }
