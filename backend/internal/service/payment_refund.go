@@ -659,7 +659,15 @@ func (s *PaymentService) finalizeRefundFailedTx(ctx context.Context, p *RefundPl
 // returnHeldRefundDeduction 归还进入 REFUND_PENDING 时保留的扣减；ctx 携带事务时随事务提交或回滚。
 func (s *PaymentService) returnHeldRefundDeduction(ctx context.Context, p *RefundPlan) error {
 	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
-		if err := s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
+		var restoreErr error
+		if restorer, ok := s.userRepo.(interface {
+			RestoreRefundBalance(context.Context, int64, float64) error
+		}); ok {
+			restoreErr = restorer.RestoreRefundBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
+		} else {
+			restoreErr = s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
+		}
+		if err := restoreErr; err != nil {
 			return fmt.Errorf("return held balance deduction: %w", err)
 		}
 	}
@@ -865,7 +873,15 @@ func refundResponseID(resp *payment.RefundResponse) string {
 
 func (s *PaymentService) RollbackRefund(ctx context.Context, p *RefundPlan, gErr error) bool {
 	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
-		if err := s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
+		var restoreErr error
+		if restorer, ok := s.userRepo.(interface {
+			RestoreRefundBalance(context.Context, int64, float64) error
+		}); ok {
+			restoreErr = restorer.RestoreRefundBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
+		} else {
+			restoreErr = s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
+		}
+		if err := restoreErr; err != nil {
 			slog.Error("[CRITICAL] rollback failed", "orderID", p.OrderID, "amount", p.BalanceToDeduct, "error", err)
 			s.writeAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED", "admin", map[string]any{"gatewayError": psErrMsg(gErr), "rollbackError": psErrMsg(err), "balanceDeducted": p.BalanceToDeduct})
 			return false
