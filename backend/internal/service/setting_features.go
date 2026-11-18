@@ -239,6 +239,12 @@ func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
 	return s.cfg.Totp.EncryptionKeyConfigured
 }
 
+// IsTotpEncryptionKeyDurable 检查加密密钥是否可跨重启/多实例安全使用。
+// 显式配置，或启动引导已把自动生成的密钥持久化到数据库时为 true。
+func (s *SettingService) IsTotpEncryptionKeyDurable() bool {
+	return s != nil && s.cfg != nil && s.cfg.Totp.EncryptionKeyDurable
+}
+
 // IsSessionBindingEnabled 检查会话 IP/UA 绑定是否启用（默认关闭）。
 // 开启时会话与登录时的 IP/User-Agent 绑定，任一变化立即失效并撤销该会话。
 // 默认关闭：移动网络/多出口 IP 场景下 IP 频繁变化会导致登录后立即掉线。

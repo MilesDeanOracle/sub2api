@@ -985,17 +985,18 @@ jwt:
   access_token_expire_minutes: 0
 
 # =============================================================================
-# TOTP (2FA) Configuration
-# TOTP 双因素认证配置
+# Secret Encryption Key
+# 全局加密主密钥
 # =============================================================================
 totp:
-  # IMPORTANT: Set a fixed encryption key for TOTP secrets.
-  # 重要：设置固定的 TOTP 加密密钥。
-  # If left empty, a random key will be generated on each startup, causing all
-  # existing TOTP configurations to become invalid (users won't be able to
-  # login with 2FA).
-  # 如果留空，每次启动将生成随机密钥，导致现有的 TOTP 配置失效（用户无法使用
-  # 双因素认证登录）。
+  # This key encrypts TOTP secrets, channel monitor API keys, backup/image
+  # storage S3 secrets, Ollama sessions and plugin configuration. Keep it
+  # stable across restarts, redeploys and replicas, and back it up with the
+  # database. If left empty, a key is generated and persisted to the database
+  # on first boot; setting a fixed value is still recommended.
+  # 该密钥用于加密 TOTP、渠道监控 API Key、备份/图床 S3 secret、Ollama session
+  # 和插件配置。必须在所有重启、重新部署和多副本之间保持不变，并与数据库一起
+  # 备份。留空时首次启动会生成并持久化到数据库；生产环境仍建议显式配置固定值。
   # Generate with / 生成命令: openssl rand -hex 32
   encryption_key: ""
 

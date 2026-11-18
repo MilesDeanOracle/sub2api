@@ -155,14 +155,16 @@ func (r *ChannelMonitorRunner) Start() {
 }
 
 // Schedule 为指定监控创建（或重置）独立定时任务。
-//   - m.Enabled=false 或 APIKeyDecryptFailed=true → 等同于 Unschedule(m.ID)
+//   - m.Enabled=false，或非 quota 模式且 APIKeyDecryptFailed=true → 等同于 Unschedule(m.ID)
 //   - 已存在的任务会先被取消再重建（适用于 IntervalSeconds 变更场景）
 //   - 新任务立即触发首次检测，之后按 IntervalSeconds 周期触发
 func (r *ChannelMonitorRunner) Schedule(m *ChannelMonitor) {
 	if r == nil || m == nil {
 		return
 	}
-	if !m.Enabled || m.APIKeyDecryptFailed {
+	// quota-only 监控不使用 API Key，不能因为密文解不开而停调；
+	// 与 RunCheck/LoadForProbe 的 quota 例外保持一致。
+	if !m.Enabled || (defaultCheckMode(m.CheckMode) != MonitorCheckModeQuota && m.APIKeyDecryptFailed) {
 		r.Unschedule(m.ID)
 		return
 	}

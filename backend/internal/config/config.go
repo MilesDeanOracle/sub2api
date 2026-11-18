@@ -1776,6 +1776,10 @@ type TotpConfig struct {
 	// EncryptionKeyConfigured 标记加密密钥是否为手动配置（非自动生成）
 	// 只有手动配置了密钥才允许在管理后台启用 TOTP 功能
 	EncryptionKeyConfigured bool `mapstructure:"-"`
+	// EncryptionKeyDurable 标记加密密钥是否可跨重启/多实例安全使用。
+	// 显式配置时为 true；自动生成时先为 false，启动引导把密钥持久化到
+	// security_secrets 后再置为 true。
+	EncryptionKeyDurable bool `mapstructure:"-"`
 }
 
 type TurnstileConfig struct {
@@ -2064,7 +2068,10 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Gateway.UserMessageQueue.Mode = ""
 	}
 
-	// Auto-generate TOTP encryption key if not set (32 bytes = 64 hex chars for AES-256)
+	// Auto-generate TOTP encryption key if not set (32 bytes = 64 hex chars for AES-256).
+	// The generated value is only a placeholder for code paths without a database.
+	// In server mode ensureBootstrapSecrets replaces it with a key persisted in
+	// security_secrets, so it stays stable across restarts and instances.
 	cfg.Totp.EncryptionKey = strings.TrimSpace(cfg.Totp.EncryptionKey)
 	if cfg.Totp.EncryptionKey == "" {
 		key, err := generateJWTSecret(32) // Reuse the same random generation function
@@ -2073,9 +2080,11 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		}
 		cfg.Totp.EncryptionKey = key
 		cfg.Totp.EncryptionKeyConfigured = false
-		slog.Warn("TOTP encryption key auto-generated. Consider setting a fixed key for production.")
+		cfg.Totp.EncryptionKeyDurable = false
+		slog.Debug("TOTP encryption key not configured; a database-persisted key will be used after bootstrap")
 	} else {
 		cfg.Totp.EncryptionKeyConfigured = true
+		cfg.Totp.EncryptionKeyDurable = true
 	}
 
 	originalJWTSecret := cfg.JWT.Secret

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -18,15 +19,26 @@ type AESEncryptor struct {
 	key []byte
 }
 
-// NewAESEncryptor creates a new AES encryptor
-func NewAESEncryptor(cfg *config.Config) (service.SecretEncryptor, error) {
-	key, err := hex.DecodeString(cfg.Totp.EncryptionKey)
+// decodeTOTPEncryptionKey parses and validates a totp.encryption_key value.
+// The key must be 32 bytes encoded as 64 hex characters.
+func decodeTOTPEncryptionKey(value string) ([]byte, error) {
+	key, err := hex.DecodeString(strings.TrimSpace(value))
 	if err != nil {
 		return nil, fmt.Errorf("invalid totp encryption key: %w", err)
 	}
 
 	if len(key) != 32 {
 		return nil, fmt.Errorf("totp encryption key must be 32 bytes (64 hex chars), got %d bytes", len(key))
+	}
+
+	return key, nil
+}
+
+// NewAESEncryptor creates a new AES encryptor
+func NewAESEncryptor(cfg *config.Config) (service.SecretEncryptor, error) {
+	key, err := decodeTOTPEncryptionKey(cfg.Totp.EncryptionKey)
+	if err != nil {
+		return nil, err
 	}
 
 	return &AESEncryptor{key: key}, nil

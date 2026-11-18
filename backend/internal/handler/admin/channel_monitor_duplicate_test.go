@@ -86,6 +86,7 @@ func setupDuplicateChannelMonitorRouter(t *testing.T) (*gin.Engine, *duplicateCh
 		},
 	}
 	monitorService := service.NewChannelMonitorService(repo, duplicateChannelMonitorHandlerEncryptor{})
+	monitorService.SetEncryptionKeyDurable(true)
 	handler := NewChannelMonitorHandler(monitorService)
 
 	gin.SetMode(gin.TestMode)

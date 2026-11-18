@@ -90,6 +90,9 @@ type channelMonitorRuntimeReader interface {
 type ChannelMonitorService struct {
 	repo      ChannelMonitorRepository
 	encryptor SecretEncryptor
+	// encryptionKeyDurable 表示 encryptor 使用的密钥是否可跨重启/多实例安全使用。
+	// 由 wire 根据启动引导结果注入；默认 false，写非空 API Key 时 fail-closed。
+	encryptionKeyDurable bool
 	// settings is optional; when nil, RunCheck fails closed for active probes
 	// (mode defaults to v2 / retired) so tests without settings never hit upstream.
 	settings channelMonitorRuntimeReader
@@ -122,6 +125,28 @@ func (s *ChannelMonitorService) SetRuntimeReader(r channelMonitorRuntimeReader) 
 		return
 	}
 	s.settings = r
+}
+
+// SetEncryptionKeyDurable 标记当前 SecretEncryptor 的密钥是否可跨重启安全使用。
+// 启动引导把自动生成的密钥持久化到数据库后为 true；测试可直接注入。
+func (s *ChannelMonitorService) SetEncryptionKeyDurable(durable bool) {
+	if s == nil {
+		return
+	}
+	s.encryptionKeyDurable = durable
+}
+
+// ensureEncryptionKeyDurable 拒绝用非持久密钥加密非空 API Key。
+// quota-only 监控的空 key 不涉及敏感明文，允许创建/复制；非空 key 在重启后
+// 无法解密，必须直接拒绝，避免再次写入“重启即失效”的密文。
+func (s *ChannelMonitorService) ensureEncryptionKeyDurable(plaintextKey string) error {
+	if strings.TrimSpace(plaintextKey) == "" {
+		return nil
+	}
+	if s == nil || !s.encryptionKeyDurable {
+		return ErrChannelMonitorEncryptionKeyNotConfigured
+	}
+	return nil
 }
 
 func (s *ChannelMonitorService) probeRuntime(ctx context.Context) ChannelMonitorRuntime {
@@ -177,6 +202,9 @@ func (s *ChannelMonitorService) Create(ctx context.Context, p ChannelMonitorCrea
 		return nil, err
 	}
 	checkMode := defaultCheckMode(p.CheckMode)
+	if err := s.ensureEncryptionKeyDurable(p.APIKey); err != nil {
+		return nil, err
+	}
 	encrypted, err := s.encryptor.Encrypt(p.APIKey)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt api key: %w", err)
@@ -237,6 +265,9 @@ func (s *ChannelMonitorService) Duplicate(
 
 	plainAPIKey, err := s.decryptAPIKeyForDuplicate(source)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureEncryptionKeyDurable(plainAPIKey); err != nil {
 		return nil, err
 	}
 	encryptedAPIKey, err := s.encryptor.Encrypt(plainAPIKey)
@@ -573,6 +604,9 @@ func (s *ChannelMonitorService) applyAPIKeyUpdate(existing *ChannelMonitor, raw 
 		return "", false, nil
 	}
 	plain = strings.TrimSpace(*raw)
+	if err := s.ensureEncryptionKeyDurable(plain); err != nil {
+		return "", false, err
+	}
 	encrypted, encErr := s.encryptor.Encrypt(plain)
 	if encErr != nil {
 		return "", false, fmt.Errorf("encrypt api key: %w", encErr)
@@ -1166,6 +1200,14 @@ func (s *ChannelMonitorService) decryptInPlace(m *ChannelMonitor) {
 	}
 	plain, err := s.encryptor.Decrypt(m.APIKey)
 	if err != nil {
+		// quota-only 监控不使用 API Key；旧密文解不开不应把它标成 broken，
+		// 否则 runner 会在启动时直接撤销任务。清空即可，后续切回 probe 时
+		// validateProbeAPIKey 会要求重新填写。
+		if defaultCheckMode(m.CheckMode) == MonitorCheckModeQuota {
+			m.APIKey = ""
+			m.APIKeyDecryptFailed = false
+			return
+		}
 		slog.Warn("channel_monitor: decrypt api key failed",
 			"monitor_id", m.ID, "error", err)
 		m.APIKey = ""

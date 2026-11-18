@@ -18,6 +18,7 @@ import (
 
 const (
 	securitySecretKeyJWT        = "jwt_secret"
+	securitySecretKeyTOTP       = "totp_encryption_key"
 	securitySecretReadRetryMax  = 5
 	securitySecretReadRetryWait = 10 * time.Millisecond
 )
@@ -32,6 +33,16 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 		return fmt.Errorf("nil config")
 	}
 
+	if err := ensureJWTSecret(ctx, client, cfg); err != nil {
+		return err
+	}
+	if err := ensureTOTPEncryptionKey(ctx, client, cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensureJWTSecret(ctx context.Context, client *ent.Client, cfg *config.Config) error {
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	if cfg.JWT.Secret != "" {
 		storedSecret, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyJWT, cfg.JWT.Secret)
@@ -53,6 +64,56 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 
 	if created {
 		log.Println("Warning: JWT secret auto-generated and persisted to database. Consider rotating to a managed secret for production.")
+	}
+	return nil
+}
+
+// ensureTOTPEncryptionKey makes the at-rest encryption key durable.
+//
+// When totp.encryption_key is explicitly configured, it is persisted if absent
+// and the persisted value wins on mismatch (same policy as the JWT secret), so
+// all instances keep decrypting the same data. When it is auto-generated, the
+// placeholder created during config loading is replaced with a value stored in
+// security_secrets, making restarts safe. The key is never regenerated when a
+// stored value exists but is invalid: failing fast is safer than silently
+// orphaning every encrypted secret.
+func ensureTOTPEncryptionKey(ctx context.Context, client *ent.Client, cfg *config.Config) error {
+	key := strings.TrimSpace(cfg.Totp.EncryptionKey)
+	if cfg.Totp.EncryptionKeyConfigured {
+		if _, err := decodeTOTPEncryptionKey(key); err != nil {
+			return err
+		}
+
+		stored, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyTOTP, key)
+		if err != nil {
+			return fmt.Errorf("persist totp encryption key: %w", err)
+		}
+		if stored != key {
+			log.Println("Warning: configured TOTP encryption key mismatches persisted value; using persisted secret for cross-instance consistency.")
+		}
+		if _, err := decodeTOTPEncryptionKey(stored); err != nil {
+			return fmt.Errorf("stored totp encryption key is invalid: %w", err)
+		}
+
+		cfg.Totp.EncryptionKey = stored
+		cfg.Totp.EncryptionKeyDurable = true
+		return nil
+	}
+
+	stored, created, err := getOrCreateGeneratedSecuritySecret(ctx, client, securitySecretKeyTOTP, 32)
+	if err != nil {
+		return fmt.Errorf("ensure totp encryption key: %w", err)
+	}
+	if _, err := decodeTOTPEncryptionKey(stored); err != nil {
+		return fmt.Errorf("stored totp encryption key is invalid: %w", err)
+	}
+
+	cfg.Totp.EncryptionKey = stored
+	cfg.Totp.EncryptionKeyDurable = true
+	if created {
+		log.Println("Warning: TOTP encryption key not configured; generated and persisted to database. Set TOTP_ENCRYPTION_KEY to manage it externally.")
+	} else {
+		log.Println("TOTP encryption key loaded from database-persisted value.")
 	}
 	return nil
 }

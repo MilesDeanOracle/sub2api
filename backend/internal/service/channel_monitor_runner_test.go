@@ -232,6 +232,34 @@ func TestSchedule_DecryptFailedRedirectsToUnschedule(t *testing.T) {
 	stoppedWithin(t, r, 3*time.Second)
 }
 
+func TestSchedule_QuotaMonitorWithDecryptFailureStillScheduled(t *testing.T) {
+	svc := &stubMonitorSvc{runCalled: make(chan int64, 4)}
+	r := newRunnerForTest(svc)
+	r.Start()
+
+	r.Schedule(&ChannelMonitor{
+		ID:                  13,
+		Enabled:             true,
+		IntervalSeconds:     60,
+		CheckMode:           MonitorCheckModeQuota,
+		APIKeyDecryptFailed: true,
+	})
+	if got := runnerTaskCount(r); got != 1 {
+		t.Fatalf("expected quota monitor to stay scheduled despite decrypt failure, got %d tasks", got)
+	}
+
+	select {
+	case id := <-svc.runCalled:
+		if id != 13 {
+			t.Fatalf("expected quota monitor id=13 to fire, got %d", id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected quota monitor to fire immediately")
+	}
+
+	stoppedWithin(t, r, 3*time.Second)
+}
+
 func TestSchedule_RepairedAPIKeyCanBeScheduled(t *testing.T) {
 	svc := &stubMonitorSvc{runCalled: make(chan int64, 1)}
 	r := newRunnerForTest(svc)

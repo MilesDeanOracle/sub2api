@@ -137,6 +137,7 @@ func TestDuplicateChannelMonitorCopiesConfigurationAndResetsRuntimeState(t *test
 	}
 	repo := &duplicateChannelMonitorRepoStub{source: source}
 	service := NewChannelMonitorService(repo, &duplicateChannelMonitorEncryptor{})
+	service.SetEncryptionKeyDurable(true)
 
 	duplicate, err := service.Duplicate(context.Background(), source.ID, 77, "admin:77", "copy-primary")
 
@@ -189,6 +190,7 @@ func TestDuplicateChannelMonitorRejectsUndecryptableAPIKey(t *testing.T) {
 	source := &ChannelMonitor{ID: 42, Name: "broken", APIKey: "OLD:broken"}
 	repo := &duplicateChannelMonitorRepoStub{source: source}
 	service := NewChannelMonitorService(repo, &duplicateChannelMonitorEncryptor{decryptErr: errors.New("wrong encryption key")})
+	service.SetEncryptionKeyDurable(true)
 
 	duplicate, err := service.Duplicate(context.Background(), source.ID, 77, "admin:77", "copy-broken")
 
@@ -212,6 +214,7 @@ func TestDuplicateChannelMonitorRecoversCommittedCopyForSameOperation(t *testing
 	}
 	repo := &duplicateChannelMonitorRepoStub{source: source}
 	service := NewChannelMonitorService(repo, &duplicateChannelMonitorEncryptor{})
+	service.SetEncryptionKeyDurable(true)
 
 	first, err := service.Duplicate(context.Background(), source.ID, 77, "admin:77", "stable-key")
 	require.NoError(t, err)

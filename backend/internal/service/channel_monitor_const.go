@@ -226,6 +226,10 @@ var (
 	ErrChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",
 	)
+	ErrChannelMonitorEncryptionKeyNotConfigured = infraerrors.BadRequest(
+		"CHANNEL_MONITOR_ENCRYPTION_KEY_NOT_CONFIGURED",
+		"channel monitor encryption key is not durable; set a fixed TOTP_ENCRYPTION_KEY (64 hex chars) and restart before saving monitors",
+	)
 )
 
 var (

@@ -85,6 +85,13 @@ services:
       - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
 
       # =======================================================================
+      # Secret Encryption Key
+      # =======================================================================
+      # Encrypts TOTP secrets, channel monitor API keys and other durable
+      # secrets. Keep it stable across restarts, redeploys and replicas.
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
+
+      # =======================================================================
       # Setup Configuration
       # =======================================================================
       - SETUP_MIGRATION_TIMEOUT_SECONDS=${SETUP_MIGRATION_TIMEOUT_SECONDS:-0}
