@@ -271,3 +271,11 @@ func (h *ActivityHandler) ConsumptionAudit(c *gin.Context) {
 	}
 	response.Success(c, items)
 }
+
+func (h *ActivityHandler) AdminHealth(c *gin.Context) {
+	v, err := h.service.Health(c.Request.Context())
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, v)
+}

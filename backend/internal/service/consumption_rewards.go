@@ -35,13 +35,15 @@ type ConsumptionCampaign struct {
 	QualifiedUsers int64             `json:"qualified_users"`
 }
 type ConsumptionSummary struct {
-	Campaign       *ConsumptionCampaign `json:"campaign"`
-	Spend          string               `json:"spend"`
-	ClaimableCents int64                `json:"claimable_cents"`
-	Blocked        bool                 `json:"blocked"`
-	BudgetBlocked  bool                 `json:"budget_blocked"`
-	Funds          ConsumptionFunds     `json:"funds"`
-	History        []ConsumptionHistory `json:"history"`
+	AwardsEnabled     bool                 `json:"awards_enabled"`
+	ProcessingPending bool                 `json:"processing_pending"`
+	Campaign          *ConsumptionCampaign `json:"campaign"`
+	Spend             string               `json:"spend"`
+	ClaimableCents    int64                `json:"claimable_cents"`
+	Blocked           bool                 `json:"blocked"`
+	BudgetBlocked     bool                 `json:"budget_blocked"`
+	Funds             ConsumptionFunds     `json:"funds"`
+	History           []ConsumptionHistory `json:"history"`
 }
 type ConsumptionFunds struct {
 	Principal  string `json:"principal"`
@@ -266,6 +268,9 @@ func (s *ActivityService) SetConsumptionState(ctx context.Context, actor, id int
 
 func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64) (*ConsumptionSummary, error) {
 	out := &ConsumptionSummary{Spend: "0", History: []ConsumptionHistory{}, Funds: ConsumptionFunds{Principal: "0", Gift: "0", Unverified: "0"}}
+	if err := s.db.QueryRowContext(ctx, `SELECT awards_enabled,EXISTS(SELECT 1 FROM activity_consumption_outbox WHERE user_id=$1 AND processed_at IS NULL) FROM activity_runtime WHERE id=1`, uid).Scan(&out.AwardsEnabled, &out.ProcessingPending); err != nil {
+		return nil, err
+	}
 	err := s.db.QueryRowContext(ctx, `SELECT principal::text,gift::text,unverified::text FROM activity_funds WHERE user_id=$1`, uid).Scan(&out.Funds.Principal, &out.Funds.Gift, &out.Funds.Unverified)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -300,11 +305,11 @@ func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64) (*Co
 			if state == "reserved" && time.Now().After(c.ClaimUntil) {
 				t.State = "expired"
 			}
-			if t.State == "reserved" && !out.Blocked {
+			if t.State == "reserved" && !out.Blocked && out.AwardsEnabled {
 				out.ClaimableCents += t.RewardCents
 			}
 			spend, _ := decimal.NewFromString(out.Spend)
-			if state == "" && spend.Mul(decimal.NewFromInt(100)).GreaterThanOrEqual(decimal.NewFromInt(t.ThresholdCents)) {
+			if state == "" && !out.ProcessingPending && spend.Mul(decimal.NewFromInt(100)).GreaterThanOrEqual(decimal.NewFromInt(t.ThresholdCents)) {
 				out.BudgetBlocked = true
 			}
 		}
@@ -335,6 +340,9 @@ func (s *ActivityService) ClaimConsumption(ctx context.Context, uid, cid int64, 
 	}
 	if !active {
 		return ErrActivityIneligible
+	}
+	if err := activityAwardsAllowed(ctx, tx); err != nil {
+		return err
 	}
 	var lock int
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM activity_config WHERE id=1 FOR UPDATE`).Scan(&lock); err != nil {

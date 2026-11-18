@@ -861,7 +861,7 @@ func ProvideAPIKeyService(
 
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
-	NewActivityService,
+	ProvideActivityService,
 	ProvideOperationsPelicanService,
 	NewFeedbackService,
 	// Core services
@@ -1108,5 +1108,11 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 func ProvideClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeTokenProvider, proxies ProxyRepository, settings *SettingService, idem *IdempotencyCoordinator, locks LeaderLockCache) *ClaudeResetCreditService {
 	s := NewClaudeResetCreditService(accounts, tokens, proxies, settings)
 	s.ConfigureRedemption(idem, locks)
+	return s
+}
+
+func ProvideActivityService(db *sql.DB, cache *BillingCacheService, users *UserService) *ActivityService {
+	s := NewActivityService(db, cache, users)
+	s.Start()
 	return s
 }

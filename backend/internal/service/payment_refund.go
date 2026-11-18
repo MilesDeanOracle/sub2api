@@ -305,6 +305,12 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	if p.Order.OrderType == payment.OrderTypeBalance {
+		if p.DeductionType != payment.DeductionTypeBalance && !p.Force {
+			return nil, infraerrors.BadRequest("REFUND_REQUIRES_FORCE", "a refund without balance deduction requires explicit force authorization")
+		}
+		return s.executeHeldBalanceRefund(ctx, p)
+	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("lock: %w", err)
@@ -387,10 +393,10 @@ func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.
 		if resp != nil && strings.TrimSpace(resp.Status) == payment.ProviderStatusPending {
 			return resp, nil
 		}
-		return nil, err
+		return resp, err
 	}
 	if err := validateRefundProviderResponse(resp); err != nil {
-		return nil, err
+		return resp, err
 	}
 	return resp, nil
 }
@@ -455,7 +461,7 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 		TradeNo:     o.PaymentTradeNo,
 		OrderID:     o.OutTradeNo,
 		RefundID:    pendingDetail.RefundID,
-		Amount:      formatGatewayRefundAmount(o.RefundAmount, o),
+		Amount:      formatGatewayRefundAmount(calculateGatewayRefundAmount(o.Amount, o.PayAmount, o.RefundAmount, PaymentOrderCurrency(o)), o),
 		RequestedAt: pendingDetail.requestedAt,
 	})
 	finishProviderCall()

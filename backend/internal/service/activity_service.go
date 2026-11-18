@@ -17,6 +17,7 @@ var ErrActivityIneligible = errors.New("activity requires a successful billed AP
 var ErrActivityDisabled = errors.New("activity is disabled")
 
 type ActivityService struct {
+	worker       *activityWorker
 	db           *sql.DB
 	billingCache *BillingCacheService
 	userService  *UserService
@@ -125,6 +126,12 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 	if err != nil {
 		return nil, err
 	}
+	var awardsEnabled bool
+	if err = s.db.QueryRowContext(ctx, `SELECT awards_enabled FROM activity_runtime WHERE id=1`).Scan(&awardsEnabled); err != nil {
+		return nil, err
+	}
+	out.CheckinEnabled = out.CheckinEnabled && awardsEnabled
+	out.SecondEnabled = out.SecondEnabled && awardsEnabled
 	out.CheckinMinSpend = float64(minSpend) / 100
 	out.CheckinEligible, err = checkinSpendEligible(ctx, s.db, userID, minSpend)
 	if err != nil {
@@ -208,6 +215,9 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	}
 	if !active {
 		return nil, ErrActivityIneligible
+	}
+	if err := activityAwardsAllowed(ctx, tx); err != nil {
+		return nil, err
 	}
 	var enabled bool
 	var daily, milestone, cap int
@@ -516,7 +526,7 @@ func (s *ActivityService) UpdateConfig(ctx context.Context, c ActivityConfig) er
 		return fmt.Errorf("total budget cannot be lower than spent and reserved rewards")
 	}
 	var maximumUserCommitment int64
-	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(spent),0) FROM (SELECT u.id,COALESCE(SUM(l.amount_cents),0)+activity_reserved_cents(u.id) spent FROM users u LEFT JOIN activity_reward_ledger l ON l.user_id=u.id GROUP BY u.id) x`).Scan(&maximumUserCommitment); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(spent),0) FROM (SELECT user_id,SUM(amount) spent FROM (SELECT user_id,amount_cents::bigint amount FROM activity_reward_ledger UNION ALL SELECT e.user_id,e.reward_cents::bigint FROM activity_consumption_entitlements e JOIN activity_consumption_campaigns c ON c.id=e.campaign_id WHERE e.state IN ('reserved','review') AND e.claimed_at IS NULL AND (e.state='review' OR c.claim_until>NOW())) commitments GROUP BY user_id) x`).Scan(&maximumUserCommitment); err != nil {
 		return err
 	}
 	if c.UserLifetimeCapCents < maximumUserCommitment {
@@ -543,6 +553,9 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	}
 	if !active {
 		return false, ErrActivityIneligible
+	}
+	if err := activityAwardsAllowed(ctx, tx); err != nil {
+		return false, err
 	}
 	var enabled bool
 	var reward int

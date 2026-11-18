@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -53,13 +54,25 @@ func TestConsumptionPostgres(t *testing.T) {
  CREATE TABLE redeem_codes(code TEXT PRIMARY KEY,status TEXT,type TEXT,value NUMERIC(20,8),used_by BIGINT);
  CREATE TABLE usage_logs(user_id BIGINT,request_id TEXT,actual_cost NUMERIC,request_type INT,created_at TIMESTAMPTZ);
  INSERT INTO users(id,balance) VALUES(1,120);`)
-	for _, name := range []string{"257_activity_rewards.sql", "258_activity_checkin_min_spend.sql", "259_consumption_rewards.sql", "260_consumption_refund_lock_order.sql", "261_consumption_batch_rounding.sql"} {
+	for _, name := range []string{"257_activity_rewards.sql", "258_activity_checkin_min_spend.sql", "259_consumption_rewards.sql", "260_consumption_refund_lock_order.sql", "261_consumption_batch_rounding.sql", "262_activity_production_hardening.sql"} {
 		b, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
 		require.NoError(t, err)
 		exec(string(b))
 	}
+	exec(`UPDATE activity_runtime SET processing_enabled=true,awards_enabled=true WHERE id=1`)
 	s := NewActivityService(db, nil, nil)
 	ctx := context.Background()
+	drain := func() {
+		t.Helper()
+		for i := 0; i < 100; i++ {
+			ok, err := s.ProcessConsumptionEvent(ctx)
+			require.NoError(t, err)
+			if !ok {
+				return
+			}
+		}
+		t.Fatal("queue did not drain")
+	}
 	settle := func(uid int64, amount, request string, kind int) {
 		t.Helper()
 		tx, err := db.Begin()
@@ -70,6 +83,7 @@ func TestConsumptionPostgres(t *testing.T) {
 		_, err = tx.Exec(`UPDATE users SET balance=balance-$2::numeric WHERE id=$1`, uid, amount)
 		require.NoError(t, err)
 		require.NoError(t, tx.Commit())
+		drain()
 	}
 	t.Run("opening and mixed sources", func(t *testing.T) {
 		require.Equal(t, "120.00000000", scalar(`SELECT unverified::text FROM activity_funds WHERE user_id=1`))
@@ -151,6 +165,7 @@ func TestConsumptionPostgres(t *testing.T) {
 			_, err = tx.Exec(query)
 			require.NoError(t, err)
 			require.NoError(t, tx.Commit())
+			drain()
 		}
 		batch("batch1", `UPDATE users SET balance=balance-20,frozen_balance=frozen_balance+20 WHERE id=6`)
 		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=6`))
@@ -183,6 +198,82 @@ func TestConsumptionPostgres(t *testing.T) {
 		require.Equal(t, "0", scalar(`SELECT activity_reserved_cents()::text`))
 		require.NoError(t, s.ClaimConsumption(ctx, 4, 1, 0))
 		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_reward_ledger WHERE user_id=4`))
+	})
+	t.Run("settlement is isolated from global budget locks", func(t *testing.T) {
+		exec(`INSERT INTO users(id,balance) VALUES(10,100); UPDATE activity_funds SET principal=gift,gift=0 WHERE user_id=10`)
+		lock, err := db.Begin()
+		require.NoError(t, err)
+		defer lock.Rollback()
+		_, err = lock.Exec(`SELECT id FROM activity_config WHERE id=1 FOR UPDATE`)
+		require.NoError(t, err)
+		debit, err := db.Begin()
+		require.NoError(t, err)
+		defer debit.Rollback()
+		_, err = debit.Exec(`SET LOCAL lock_timeout='200ms'; SELECT set_config('activity.settlement','{"kind":"usage","request":"isolated","key":1}',true); UPDATE users SET balance=balance-1 WHERE id=10`)
+		require.NoError(t, err)
+		require.NoError(t, debit.Commit())
+		require.NoError(t, lock.Rollback())
+		require.Equal(t, "99.00000000", scalar(`SELECT balance::text FROM users WHERE id=10`))
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_outbox WHERE user_id=10 AND processed_at IS NULL`))
+	})
+	t.Run("disabled gates preserve settlement and recover backlog", func(t *testing.T) {
+		exec(`UPDATE activity_runtime SET processing_enabled=false,awards_enabled=false`)
+		require.ErrorIs(t, s.ClaimConsumption(ctx, 10, 1, 0), ErrActivityDisabled)
+		ok, err := s.ProcessConsumptionEvent(ctx)
+		require.NoError(t, err)
+		require.False(t, ok)
+		exec(`UPDATE activity_runtime SET processing_enabled=true,awards_enabled=true`)
+		drain()
+		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_outbox WHERE user_id=10 AND processed_at IS NULL`))
+	})
+	t.Run("worker failures retry without rolling back settled balances", func(t *testing.T) {
+		exec(`INSERT INTO users(id,balance) VALUES(11,100); UPDATE activity_funds SET principal=gift,gift=0 WHERE user_id=11`)
+		// Session-local settings and updates must share a transaction.
+		debit, err := db.Begin()
+		require.NoError(t, err)
+		_, err = debit.Exec(`SELECT set_config('activity.settlement','{"kind":"usage","request":"worker-failure","key":1}',true);UPDATE users SET balance=balance-1 WHERE id=11`)
+		require.NoError(t, err)
+		require.NoError(t, debit.Commit())
+		exec(`CREATE OR REPLACE FUNCTION activity_process_consumption_event(event_id BIGINT) RETURNS BOOLEAN LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated reward failure'; END $$`)
+		ok, err := s.ProcessConsumptionEvent(ctx)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, "99.00000000", scalar(`SELECT balance::text FROM users WHERE id=11`))
+		require.Equal(t, "1", scalar(`SELECT attempts::text FROM activity_consumption_outbox WHERE user_id=11`))
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_outbox WHERE user_id=11 AND processed_at IS NULL AND last_error<>''`))
+		migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "262_activity_production_hardening.sql"))
+		require.NoError(t, err)
+		function := strings.Split(string(migration), "CREATE FUNCTION activity_process_consumption_event")[1]
+		function = strings.Split(function, "-- A rolled-back binary")[0]
+		exec("CREATE OR REPLACE FUNCTION activity_process_consumption_event" + function)
+		exec(`UPDATE activity_consumption_outbox SET next_attempt_at=NOW() WHERE user_id=11`)
+		drain()
+		require.Equal(t, "2", scalar(`SELECT attempts::text FROM activity_consumption_outbox WHERE user_id=11`))
+		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_outbox WHERE user_id=11 AND processed_at IS NULL`))
+	})
+	t.Run("delayed events retain eligibility across pause and do not double reserve", func(t *testing.T) {
+		exec(`INSERT INTO users(id,balance) VALUES(12,100);UPDATE activity_funds SET principal=gift,gift=0 WHERE user_id=12;
+      INSERT INTO activity_consumption_campaigns(id,name,starts_at,ends_at,claim_until,rollout_percent,budget_cents,state,published_at) VALUES(3,'delayed',NOW()-interval '1 hour',NOW()+interval '1 day',NOW()+interval '2 days',100,10000,'active',NOW()-interval '2 hours');
+      INSERT INTO activity_consumption_tiers VALUES(3,1,1000,30),(3,2,5000,120),(3,3,10000,250);
+      UPDATE activity_runtime SET processing_enabled=false`)
+		settle(12, "10", "delayed-before-pause", 0)
+		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=12`))
+		exec(`UPDATE activity_consumption_campaigns SET state='paused',stopped_at=clock_timestamp() WHERE id=3;UPDATE activity_runtime SET processing_enabled=true`)
+		var wg sync.WaitGroup
+		errs := make(chan error, 8)
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() { defer wg.Done(); _, err := s.ProcessConsumptionEvent(ctx); errs <- err }()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			require.NoError(t, err)
+		}
+		require.Equal(t, "30", scalar(`SELECT activity_reserved_cents(12)::text`))
+		settle(12, "50", "delayed-after-pause", 0)
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=12`))
+		exec(`DELETE FROM activity_consumption_entitlements WHERE campaign_id=3;DELETE FROM activity_consumption_tiers WHERE campaign_id=3;DELETE FROM activity_consumption_campaigns WHERE id=3`)
 	})
 	t.Run("draft publication freeze and stop", func(t *testing.T) {
 		now := time.Now()
