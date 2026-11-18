@@ -7,10 +7,11 @@ const mocks=vi.hoisted(()=>({config:vi.fn(),save:vi.fn(),reviews:vi.fn(),campaig
 vi.mock('vue-i18n',()=>({useI18n:()=>({t:(key:string)=>key,locale:ref('zh')})}))
 vi.mock('@/api/admin/activity',()=>({getAdminActivityConfig:mocks.config,updateAdminActivityConfig:mocks.save,getActivityRefundReviews:mocks.reviews,markActivityRefundReviewed:vi.fn()}))
 vi.mock('@/api/consumption',()=>({consumptionAPI:{campaigns:mocks.campaigns,save:mocks.saveCampaign,state:mocks.state}}))
+vi.mock('@/api/admin/activityAudience',()=>({activityAudienceAPI:{get:vi.fn(),save:vi.fn()}}))
 enableAutoUnmount(afterEach)
 const config={checkin_min_spend_cents:0,checkin_enabled:false,checkin_rollout_percent:100,checkin_daily_cents:10,checkin_milestone_cents:50,checkin_monthly_cap_cents:1500,checkin_monthly_budget_cents:30000,total_budget_cents:100000,user_lifetime_cap_cents:3000,total_spent_cents:0,checkin_month_spent_cents:0,second_recharge_enabled:false,second_recharge_reward_cents:0,second_recharge_total_budget_cents:0,second_recharge_min_pay_cents:0,second_total_spent_cents:0}
 beforeEach(()=>{vi.resetAllMocks();mocks.config.mockResolvedValue({...config});mocks.reviews.mockResolvedValue([]);mocks.save.mockImplementation(async value=>value);mocks.campaigns.mockResolvedValue([])})
-const options={global:{stubs:{RouterLink:{template:'<a><slot /></a>'}}}}
+const options={global:{stubs:{ActivityAudience:true,RouterLink:{template:'<a><slot /></a>'}}}}
 describe('production marketing reward forms',()=>{
  it('changes the switch locally and saves dollars as integer API cents, retaining a zero threshold',async()=>{
   const wrapper=mount(Checkin,options);await flushPromises()

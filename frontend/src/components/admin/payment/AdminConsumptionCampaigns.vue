@@ -1,6 +1,7 @@
 <template>
   <section class="marketing-rewards" aria-labelledby="consumption-admin-title">
     <header class="page-intro"><div><h2 id="consumption-admin-title" style="font-size:24px">{{ visual.title }}</h2><p class="intro-copy">{{ visual.intro }}</p></div><button type="button" class="action-secondary" :disabled="busy" @click="newDraft">＋ {{ labels.newCampaign }}</button></header>
+    <ActivityAudience kind="consumption" />
     <nav v-if="campaigns.length" class="campaign-tabs" :aria-label="labels.title">
       <button v-if="!draft.id" type="button" class="campaign-tab selected" aria-current="true" :disabled="busy"><span>{{ visual.empty }}</span><span class="campaign-tab-state">{{ labels.states.draft }}</span></button>
       <button v-for="item in campaigns" :key="item.id" type="button" class="campaign-tab" :class="{selected:draft.id===item.id}" :aria-current="draft.id===item.id?'true':undefined" :disabled="busy" @click="select(item)"><span class="campaign-tab-name" :title="item.name">{{ item.name }}</span><span class="campaign-tab-state" :class="{'is-active':item.state==='active'}">{{ labels.states[item.state as 'draft'|'active'|'paused'|'closed'] || item.state }}</span></button>
@@ -33,6 +34,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import ActivityAudience from './ActivityAudience.vue'
 import {computed,onMounted,ref} from 'vue'
 import {useI18n} from 'vue-i18n'
 import {consumptionAPI,type ConsumptionCampaign} from '@/api/consumption'

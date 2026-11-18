@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 
 export interface ActivityStatus {
+  checkin_visible?: boolean
   checkin_eligible: boolean
   checkin_min_spend: number
   eligible: boolean

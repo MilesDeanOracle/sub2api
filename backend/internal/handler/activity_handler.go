@@ -279,3 +279,27 @@ func (h *ActivityHandler) AdminHealth(c *gin.Context) {
 	}
 	response.Success(c, v)
 }
+
+func (h *ActivityHandler) AdminAudience(c *gin.Context) {
+	out, err := h.service.Audience(c.Request.Context(), c.Param("kind"))
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, out)
+}
+func (h *ActivityHandler) UpdateAdminAudience(c *gin.Context) {
+	actor, ok := activitySubject(c)
+	if !ok {
+		return
+	}
+	var body service.ActivityAudience
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "Invalid audience configuration")
+		return
+	}
+	if err := h.service.UpdateAudience(c.Request.Context(), actor, c.Param("kind"), body); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"saved": true})
+}

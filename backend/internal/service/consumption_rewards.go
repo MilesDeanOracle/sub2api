@@ -268,6 +268,14 @@ func (s *ActivityService) SetConsumptionState(ctx context.Context, actor, id int
 
 func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64) (*ConsumptionSummary, error) {
 	out := &ConsumptionSummary{Spend: "0", History: []ConsumptionHistory{}, Funds: ConsumptionFunds{Principal: "0", Gift: "0", Unverified: "0"}}
+	var visible bool
+	if err := s.db.QueryRowContext(ctx, `SELECT activity_audience_allowed('consumption',$1)`, uid).Scan(&visible); err != nil {
+		return nil, err
+	}
+	if !visible {
+		return out, nil
+	}
+
 	if err := s.db.QueryRowContext(ctx, `SELECT awards_enabled,EXISTS(SELECT 1 FROM activity_consumption_outbox WHERE user_id=$1 AND processed_at IS NULL) FROM activity_runtime WHERE id=1`, uid).Scan(&out.AwardsEnabled, &out.ProcessingPending); err != nil {
 		return nil, err
 	}
@@ -340,6 +348,9 @@ func (s *ActivityService) ClaimConsumption(ctx context.Context, uid, cid int64, 
 	}
 	if !active {
 		return ErrActivityIneligible
+	}
+	if err := activityAudienceAllowed(ctx, tx, "consumption", uid); err != nil {
+		return err
 	}
 	if err := activityAwardsAllowed(ctx, tx); err != nil {
 		return err

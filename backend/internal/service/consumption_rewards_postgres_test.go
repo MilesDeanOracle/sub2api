@@ -54,12 +54,12 @@ func TestConsumptionPostgres(t *testing.T) {
  CREATE TABLE redeem_codes(code TEXT PRIMARY KEY,status TEXT,type TEXT,value NUMERIC(20,8),used_by BIGINT);
  CREATE TABLE usage_logs(user_id BIGINT,request_id TEXT,actual_cost NUMERIC,request_type INT,created_at TIMESTAMPTZ);
  INSERT INTO users(id,balance) VALUES(1,120);`)
-	for _, name := range []string{"257_activity_rewards.sql", "258_activity_checkin_min_spend.sql", "259_consumption_rewards.sql", "260_consumption_refund_lock_order.sql", "261_consumption_batch_rounding.sql", "262_activity_production_hardening.sql"} {
+	for _, name := range []string{"257_activity_rewards.sql", "258_activity_checkin_min_spend.sql", "259_consumption_rewards.sql", "260_consumption_refund_lock_order.sql", "261_consumption_batch_rounding.sql", "262_activity_production_hardening.sql", "263_activity_audiences.sql"} {
 		b, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
 		require.NoError(t, err)
 		exec(string(b))
 	}
-	exec(`UPDATE activity_runtime SET processing_enabled=true,awards_enabled=true WHERE id=1`)
+	exec(`UPDATE activity_runtime SET processing_enabled=true,awards_enabled=true WHERE id=1; UPDATE activity_audiences SET mode='all'`)
 	s := NewActivityService(db, nil, nil)
 	ctx := context.Background()
 	drain := func() {
@@ -85,6 +85,33 @@ func TestConsumptionPostgres(t *testing.T) {
 		require.NoError(t, tx.Commit())
 		drain()
 	}
+
+	t.Run("audiences fail closed and validate real users", func(t *testing.T) {
+		exec(`UPDATE activity_audiences SET mode='selected',user_ids='{}'`)
+		status, err := s.Status(ctx, 1)
+		require.NoError(t, err)
+		require.False(t, status.CheckinVisible)
+		_, err = s.Checkin(ctx, 1)
+		require.ErrorIs(t, err, ErrActivityIneligible)
+		summary, err := s.ConsumptionStatus(ctx, 1)
+		require.NoError(t, err)
+		require.Nil(t, summary.Campaign)
+		require.Empty(t, summary.History)
+		require.Error(t, s.UpdateAudience(ctx, 99, "checkin", ActivityAudience{Mode: "selected", UserIDs: []int64{999999}}))
+		require.Error(t, s.UpdateAudience(ctx, 99, "checkin", ActivityAudience{Mode: "selected", UserIDs: []int64{-1}}))
+		require.Error(t, s.UpdateAudience(ctx, 99, "checkin", ActivityAudience{Mode: "typo"}))
+		require.NoError(t, s.UpdateAudience(ctx, 99, "checkin", ActivityAudience{Mode: "selected", UserIDs: []int64{1, 1}}))
+		audience, err := s.Audience(ctx, "checkin")
+		require.NoError(t, err)
+		require.Equal(t, []int64{1}, audience.UserIDs)
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		require.NoError(t, activityAudienceAllowed(ctx, tx, "checkin", 1))
+		require.NoError(t, tx.Rollback())
+		require.Equal(t, "false", scalar(`SELECT activity_audience_allowed('consumption',1)::text`))
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_audit WHERE action='audience:checkin'`))
+		exec(`UPDATE activity_audiences SET mode='all'`)
+	})
 	t.Run("opening and mixed sources", func(t *testing.T) {
 		require.Equal(t, "120.00000000", scalar(`SELECT unverified::text FROM activity_funds WHERE user_id=1`))
 		require.NoError(t, s.ReconcileConsumptionFunds(ctx, 99, 1, "100", "principal", "paid invoice"))
@@ -117,6 +144,31 @@ func TestConsumptionPostgres(t *testing.T) {
  INSERT INTO activity_consumption_tiers VALUES(1,1,1000,30),(1,2,5000,120),(1,3,10000,250);
  INSERT INTO users(id,balance) VALUES(3,100),(4,100),(5,100),(6,100);
  UPDATE activity_funds SET principal=gift,gift=0 WHERE user_id IN(3,4,5,6)`)
+
+	t.Run("scope controls visibility claims and worker reservations independently", func(t *testing.T) {
+		exec(`INSERT INTO users(id,balance) VALUES(901,100),(902,100);UPDATE activity_funds SET principal=gift,gift=0 WHERE user_id IN(901,902)`)
+		require.NoError(t, s.UpdateAudience(ctx, 99, "consumption", ActivityAudience{Mode: "selected", UserIDs: []int64{901}}))
+		settle(902, "10", "audience-excluded", 0)
+		settle(901, "10", "audience-included", 0)
+		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=902`))
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=901`))
+		hidden, err := s.ConsumptionStatus(ctx, 902)
+		require.NoError(t, err)
+		require.Nil(t, hidden.Campaign)
+		visible, err := s.ConsumptionStatus(ctx, 901)
+		require.NoError(t, err)
+		require.NotNil(t, visible.Campaign)
+		require.ErrorIs(t, s.ClaimConsumption(ctx, 902, 1, 0), ErrActivityIneligible)
+		require.NoError(t, s.UpdateAudience(ctx, 99, "consumption", ActivityAudience{Mode: "selected", UserIDs: []int64{}}))
+		require.ErrorIs(t, s.ClaimConsumption(ctx, 901, 1, 0), ErrActivityIneligible)
+		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=901 AND state='reserved'`))
+		require.Equal(t, "true", scalar(`SELECT activity_audience_allowed('checkin',902)::text`))
+		require.NoError(t, s.UpdateAudience(ctx, 99, "consumption", ActivityAudience{Mode: "all"}))
+		visible, err = s.ConsumptionStatus(ctx, 902)
+		require.NoError(t, err)
+		require.NotNil(t, visible.Campaign)
+		exec(`DELETE FROM activity_consumption_entitlements WHERE user_id=901`)
+	})
 	t.Run("precision and concurrent claims", func(t *testing.T) {
 		settle(3, "9.99999999", "boundary-before", 0)
 		require.Equal(t, "0", scalar(`SELECT COUNT(*)::text FROM activity_consumption_entitlements WHERE user_id=3`))
@@ -241,9 +293,9 @@ func TestConsumptionPostgres(t *testing.T) {
 		require.Equal(t, "99.00000000", scalar(`SELECT balance::text FROM users WHERE id=11`))
 		require.Equal(t, "1", scalar(`SELECT attempts::text FROM activity_consumption_outbox WHERE user_id=11`))
 		require.Equal(t, "1", scalar(`SELECT COUNT(*)::text FROM activity_consumption_outbox WHERE user_id=11 AND processed_at IS NULL AND last_error<>''`))
-		migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "262_activity_production_hardening.sql"))
+		migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "263_activity_audiences.sql"))
 		require.NoError(t, err)
-		function := strings.Split(string(migration), "CREATE FUNCTION activity_process_consumption_event")[1]
+		function := strings.Split(string(migration), "CREATE OR REPLACE FUNCTION activity_process_consumption_event")[1]
 		function = strings.Split(function, "-- A rolled-back binary")[0]
 		exec("CREATE OR REPLACE FUNCTION activity_process_consumption_event" + function)
 		exec(`UPDATE activity_consumption_outbox SET next_attempt_at=NOW() WHERE user_id=11`)

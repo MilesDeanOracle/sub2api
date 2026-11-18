@@ -33,6 +33,8 @@ func RegisterAdminRoutes(
 	// 受限密钥的账户操作走独立资源校验，普通管理员保持原处理器。
 	admin.Use(h.Admin.Account.ScopedAdminKeyAccounts)
 	{
+		admin.GET("/activity/audience/:kind", h.Activity.AdminAudience)
+		admin.PUT("/activity/audience/:kind", h.Activity.UpdateAdminAudience)
 		admin.GET("/activity/health", h.Activity.AdminHealth)
 		admin.GET("/activity/config", h.Activity.AdminConfig)
 		admin.GET("/activity/consumption/campaigns", h.Activity.ConsumptionCampaigns)

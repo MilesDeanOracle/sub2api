@@ -28,6 +28,7 @@ func NewActivityService(db *sql.DB, billingCache *BillingCacheService, userServi
 }
 
 type ActivityStatus struct {
+	CheckinVisible  bool       `json:"checkin_visible"`
 	CheckinEligible bool       `json:"checkin_eligible"`
 	CheckinMinSpend float64    `json:"checkin_min_spend"`
 	Eligible        bool       `json:"eligible"`
@@ -110,12 +111,20 @@ func (s *ActivityService) eligible(ctx context.Context, userID int64) (bool, *ti
 }
 
 func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivityStatus, error) {
+	var visible bool
+	if err := s.db.QueryRowContext(ctx, `SELECT activity_audience_allowed('checkin',$1)`, userID).Scan(&visible); err != nil {
+		return nil, err
+	}
+	if !visible {
+		return &ActivityStatus{CheckedDays: []string{}}, nil
+	}
+
 	eligible, first, err := s.eligible(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	day, month := activityDay(time.Now())
-	out := &ActivityStatus{Eligible: eligible, FirstCallAt: first, CheckedDays: []string{}}
+	out := &ActivityStatus{CheckinVisible: true, Eligible: eligible, FirstCallAt: first, CheckedDays: []string{}}
 	var cap int
 	var checkinRollout int
 	var minSpend int64
@@ -215,6 +224,9 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	}
 	if !active {
 		return nil, ErrActivityIneligible
+	}
+	if err := activityAudienceAllowed(ctx, tx, "checkin", userID); err != nil {
+		return nil, err
 	}
 	if err := activityAwardsAllowed(ctx, tx); err != nil {
 		return nil, err

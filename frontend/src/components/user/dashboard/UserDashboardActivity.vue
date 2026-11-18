@@ -1,6 +1,6 @@
 <template>
   <button
-    v-if="quickEntry"
+    v-if="quickEntry && status?.checkin_visible === true"
     type="button"
     data-testid="checkin-entry"
     class="group inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium text-emerald-700 transition-colors hover:bg-emerald-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-900/20 2xl:pointer-events-auto"
@@ -37,7 +37,7 @@
     <p v-if="error" class="mt-3 text-sm text-red-600" role="alert">{{ error }}</p>
   </section>
 
-  <BaseDialog :show="showCheckin" :title="t('dashboard.activity.checkin')" width="wide" @close="showCheckin = false">
+  <BaseDialog :show="showCheckin && status?.checkin_visible === true" :title="t('dashboard.activity.checkin')" width="wide" @close="showCheckin = false">
     <div class="activity-checkin">
       <p class="checkin-subtitle">{{ t('dashboard.activity.subtitle') }}</p>
       <p v-if="!status" class="checkin-message" role="status">{{ error || t('common.loading') }}</p>
@@ -143,7 +143,7 @@ const calendar = computed(() => {
   const count = new Date(Date.UTC(year, month, 0)).getUTCDate()
   return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, i) => ({ number: i + 1, key: `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}` }))] as ({ number: number; key: string } | null)[]
 })
-async function refresh() { try { status.value = await getActivityStatus() } catch { error.value = t('dashboard.activity.loadFailed') } }
+async function refresh() { try { status.value = await getActivityStatus(); if (!status.value.checkin_visible) showCheckin.value = false } catch { error.value = t('dashboard.activity.loadFailed') } }
 async function openCheckin() {
   showCheckin.value = true
   error.value = ''
@@ -171,7 +171,7 @@ async function doCheckin() {
   checking.value = true; error.value = ''
   try { status.value = await checkin(); await auth.refreshUser() } catch { error.value = t('dashboard.activity.actionFailed') } finally { checking.value = false }
 }
-onMounted(() => { if (!props.quickEntry) { void refresh(); void loadSample() } })
+onMounted(() => { void refresh(); if (!props.quickEntry) void loadSample() })
 </script>
 
 <style scoped>

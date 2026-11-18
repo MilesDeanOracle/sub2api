@@ -1,6 +1,7 @@
 <template>
   <form ref="form" class="marketing-rewards" aria-labelledby="activity-config-title" novalidate @submit.prevent="save">
     <header class="page-intro"><div><h2 id="activity-config-title" style="font-size:24px">{{ copy.title }}</h2><p class="intro-copy">{{ copy.intro }} · {{ copy.unit }}</p></div><button type="submit" class="action-primary" :disabled="saving || !config" :aria-busy="saving">{{ t('dashboard.activity.save') }}</button></header>
+    <ActivityAudience kind="checkin" />
     <template v-if="config">
       <section class="checkin-story" :aria-label="copy.preview">
         <div class="story-copy"><div class="story-icon" aria-hidden="true">✓</div><h2>{{ t('dashboard.activity.checkin') }}</h2><p>{{ t('dashboard.activity.configHelp.checkin') }}</p><div class="story-foot">{{ copy.cap }}</div></div>
@@ -25,6 +26,7 @@
   </form>
 </template>
 <script setup lang="ts">
+import ActivityAudience from './ActivityAudience.vue'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { activityConfigToForm, activityConfigToApi, validateActivityConfig, type ActivityAmountKey, type ActivityConfigErrors } from '@/utils/activityConfigValidation'
