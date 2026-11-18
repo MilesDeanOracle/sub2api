@@ -6,6 +6,7 @@ export interface ConsumptionCampaign {
  tiers: ConsumptionTier[]; reserved_cents: number; claimed_cents: number; participants: number; qualified_users: number
 }
 export interface ConsumptionSummary {
+ awards_enabled?: boolean; processing_pending?: boolean;
  campaign: ConsumptionCampaign | null; spend: string; claimable_cents: number; blocked: boolean; budget_blocked: boolean;
  funds: { principal: string; gift: string; unverified: string };
  history: {campaign: string; position: number; reward_cents: number; state: string; created_at: string}[]
