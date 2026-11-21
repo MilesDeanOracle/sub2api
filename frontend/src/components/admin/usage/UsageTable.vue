@@ -192,6 +192,24 @@
                   <span class="font-medium text-pink-600 dark:text-pink-400">{{ row.image_output_tokens.toLocaleString() }}</span>
                 </div>
               </div>
+              <div v-if="cacheRatioLabel(row)" class="flex items-center gap-1">
+                <span
+                  data-testid="cache-ratio"
+                  class="whitespace-nowrap text-xs font-medium text-orange-500 dark:text-orange-400"
+                  :title="t('usage.cacheRatioHint')"
+                >
+                  {{ t('usage.cacheRatio') }}{{ cacheRatioLabel(row) }}
+                </span>
+                <span
+                  data-testid="cache-ratio-help"
+                  class="inline-flex cursor-help items-center text-gray-400 transition-colors hover:text-orange-500 dark:text-gray-500 dark:hover:text-orange-400"
+                  :aria-label="t('usage.cacheRatioHelp')"
+                  @mouseenter="showCacheHelp($event)"
+                  @mouseleave="hideCacheHelp"
+                >
+                  <Icon name="questionCircle" size="xs" />
+                </span>
+              </div>
             </div>
             <!-- Token Detail Tooltip -->
             <div
@@ -406,6 +424,23 @@
     </div>
   </Teleport>
 
+  <!-- Cache Ratio Help Tooltip Portal -->
+  <Teleport to="body">
+    <div
+      v-if="cacheHelpVisible"
+      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      :style="{
+        left: cacheHelpPosition.x + 'px',
+        top: cacheHelpPosition.y + 'px'
+      }"
+    >
+      <div class="w-72 rounded-lg border border-black bg-black px-3 py-2.5 text-xs text-orange-400 shadow-xl">
+        <div class="whitespace-pre-line leading-relaxed">{{ t('usage.cacheRatioHelp') }}</div>
+        <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-black border-t-transparent"></div>
+      </div>
+    </div>
+  </Teleport>
+
   <!-- Cost Tooltip Portal -->
   <Teleport to="body">
     <div
@@ -584,6 +619,19 @@ import {
   hasImageInputCost,
 } from '@/utils/imageUsage'
 
+// 缓存比例与后端趋势图口径一致：缓存读取 / (输入 + 缓存读取 + 缓存创建)。
+// 无缓存读取时不显示，避免在绝大多数未命中缓存的请求上堆叠 "0.00%"。
+// 保留 2 位小数并直接截断（不四舍五入），用整数运算避免浮点误差把 28.99 算成 29.00。
+const cacheRatioLabel = (row: AdminUsageLog): string | null => {
+  const inputTokens = row.input_tokens ?? 0
+  const cacheReadTokens = row.cache_read_tokens ?? 0
+  const cacheCreationTokens = row.cache_creation_tokens ?? 0
+  const totalPromptTokens = inputTokens + cacheReadTokens + cacheCreationTokens
+  if (cacheReadTokens <= 0 || totalPromptTokens <= 0) return null
+  const percentHundredths = Math.floor((cacheReadTokens * 10_000) / totalPromptTokens)
+  return `${(percentHundredths / 100).toFixed(2)}%`
+}
+
 /** Compute the account-billed cost for display: (account_stats_cost ?? total_cost) * rate_multiplier */
 function accountBilled(row: { total_cost?: number | null; account_stats_cost?: number | null; account_rate_multiplier?: number | null }): number {
   const base = row.account_stats_cost != null ? row.account_stats_cost : (row.total_cost ?? 0)
@@ -712,6 +760,10 @@ const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
 
+// Tooltip state - cache ratio help
+const cacheHelpVisible = ref(false)
+const cacheHelpPosition = ref({ x: 0, y: 0 })
+
 const getRequestTypeLabel = (row: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(row)
   if (requestType === 'cyber') return t('usage.cyber')
@@ -776,5 +828,18 @@ const showTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
+}
+
+// Cache ratio help tooltip functions
+const showCacheHelp = (event: MouseEvent) => {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  cacheHelpPosition.value.x = rect.right + 8
+  cacheHelpPosition.value.y = rect.top + rect.height / 2
+  cacheHelpVisible.value = true
+}
+
+const hideCacheHelp = () => {
+  cacheHelpVisible.value = false
 }
 </script>

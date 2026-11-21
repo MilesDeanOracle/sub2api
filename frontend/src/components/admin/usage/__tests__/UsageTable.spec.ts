@@ -86,6 +86,9 @@ const messages: Record<string, string> = {
 	'usage.upstreamResponseModel': 'Upstream response',
 	'usage.modelVariant': 'Possible version variant',
 	'usage.modelMismatch': 'Different model',
+	'usage.cacheRatio': 'Cache ratio: ',
+	'usage.cacheRatioHint': 'Cache read / (input + cache read + cache creation)',
+	'usage.cacheRatioHelp': 'Low cache ratio may be caused by:\n• First message in a new session, cache not built yet\n• Cache expired after a long gap between requests\n• Large context differences, e.g. very long context sent mid-conversation\n• Tools from small vendors or individual developers without cache optimization',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -932,5 +935,77 @@ describe('admin UsageTable deleted-user badge', () => {
 
     expect(wrapper.text()).not.toContain('Deleted')
     expect(wrapper.text()).toContain('active@test.com')
+  })
+})
+
+describe('admin UsageTable cache ratio', () => {
+  const mountWithRows = (rows: Record<string, unknown>[]) => mount(UsageTable, {
+    props: { data: rows, loading: false, columns: [] },
+    global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+  })
+
+  it('shows the cache read share after the token counts in orange', async () => {
+    const row = {
+      ...baseImageRow,
+      request_id: 'req-cache-ratio',
+      image_count: 0,
+      billing_mode: 'token',
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_read_tokens: 300,
+      cache_creation_tokens: 100,
+    }
+    const wrapper = mountWithRows([row])
+
+    const ratio = wrapper.get('[data-request-id="req-cache-ratio"] [data-testid="cache-ratio"]')
+    expect(ratio.text()).toBe('Cache ratio: 60.00%')
+    expect(ratio.attributes('title')).toBe('Cache read / (input + cache read + cache creation)')
+    expect(ratio.classes()).toContain('text-orange-500')
+
+    const help = wrapper.get('[data-request-id="req-cache-ratio"] [data-testid="cache-ratio-help"]')
+    expect(help.classes()).toContain('cursor-help')
+    await help.trigger('mouseenter')
+    await nextTick()
+    const tooltip = wrapper.get('.fixed')
+    expect(tooltip.text()).toContain('Low cache ratio may be caused by:')
+    expect(tooltip.text()).toContain('Cache expired after a long gap between requests')
+    expect(tooltip.get('.w-72').classes()).toContain('bg-black')
+    expect(tooltip.get('.w-72').classes()).toContain('text-orange-400')
+    await help.trigger('mouseleave')
+    expect(wrapper.find('.fixed').exists()).toBe(false)
+  })
+
+  it('truncates the ratio to two decimals instead of rounding', () => {
+    const row = {
+      ...baseImageRow,
+      request_id: 'req-cache-ratio-truncated',
+      image_count: 0,
+      billing_mode: 'token',
+      input_tokens: 1,
+      output_tokens: 50,
+      cache_read_tokens: 2,
+      cache_creation_tokens: 0,
+    }
+    const wrapper = mountWithRows([row])
+
+    const ratio = wrapper.get('[data-request-id="req-cache-ratio-truncated"] [data-testid="cache-ratio"]')
+    expect(ratio.text()).toBe('Cache ratio: 66.66%')
+  })
+
+  it('hides the ratio when no cache was read', () => {
+    const row = {
+      ...baseImageRow,
+      request_id: 'req-no-cache-read',
+      image_count: 0,
+      billing_mode: 'token',
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 100,
+    }
+    const wrapper = mountWithRows([row])
+
+    expect(wrapper.find('[data-testid="cache-ratio"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="cache-ratio-help"]').exists()).toBe(false)
   })
 })
