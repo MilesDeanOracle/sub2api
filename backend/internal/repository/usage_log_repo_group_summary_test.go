@@ -185,8 +185,17 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryTailStartsAtExpiredBefore(t *t
 			mock.ExpectQuery(`(?s)usage_group_daily_rollups.*FROM usage_logs ul\s+WHERE ul\.created_at >= \$7`).
 				WithArgs(todayStart, yesterdayStart, "2026-03-08", tc.valid, tc.retained, tc.closed, tc.tailStart).
 				WillReturnRows(sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}))
+			mock.ExpectQuery(`(?s)FROM usage_logs ul\s+GROUP BY ul\.group_id`).
+				WithArgs(todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour)).
+				WillReturnRows(sqlmock.NewRows([]string{
+					"group_id",
+					"total_input_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
+					"today_input_tokens", "today_cache_creation_tokens", "today_cache_read_tokens",
+					"last_24h_input_tokens", "last_24h_cache_creation_tokens", "last_24h_cache_read_tokens",
+					"last_7d_input_tokens", "last_7d_cache_creation_tokens", "last_7d_cache_read_tokens",
+				}))
 
-			_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
+			_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 			require.NoError(t, err)
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
