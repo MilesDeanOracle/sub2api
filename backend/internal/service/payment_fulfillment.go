@@ -485,6 +485,12 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 		})
 		s.dispatchPaymentFulfillmentNotification(o, auditAction)
 	}
+	if o.OrderType == payment.OrderTypeBalance && s.activityService != nil {
+		if _, claimErr := s.activityService.ClaimSecondRecharge(ctx, o.UserID); claimErr != nil &&
+			!errors.Is(claimErr, ErrActivityDisabled) && !errors.Is(claimErr, ErrActivityIneligible) {
+			slog.Error("second recharge activity claim failed", "order_id", o.ID, "error", claimErr)
+		}
+	}
 	return nil
 }
 
