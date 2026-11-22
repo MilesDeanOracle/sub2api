@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -227,13 +226,6 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
 		}
 
-		// These forward-only migrations alter the live balance path. Existing
-		// installations must drain writers and explicitly acknowledge a window.
-		if name == "257_activity_rewards.sql" || name == "259_consumption_rewards.sql" || name == "262_activity_production_hardening.sql" {
-			if err := requireActivityMaintenance(ctx, lockConn); err != nil {
-				return fmt.Errorf("migration %s: %w", name, err)
-			}
-		}
 		nonTx, err := validateMigrationExecutionMode(name, content)
 		if err != nil {
 			return fmt.Errorf("validate migration %s: %w", name, err)
@@ -271,12 +263,6 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 
-		if name == "257_activity_rewards.sql" || name == "259_consumption_rewards.sql" || name == "262_activity_production_hardening.sql" {
-			if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout='5s'`); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("set activity migration lock timeout: %w", err)
-			}
-		}
 		// 执行迁移 SQL
 		if _, err := tx.ExecContext(ctx, content); err != nil {
 			_ = tx.Rollback()
@@ -614,20 +600,6 @@ func pgAdvisoryUnlock(ctx context.Context, db advisoryLockConnection) error {
 	_, err := db.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationsAdvisoryLockID)
 	if err != nil {
 		return fmt.Errorf("release migrations lock: %w", err)
-	}
-	return nil
-}
-
-func requireActivityMaintenance(ctx context.Context, conn *sql.Conn) error {
-	if os.Getenv("ACTIVITY_MAINTENANCE_CONFIRMED") == "1" {
-		return nil
-	}
-	var hasUsers bool
-	if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users LIMIT 1)`).Scan(&hasUsers); err != nil {
-		return err
-	}
-	if hasUsers {
-		return errors.New("activity accounting upgrade requires a drained maintenance window; rehearse backup and reconciliation, stop all balance writers, then set ACTIVITY_MAINTENANCE_CONFIRMED=1 for this migration run")
 	}
 	return nil
 }

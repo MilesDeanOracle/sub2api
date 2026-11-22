@@ -27,17 +27,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: '/operations/pelican' },
       { path: 'pelican', name: 'OperationsPelican', component: () => import('@/views/operations/OperationsWallView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.wall' } },
-      { path: 'config', name: 'OperationsConfig', component: () => import('@/views/operations/OperationsConfigView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.config' } },
-      {
-        path: 'rewards', name: 'OperationsRewards',
-        component: () => import('@/views/operations/OperationsRewardsView.vue'),
-        redirect: '/operations/rewards/checkin',
-        meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.rewards' },
-        children: [
-          { path: 'checkin', name: 'OperationsCheckinRewards', component: () => import('@/views/operations/OperationsCheckinRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.checkinRewards' } },
-          { path: 'consumption', name: 'OperationsConsumptionRewards', component: () => import('@/views/operations/OperationsConsumptionRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.consumptionRewards' } }
-        ]
-      }
+      { path: 'config', name: 'OperationsConfig', component: () => import('@/views/operations/OperationsConfigView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.config' } }
     ]
   },
   // ==================== Setup Routes ====================

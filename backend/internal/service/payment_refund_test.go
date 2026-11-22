@@ -286,7 +286,7 @@ func TestExecuteEasyPayRefundSuccessCode(t *testing.T) {
 			require.Equal(t, int32(1), calls.Load(), "do not retry a refund based on a different success code")
 			stored, err := client.PaymentOrder.Get(ctx, order.ID)
 			require.NoError(t, err)
-			wantStatus := OrderStatusRefundPending
+			wantStatus := OrderStatusCompleted
 			if tc.wantSuccess {
 				wantStatus = OrderStatusRefunded
 				if tc.amount < order.Amount {
@@ -296,14 +296,14 @@ func TestExecuteEasyPayRefundSuccessCode(t *testing.T) {
 				require.NotNil(t, stored.RefundAt)
 				require.Equal(t, 200-tc.amount, balance)
 			} else {
-				require.Equal(t, tc.amount, stored.RefundAmount)
+				require.Zero(t, stored.RefundAmount)
 				require.Nil(t, stored.RefundAt)
-				require.Equal(t, 200-tc.amount, balance)
+				require.Equal(t, 200.0, balance)
 			}
 			require.Equal(t, wantStatus, stored.Status)
 			failed, err := client.PaymentAuditLog.Query().Where(
 				paymentauditlog.OrderIDEQ(strconv.FormatInt(order.ID, 10)),
-				paymentauditlog.ActionEQ("REFUND_SUBMISSION_UNCERTAIN"),
+				paymentauditlog.ActionEQ("REFUND_GATEWAY_FAILED"),
 			).Exist(ctx)
 			require.NoError(t, err)
 			require.Equal(t, !tc.wantSuccess, failed)

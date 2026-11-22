@@ -5,7 +5,6 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/icons/Icon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
-import RewardFieldTip from '@/components/admin/payment/RewardFieldTip.vue'
 import { operationsApi, type OperationsStatus } from '@/api/admin/operationsConsole'
 
 const { t } = useI18n()
@@ -16,12 +15,7 @@ const nav = [
   { path: '/operations/pelican', key: 'wall', icon: 'grid', hint: 'retention' },
   { path: '/operations/config', key: 'config', icon: 'cog', hint: 'pool' }
 ] as const
-const rewardNav = [
-  { path: '/operations/rewards/checkin', key: 'checkinRewards', hint: 'checkinRewardsHint' },
-  { path: '/operations/rewards/consumption', key: 'consumptionRewards', hint: 'consumptionRewardsHint' }
-] as const
-const marketingActive = computed(() => route.path.startsWith('/operations/rewards'))
-const current = computed(() => [...nav, ...rewardNav].find(item => route.path.startsWith(item.path)) ?? nav[0]!)
+const current = computed(() => nav.find(item => route.path.startsWith(item.path)) ?? nav[0]!)
 const slots = computed(() => Array.from({ length: status.value.max_workers || 4 }, (_, i) => i < status.value.running))
 let timer: ReturnType<typeof setInterval> | undefined
 async function refresh() { try { status.value = await operationsApi.status() } catch { /* Each page reports its own fetch errors. */ } }
@@ -45,7 +39,7 @@ onUnmounted(() => clearInterval(timer))
         </RouterLink>
       </div>
 
-      <nav class="flex flex-wrap gap-1 lg:flex-col" :aria-label="t('operationsConsole.title')">
+      <nav class="flex gap-1 lg:flex-col" :aria-label="t('operationsConsole.title')">
         <RouterLink
           v-for="item in nav"
           :key="item.path"
@@ -56,14 +50,6 @@ onUnmounted(() => clearInterval(timer))
           <Icon :name="item.icon" size="sm" />
           <span>{{ t(`operationsConsole.${item.key}`) }}</span>
         </RouterLink>
-        <details open class="basis-full lg:basis-auto">
-          <summary class="cursor-pointer rounded-lg px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 marker:text-slate-400 dark:text-slate-300 dark:hover:bg-dark-800" :class="{ 'font-medium text-primary-700 dark:text-primary-300': marketingActive }">
-            <span class="inline-flex items-center gap-2.5 align-middle"><Icon name="gift" size="sm" /><span>{{ t('operationsConsole.rewards') }}</span></span>
-          </summary>
-          <div class="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-2 dark:border-dark-700">
-            <RouterLink v-for="item in rewardNav" :key="item.path" :to="item.path" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-dark-800" active-class="!bg-primary-50 font-medium !text-primary-700 dark:!bg-dark-800 dark:!text-primary-300">{{ t(`operationsConsole.${item.key}`) }}</RouterLink>
-          </div>
-        </details>
       </nav>
 
       <div class="mt-auto hidden space-y-3 px-3 lg:block">
@@ -79,10 +65,9 @@ onUnmounted(() => clearInterval(timer))
         <header class="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div class="flex min-w-0 items-center">
             <h2 class="truncate text-lg font-semibold tracking-tight">{{ t(`operationsConsole.${current.key}`) }}</h2>
-            <RewardFieldTip v-if="marketingActive" :label="t(`operationsConsole.${current.key}`)" :text="t(`operationsConsole.${current.hint}`)" />
-            <HelpTooltip v-else :content="t(`operationsConsole.${current.hint}`)" width-class="w-72" />
+            <HelpTooltip :content="t(`operationsConsole.${current.hint}`)" width-class="w-72" />
           </div>
-          <div v-if="!marketingActive" class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500" aria-live="polite">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500" aria-live="polite">
             <span class="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm dark:bg-dark-900">
               <span class="flex items-center gap-1" aria-hidden="true">
                 <span v-for="(busy, index) in slots" :key="index" class="h-1.5 w-1.5 rounded-full transition-colors" :class="busy ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-dark-700'"></span>

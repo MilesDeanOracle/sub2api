@@ -48,7 +48,6 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	Activity         *ActivityHandler
 	Auth             *AuthHandler
 	User             *UserHandler
 	MCPOAuth         *MCPOAuthHandler

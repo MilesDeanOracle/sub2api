@@ -82,7 +82,6 @@ func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
 }
 
 func provideCleanup(
-	activity *service.ActivityService,
 	operationsPelican *service.OperationsPelicanService,
 	entClient *ent.Client,
 	rdb *redis.Client,
@@ -149,7 +148,6 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
-			{"ActivityService", func() error { activity.Stop(); return nil }},
 			{"OperationsPelicanService", func() error { operationsPelican.Stop(); return nil }},
 			{"DigestSessionStore", func() error {
 				if digestSessions != nil {

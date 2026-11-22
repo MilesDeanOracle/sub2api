@@ -52,7 +52,6 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
 
 	cleanup := provideCleanup(
-		nil, // ActivityService
 		nil, // operations console runner
 		nil, // entClient
 		nil, // redis

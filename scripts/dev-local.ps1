@@ -202,9 +202,6 @@ Set-DefaultEnv 'REDIS_DB' '0'
 Set-DefaultEnv 'REDIS_ENABLE_TLS' 'false'
 Set-DefaultEnv 'TZ' 'Asia/Shanghai'
 Set-DefaultEnv 'VITE_DEV_PORT' '3000'
-# Local dev only: migration 257 (activity rewards) refuses to run on a database
-# that already has users unless the maintenance window is confirmed.
-Set-DefaultEnv 'ACTIVITY_MAINTENANCE_CONFIRMED' '1'
 
 $BackendPort = [int]$env:SERVER_PORT
 $FrontendPort = [int]$env:VITE_DEV_PORT

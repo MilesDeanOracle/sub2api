@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -156,10 +155,6 @@ func (r *usageBillingRepository) applyBatchImageBalanceHold(
 		return &service.BatchImageBalanceHoldResult{Applied: false}, nil
 	}
 
-	contextJSON, _ := json.Marshal(map[string]any{"kind": "batch", "batch": cmd.BatchID, "request": cmd.RequestID, "key": cmd.APIKeyID})
-	if _, err := tx.ExecContext(ctx, `SELECT set_config('activity.settlement',$1,true)`, string(contextJSON)); err != nil {
-		return nil, err
-	}
 	result, err := apply(ctx, tx, cmd)
 	if err != nil {
 		return nil, err
@@ -184,12 +179,6 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 {
-		if cmd.RequestID != "" {
-			contextJSON, _ := json.Marshal(map[string]any{"kind": "usage", "request": cmd.RequestID, "key": cmd.APIKeyID, "request_type": cmd.RequestType})
-			if _, err := tx.ExecContext(ctx, `SELECT set_config('activity.settlement',$1,true)`, string(contextJSON)); err != nil {
-				return err
-			}
-		}
 		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
 			return err

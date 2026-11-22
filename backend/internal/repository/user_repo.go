@@ -906,15 +906,28 @@ func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount flo
 	return nil
 }
 
-// DeductAvailableBalance atomically deducts at most the verified principal and
-// positive available balance. Gift and unverified funds cannot fund cash refunds.
+// DeductAvailableBalance atomically deducts min(amount, max(balance, 0)).
 // Unlike DeductBalance, this refund-specific operation never increases an
 // existing deficit or permits a concurrent deduction to cause an overdraft.
 func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, amount float64) (deducted float64, err error) {
 	if amount < 0 {
 		return 0, fmt.Errorf("deduction amount must be nonnegative")
 	}
-	const updateSQL = `SELECT activity_refund_deduct($2,$1)`
+	const updateSQL = `
+		WITH target AS (
+			SELECT id, balance
+			FROM users
+			WHERE id = $2 AND deleted_at IS NULL
+			FOR UPDATE
+		), updated AS (
+			UPDATE users AS u
+			SET balance = target.balance - LEAST($1, GREATEST(target.balance, 0)), updated_at = NOW()
+			FROM target
+			WHERE u.id = target.id AND u.deleted_at IS NULL
+			RETURNING target.balance - u.balance AS deducted
+		)
+		SELECT deducted FROM updated
+	`
 	rows, err := clientFromContext(ctx, r.client).QueryContext(ctx, updateSQL, amount, id)
 	if err != nil {
 		return 0, err
@@ -1595,10 +1608,4 @@ func (r *userRepository) DisableTotp(ctx context.Context, userID int64) error {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	return nil
-}
-
-// RestoreRefundBalance returns a failed refund hold to its original principal source.
-func (r *userRepository) RestoreRefundBalance(ctx context.Context, id int64, amount float64) error {
-	_, err := clientFromContext(ctx, r.client).ExecContext(ctx, `SELECT activity_refund_restore($1,$2)`, id, amount)
-	return err
 }

@@ -183,7 +183,6 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
-	activityHandler *ActivityHandler,
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
 	mcpOAuthHandler *MCPOAuthHandler,
@@ -214,7 +213,6 @@ func ProvideHandlers(
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
 	return &Handlers{
-		Activity:         activityHandler,
 		Auth:             authHandler,
 		User:             userHandler,
 		MCPOAuth:         mcpOAuthHandler,
@@ -247,7 +245,6 @@ func ProvideHandlers(
 var ProviderSet = wire.NewSet(
 	admin.NewOperationsPelicanHandler,
 	// Top-level handlers
-	NewActivityHandler,
 	NewAuthHandler,
 	NewUserHandler,
 	NewMCPOAuthHandler,

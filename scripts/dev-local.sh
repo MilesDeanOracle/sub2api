@@ -77,14 +77,11 @@ import_local_env "${REPO_ROOT}/.env.local"
 : "${REDIS_ENABLE_TLS:=false}"
 : "${TZ:=Asia/Shanghai}"
 : "${VITE_DEV_PORT:=3000}"
-# Local dev only: migration 257 (activity rewards) refuses to run on a database
-# that already has users unless the maintenance window is confirmed.
-: "${ACTIVITY_MAINTENANCE_CONFIRMED:=1}"
 
 export DATA_DIR AUTO_SETUP SERVER_HOST SERVER_PORT SERVER_MODE
 export DATABASE_HOST DATABASE_PORT DATABASE_USER DATABASE_PASSWORD DATABASE_DBNAME DATABASE_SSLMODE
 export REDIS_HOST REDIS_PORT REDIS_USERNAME REDIS_PASSWORD REDIS_DB REDIS_ENABLE_TLS
-export TZ VITE_DEV_PORT ACTIVITY_MAINTENANCE_CONFIRMED
+export TZ VITE_DEV_PORT
 
 BACKEND_URL="http://127.0.0.1:${SERVER_PORT}"
 export VITE_DEV_PROXY_TARGET="${BACKEND_URL}"
