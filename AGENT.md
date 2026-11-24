@@ -77,3 +77,73 @@ make test-frontend    # 前端 lint + typecheck + 关键单测
 ```
 
 提交前请确保对应测试与 lint 通过；Windows 环境的已知坑（psql、PowerShell 转义、node_modules 冲突等）一律查 `DEV_GUIDE.md`。
+
+## 四、拉取上游代码流程（固定步骤）
+
+> 本项目是 `Wei-Shaw/sub2api` 的 fork：`origin` = 自己的 fork，`upstream` = 上游。
+> 当用户说 **“拉取代码 / 同步代码 / 拉最新代码”** 时，严格按以下步骤执行，不要自行简化。
+
+### 1. 拉取远端
+
+```bash
+git fetch upstream --prune
+git fetch origin --prune
+```
+
+### 2. 确认差异
+
+```bash
+git rev-list --left-right --count main...upstream/main   # 左：本地独有，右：落后上游
+git log --oneline main..upstream/main | head -30
+```
+
+### 3. 检查工作区冲突风险
+
+```bash
+git status --short
+git diff --name-only main...upstream/main
+```
+
+- 若上游改动与用户未提交的文件重叠，先向用户确认；**不要擅自 stash、提交或丢弃用户的工作区改动**。
+
+### 4. 合并上游
+
+```bash
+git merge upstream/main --no-edit
+```
+
+- 有冲突时逐个人工解决，**禁止用 `-X ours` / `-X theirs` 一刀切**。
+- 高频冲突点及处理方式：
+
+| 文件 | 冲突原因 | 处理 |
+|------|----------|------|
+| `backend/cmd/server/wire_gen.go` | `NewAdminService` 参数两边都改过 | 保留本地 `usageAnalyticsRepo` **和** 上游 `userPlatformQuotaRepo`，按合并后 25 参数签名调用 |
+| `backend/internal/repository/custom_admin_key_review_test.go` | 同上，测试里的构造函数参数个数 | 与 `NewAdminService` 新签名对齐（补 `nil`） |
+| `backend/internal/server/api_contract_test.go` | 设置接口期望 JSON 缺 fork 自有配置项 | 补上 `feedback_enabled`、`pelican_enabled`、`pelican_visibility`、`qq_group_enabled`、`qq_group_name`、`qq_group_url` |
+| `backend/internal/repository/usage_log_repo_group_summary_test.go` | 上游改了 `GetAllGroupUsageSummary` 参数 | 传 `todayStart, since24h, since7d`，并补第三次 cache 查询的 sqlmock 期望 |
+
+- `wire_gen.go` 是生成文件，冲突解决后必须保证 `go build ./...` 通过；不要手改生成逻辑之外的代码。
+
+### 5. 验证
+
+```bash
+cd backend
+go build ./...
+go test -tags unit ./internal/repository/ ./internal/server/ -count=1
+```
+
+- 若冲突涉及其他包，相应补跑该包的 `-tags unit` 测试。
+
+### 6. 提交合并
+
+- 只 stage **合并相关文件 + 冲突修复**，不要把用户未提交的改动一起提交：
+
+```bash
+git add <冲突文件> <修复的测试文件>
+git commit --no-edit
+```
+
+### 7. 汇报与推送
+
+- 汇报：合并提交 hash、上游版本 / 提交数、`main` 领先与落后情况、工作区剩余改动。
+- **默认不推送**。只有用户明确要求时才执行 `git push origin main`（推送 fork 属于对外操作，需先确认）。
