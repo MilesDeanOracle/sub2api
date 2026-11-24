@@ -173,3 +173,6 @@ issues/
 .playwright-cli/
 /code.zip
 /code/
+
+# 运行时数据目录（模型定价缓存等）
+/data/
