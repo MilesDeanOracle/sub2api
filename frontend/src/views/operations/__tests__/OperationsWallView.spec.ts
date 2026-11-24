@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import OperationsWallView from '../OperationsWallView.vue'
 
-const { results, groups, cleanGroup, cleanAccount, tasks, showError, showSuccess } = vi.hoisted(() => ({ results: vi.fn(), groups: vi.fn(), cleanGroup: vi.fn(), cleanAccount: vi.fn(), tasks: vi.fn(), showError: vi.fn(), showSuccess: vi.fn() }))
-vi.mock('@/api/admin/operationsConsole', () => ({ operationsApi: { results, groups, cleanGroup, cleanAccount, tasks } }))
+const { results, groups, cleanGroup, cleanAccount, tasks, setDetectPaused, showError, showSuccess } = vi.hoisted(() => ({ results: vi.fn(), groups: vi.fn(), cleanGroup: vi.fn(), cleanAccount: vi.fn(), tasks: vi.fn(), setDetectPaused: vi.fn(), showError: vi.fn(), showSuccess: vi.fn() }))
+vi.mock('@/api/admin/operationsConsole', () => ({ operationsApi: { results, groups, cleanGroup, cleanAccount, tasks, setDetectPaused } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess }) }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+// Partial mock: api/client.ts -> @/i18n needs the real createI18n at import time.
+vi.mock('vue-i18n', async (importOriginal) => ({ ...(await importOriginal<typeof import('vue-i18n')>()), useI18n: () => ({ t: (key: string) => key }) }))
 const select = { props: ['modelValue', 'options'], emits: ['update:modelValue'], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', Number($event.target.value))"><option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option></select>' }
 function render(realSelect = false) { return mount(OperationsWallView, { attachTo: realSelect ? document.body : undefined, global: { stubs: { Select: realSelect ? false : select, ConfirmDialog: { props: ['show', 'message'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-confirm><p>{{ message }}</p><button @click="$emit(\'confirm\')">confirm</button><button @click="$emit(\'cancel\')">cancel</button></div>' }, OperationsResultCard: { props: ['result'], template: '<article :data-id="result.id">{{ result.status }}</article>' }, OperationsResultStack: { props: ['results', 'loaded', 'loading'], emits: ['expand', 'reveal'], template: '<div><article v-for="result in results" :key="result.id" :data-id="result.id">{{ result.status }}</article><button v-if="!loaded" :disabled="loading" @click="$emit(\'expand\'); $emit(\'reveal\')">reveal</button></div>' } } } }) }
 beforeEach(() => {
@@ -115,32 +116,73 @@ describe('Operations wall', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]!.findAll('article').map(card => card.attributes('data-id'))).toEqual(['7'])
     expect(rows[1]!.findAll('article').map(card => card.attributes('data-id'))).toEqual(['5', '4', '3'])
-    expect(rows[0]!.find('button').exists()).toBe(false)
+    expect(rows[0]!.findAll('button').some(b => b.text() === 'operationsConsole.pauseDetection')).toBe(true)
     wrapper.unmount()
+  })
+  it('stops and resumes scheduled detection per account from the row header', async () => {
+    setDetectPaused.mockResolvedValue({ id: 1, name: 'A', detect_paused: true })
+    const wrapper = render()
+    try {
+      await flushPromises()
+      const row = () => wrapper.findAll('[data-account-row]')[0]!
+      const stop = row().findAll('button').find(b => b.text() === 'operationsConsole.pauseDetection')!
+      expect(stop).toBeDefined()
+      await stop.trigger('click'); await flushPromises()
+      expect(setDetectPaused).toHaveBeenCalledWith(1, true)
+      expect(row().text()).toContain('operationsConsole.detectPausedBadge')
+      const resume = row().findAll('button').find(b => b.text() === 'operationsConsole.resumeDetection')!
+      setDetectPaused.mockResolvedValue({ id: 1, name: 'A' })
+      await resume.trigger('click'); await flushPromises()
+      expect(setDetectPaused).toHaveBeenCalledWith(1, false)
+      expect(wrapper.findAll('[data-account-row]')[0]!.text()).not.toContain('operationsConsole.detectPausedBadge')
+    } finally { wrapper.unmount() }
+  })
+  it('files paused accounts under the past tab with a badge and resume button', async () => {
+    setDetectPaused.mockResolvedValue({ id: 2, name: 'B' })
+    // The backend catalogs paused accounts only under past groups.
+    groups.mockResolvedValue({
+      current: [{ id: 10, name: 'Group A', accounts: [{ id: 1, name: 'A', groups: [] }] }],
+      past: [{ id: 10, name: 'Group A', accounts: [{ id: 2, name: 'B', groups: [], detect_paused: true }] }],
+    })
+    const wrapper = render()
+    try {
+      await flushPromises()
+      expect(wrapper.findAll('[data-account-row]')[0]!.text()).not.toContain('operationsConsole.detectPausedBadge')
+      results.mockResolvedValue({ items: [{ id: 20, account_id: 2, account_name: 'B', status: 'succeeded' }], has_more: false })
+      await wrapper.findAll('[role="tab"]')[1]!.trigger('click'); await flushPromises()
+      const row = () => wrapper.findAll('[data-account-row]')[0]!
+      expect(row().text()).toContain('operationsConsole.detectPausedBadge')
+      expect(row().findAll('button').some(b => b.text() === 'operationsConsole.resumeDetection')).toBe(true)
+      expect(row().findAll('button').some(b => b.text() === 'operationsConsole.cleanAccount')).toBe(true)
+      await row().findAll('button').find(b => b.text() === 'operationsConsole.resumeDetection')!.trigger('click'); await flushPromises()
+      expect(setDetectPaused).toHaveBeenCalledWith(2, false)
+      expect(row().text()).not.toContain('operationsConsole.detectPausedBadge')
+    } finally { wrapper.unmount() }
   })
   it('loads three older tests only when the account stack requests them and caches that batch', async () => {
     const initial = [10, 9, 8].map(id => ({ id, account_id: 1, account_name: 'A', status: 'failed' }))
     results.mockResolvedValueOnce({ items: [...initial, { id: 11, account_id: 2, account_name: 'B', status: 'succeeded' }], has_more: false, account_has_more: { 1: true, 2: false } })
     const wrapper = render(); await flushPromises()
     results.mockResolvedValueOnce({ items: [7, 6, 5].map(id => ({ id, account_id: 1, account_name: 'A', status: 'succeeded' })), has_more: true, next_id: 5 })
-    const more = () => wrapper.findAll('[data-account-row]')[1]!.find('button')
+    const more = () => wrapper.findAll('[data-account-row]')[1]!.findAll('button').find(b => b.text() === 'reveal')!
     await more().trigger('click'); await flushPromises()
     expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'history', account_id: 1, before_id: 8, limit: 3 })
     expect(results.mock.calls.at(-1)?.[0]).not.toHaveProperty('group_by')
     expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article').map(c => c.attributes('data-id'))).toEqual(['10', '9', '8', '7', '6', '5'])
     expect(wrapper.findAll('[data-account-row]')[0]!.findAll('article')).toHaveLength(1)
     expect(wrapper.findAll('[data-account-row]')[1]!.findAll('article')).toHaveLength(6)
-    expect(wrapper.findAll('[data-account-row]')[1]!.find('button').exists()).toBe(false)
+    expect(wrapper.findAll('[data-account-row]')[1]!.findAll('button').some(b => b.text() === 'reveal')).toBe(false)
     wrapper.unmount()
   })
   it('keeps filters for older results and allows retry after a failed row request', async () => {
     const wrapper = render(); await flushPromises()
     await wrapper.findAll('select')[0]!.setValue('10'); await flushPromises()
     results.mockRejectedValueOnce(new Error('network'))
-    await wrapper.find('[data-account-row] button').trigger('click'); await flushPromises()
+    const reveal = () => [...wrapper.findAll('[data-account-row] button')].find(b => b.text() === 'reveal')!
+    await reveal().trigger('click'); await flushPromises()
     expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'history', group_id: 10, account_id: 1, before_id: 1, limit: 3 })
     expect(showError).toHaveBeenCalled()
-    expect(wrapper.find('[data-account-row] button').attributes('disabled')).toBeUndefined()
+    expect(reveal().attributes('disabled')).toBeUndefined()
     expect(wrapper.findAll('article')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -148,7 +190,7 @@ describe('Operations wall', () => {
     const wrapper = render(); await flushPromises()
     let finish!: (value: unknown) => void
     results.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-    await wrapper.find('[data-account-row] button').trigger('click')
+    await [...wrapper.findAll('[data-account-row] button')].find(b => b.text() === 'reveal')!.trigger('click')
     const pendingSignal = results.mock.calls.at(-1)?.[1] as AbortSignal
     await wrapper.findAll('select')[0]!.setValue('10'); await flushPromises()
     expect(pendingSignal.aborted).toBe(true)
@@ -253,7 +295,7 @@ describe('Operations wall', () => {
     try {
       await flushPromises()
       results.mockResolvedValueOnce({ items: [{ id: 0, account_id: 1, account_name: 'A', status: 'succeeded' }], has_more: false })
-      await wrapper.find('[data-account-row] button').trigger('click'); await flushPromises()
+      await [...wrapper.findAll('[data-account-row] button')].find(b => b.text() === 'reveal')!.trigger('click'); await flushPromises()
       groups.mockResolvedValue({ current: [], past: [{ id: 10, name: 'Group A', accounts: [{ id: 1, name: 'A', groups: [] }] }] })
       results.mockResolvedValue({ items: [], has_more: false })
       await vi.advanceTimersByTimeAsync(5000); await flushPromises()

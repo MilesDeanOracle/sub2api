@@ -35,7 +35,6 @@ const rowHasMore = ref<Record<number, boolean>>({})
 const rowLoading = ref(new Set<number>())
 const rowHistoryLoaded = ref(new Set<number>())
 const rowHistoryError = ref(new Set<number>())
-const rowVersion = ref(0)
 const rowControllers = new Map<number, AbortController>()
 let expanded = false
 let timer: ReturnType<typeof setInterval> | undefined
@@ -60,11 +59,12 @@ const taskOptions = computed(() => [{ value: 0, label: t('operationsConsole.allT
 const statusOptions = computed(() => [{ value: '', label: t('operationsConsole.allStatuses') }, ...['queued', 'running', 'uploading', 'succeeded', 'failed', 'cancelled'].map(value => ({ value, label: t(`operationsConsole.statuses.${value}`) }))])
 const accountRows = computed(() => {
   const priorities = new Map(accounts.value.map(a => [a.id, a.priority]))
-  const rows = new Map<number, { id: number; name: string; priority?: number; results: OperationsResult[] }>()
+  const detectPaused = new Map(accounts.value.map(a => [a.id, a.detect_paused]))
+  const rows = new Map<number, { id: number; name: string; priority?: number; detect_paused?: boolean; results: OperationsResult[] }>()
   for (const result of [...items.value].sort((a, b) => (Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id))) {
     let row = rows.get(result.account_id)
     if (!row) {
-      row = { id: result.account_id, name: result.account_name, priority: priorities.get(result.account_id), results: [] }
+      row = { id: result.account_id, name: result.account_name, priority: priorities.get(result.account_id), detect_paused: detectPaused.get(result.account_id), results: [] }
       rows.set(row.id, row)
     }
     if (!row.results.some(item => item.id === result.id)) row.results.push(result)
@@ -82,7 +82,7 @@ async function load(append = false, quiet = false) {
     if (append) query.before_account_id = nextAccountID.value
     const page = await operationsApi.results(query, controller.signal)
     if (request !== generation) return
-    if (!append) { rowHistoryLoaded.value.clear(); rowHistoryError.value.clear(); rowVersion.value++ }
+    if (!append) { rowHistoryLoaded.value.clear(); rowHistoryError.value.clear() }
     items.value = append ? [...items.value, ...page.items] : page.items; hasMore.value = page.has_more; nextAccountID.value = page.next_account_id || 0
     rowHasMore.value = append ? { ...rowHasMore.value, ...page.account_has_more } : { ...page.account_has_more }
     if (append || !quiet) expanded = append
@@ -157,6 +157,22 @@ function updatePriority(updated: { id: number; priority: number }) {
     }
   }
 }
+const detectBusy = ref(new Set<number>())
+async function toggleDetection(target: { id: number; detect_paused?: boolean }) {
+  if (detectBusy.value.has(target.id)) return
+  detectBusy.value.add(target.id)
+  try {
+    const paused = !target.detect_paused
+    await operationsApi.setDetectPaused(target.id, paused)
+    metadataVersion++
+    for (const tab of ['current', 'past'] as const) {
+      for (const g of catalog.value[tab]) {
+        for (const a of g.accounts) if (a.id === target.id) a.detect_paused = paused
+      }
+    }
+  } catch (err) { app.showError(extractApiErrorMessage(err, t('operationsConsole.error'))) }
+  finally { detectBusy.value.delete(target.id) }
+}
 async function refresh(manual = false) {
   const changed = await metadata()
   if (manual || changed || !expanded) await load(false, !manual)
@@ -216,13 +232,20 @@ onUnmounted(() => { clearInterval(timer); controller?.abort(); for (const pendin
           </div>
           <span v-else class="inline-flex shrink-0 items-center gap-1 text-xs text-slate-400" :title="t('operationsConsole.priorityUnavailable')"><Icon name="infoCircle" size="xs" />{{ t('operationsConsole.unavailable') }}</span>
           <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-dark-800 dark:text-slate-400">{{ t('operationsConsole.recentCount', { count: Math.min(3, row.results.length) }) }}</span>
-          <button v-if="scope === 'past'" type="button" class="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950" :disabled="cleaning" :aria-label="t('operationsConsole.cleanAccountLabel', { name: row.name })" @click="selectAccountCleanup(row)"><Icon name="trash" size="xs" />{{ t('operationsConsole.cleanAccount') }}</button>
+          <span v-if="row.detect_paused" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" :title="t('operationsConsole.detectPausedHint')"><Icon name="pause" size="xs" />{{ t('operationsConsole.detectPausedBadge') }}</span>
+          <button v-if="row.detect_paused" type="button" class="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-green-600 transition-colors hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950" :disabled="detectBusy.has(row.id)" :aria-label="t('operationsConsole.resumeDetection')" @click="toggleDetection(row)"><Icon name="play" size="xs" />{{ t('operationsConsole.resumeDetection') }}</button>
+          <button v-else-if="scope === 'current'" type="button" class="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-dark-800" :disabled="detectBusy.has(row.id)" :aria-label="t('operationsConsole.pauseDetection')" @click="toggleDetection(row)"><Icon name="pause" size="xs" />{{ t('operationsConsole.pauseDetection') }}</button>
+          <button v-if="scope === 'past'" type="button" class="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950" :disabled="cleaning" :aria-label="t('operationsConsole.cleanAccountLabel', { name: row.name })" @click="selectAccountCleanup(row)"><Icon name="trash" size="xs" />{{ t('operationsConsole.cleanAccount') }}</button>
         </div>
         <div class="operations-result-track flex min-w-0 items-stretch gap-4 overflow-x-auto pb-2" tabindex="0" :aria-label="t('operationsConsole.accountResults', { name: row.name })" @wheel="onRowWheel">
-          <OperationsResultCard v-for="result in row.results.slice(0, 3)" :key="result.id" class="operations-recent-card" :result="result" :active="result.active_round && !['queued', 'running', 'uploading'].includes(result.status)" />
+          <!-- retain-preview: scrolling a row must not rebuild already viewed
+               iframes, which would restart each artwork from its blank intro. -->
+          <OperationsResultCard v-for="result in row.results.slice(0, 3)" :key="result.id" class="operations-recent-card" :result="result" retain-preview :active="result.active_round && !['queued', 'running', 'uploading'].includes(result.status)" />
+          <!-- Stable key: quiet refreshes shift results without remounting the
+               stack, so an expanded stack never collapses under the pointer. -->
           <OperationsResultStack
             v-if="rowHasMore[row.id] !== false || row.results.length > 3"
-            :key="`${rowVersion}-${row.id}`"
+            :key="row.id"
             :account-name="row.name"
             :results="row.results.slice(3, 6)"
             :loading="loading || rowLoading.has(row.id)"

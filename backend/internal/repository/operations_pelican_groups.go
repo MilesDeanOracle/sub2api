@@ -11,27 +11,37 @@ import (
 
 // Configuration, rather than account availability or schedule state, defines
 // current detection. These memberships are shared by catalog, queries and cleanup.
+// detect_paused accounts keep their configured membership (cleanup protection)
+// while the wall files them under past via the scope predicates below.
 const operationsConfiguredGroups = `WITH configured_accounts AS (
  SELECT DISTINCT (c->>'account_id')::bigint AS account_id
  FROM operations_pelican_tasks t CROSS JOIN LATERAL jsonb_array_elements(t.account_configs) c
  WHERE t.deleted_at IS NULL
 ), configured_members AS (
  SELECT a.id AS account_id,a.name AS account_name,a.platform,
+ COALESCE(f.detect_paused,false) AS detect_paused,
  COALESCE(g.id,-1) AS group_id,COALESCE(g.name,'') AS group_name
  FROM configured_accounts c JOIN accounts a ON a.id=c.account_id AND a.deleted_at IS NULL
+ LEFT JOIN operations_pelican_account_flags f ON f.account_id=a.id
  LEFT JOIN (account_groups ag JOIN groups g ON g.id=ag.group_id AND g.deleted_at IS NULL) ON ag.account_id=a.id
 ), configured_groups AS (SELECT DISTINCT group_id FROM configured_members)`
 
+// The wall files paused accounts under past results: membership counts as
+// current only while its detection is not paused.
 func operationsScopePredicate(scope string) string {
-	membership := `EXISTS (SELECT 1 FROM configured_members cg WHERE cg.account_id=r.account_id AND (
+	membership := `EXISTS (SELECT 1 FROM configured_members cg WHERE cg.account_id=r.account_id AND NOT cg.detect_paused AND (
  (cg.group_id=-1 AND r.group_snapshots='[]'::jsonb) OR
  r.group_snapshots @> jsonb_build_array(jsonb_build_object('id',cg.group_id))))`
 	if scope == "past" {
 		// A shared result may belong to both tabs, but only through its respective groups.
-		return `((r.group_snapshots='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=-1)) OR EXISTS(SELECT 1 FROM jsonb_array_elements(r.group_snapshots) g WHERE NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=(g->>'id')::bigint)))`
+		return `((r.group_snapshots='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=-1 AND NOT detect_paused)) OR EXISTS(SELECT 1 FROM jsonb_array_elements(r.group_snapshots) g WHERE NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=(g->>'id')::bigint AND NOT detect_paused)))`
 	}
 	return membership
 }
+
+// Cleanup keeps the original membership rule: results of accounts that are
+// still configured — including paused ones — must survive group cleanups.
+const operationsCleanupPastScope = `((r.group_snapshots='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=-1)) OR EXISTS(SELECT 1 FROM jsonb_array_elements(r.group_snapshots) g WHERE NOT EXISTS(SELECT 1 FROM configured_members WHERE account_id=r.account_id AND group_id=(g->>'id')::bigint)))`
 
 func (r *operationsRepository) WallGroups(ctx context.Context) (*service.OperationsWallGroups, error) {
 	rows, err := r.db.QueryContext(ctx, operationsConfiguredGroups+`, members AS (
@@ -42,10 +52,12 @@ func (r *operationsRepository) WallGroups(ctx context.Context) (*service.Operati
  FROM operations_pelican_results r CROSS JOIN LATERAL jsonb_array_elements(
  CASE WHEN r.group_snapshots='[]'::jsonb THEN '[{"id":-1,"name":""}]'::jsonb ELSE r.group_snapshots END) g
  WHERE r.expires_at>now()
- ) SELECT m.group_id,m.group_name,m.account_id,m.account_name,m.platform,
- EXISTS(SELECT 1 FROM configured_members c WHERE c.group_id=m.group_id AND c.account_id=m.account_id),a.priority
- FROM members m LEFT JOIN accounts a ON a.id=m.account_id AND a.deleted_at IS NULL
- ORDER BY m.group_id,m.source_rank,m.result_order DESC,m.account_id`)
+	 ) SELECT m.group_id,m.group_name,m.account_id,m.account_name,m.platform,
+	 EXISTS(SELECT 1 FROM configured_members c WHERE c.group_id=m.group_id AND c.account_id=m.account_id AND NOT c.detect_paused),a.priority,
+	 COALESCE(f.detect_paused,false)
+	 FROM members m LEFT JOIN accounts a ON a.id=m.account_id AND a.deleted_at IS NULL
+	 LEFT JOIN operations_pelican_account_flags f ON f.account_id=m.account_id
+	 ORDER BY m.group_id,m.source_rank,m.result_order DESC,m.account_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +73,7 @@ func (r *operationsRepository) WallGroups(ctx context.Context) (*service.Operati
 		var name string
 		var a service.OperationsAccount
 		var live bool
-		if err := rows.Scan(&groupID, &name, &a.ID, &a.Name, &a.Platform, &live, &a.Priority); err != nil {
+		if err := rows.Scan(&groupID, &name, &a.ID, &a.Name, &a.Platform, &live, &a.Priority, &a.DetectPaused); err != nil {
 			return nil, err
 		}
 		key := groupKey{groupID, live}
@@ -135,7 +147,7 @@ func (r *operationsRepository) prepareCleanup(ctx context.Context, groupID, acco
 	}
 	// A group may contain both configured and removed accounts. Only the past
 	// membership is eligible, so cleanup cannot touch its current accounts.
-	rows, err := tx.QueryContext(ctx, operationsConfiguredGroups+` SELECT `+operationsResultColumns+` FROM operations_pelican_results r WHERE `+condition+` AND ($3::bigint=0 OR r.account_id=$3) AND `+operationsScopePredicate("past")+` AND ($2::bigint=0 OR NOT EXISTS(SELECT 1 FROM configured_members c WHERE c.account_id=r.account_id AND c.group_id=$2)) AND r.expires_at>now() ORDER BY r.id FOR UPDATE OF r`, arg, groupID, accountID)
+	rows, err := tx.QueryContext(ctx, operationsConfiguredGroups+` SELECT `+operationsResultColumns+` FROM operations_pelican_results r WHERE `+condition+` AND ($3::bigint=0 OR r.account_id=$3) AND `+operationsCleanupPastScope+` AND ($2::bigint=0 OR NOT EXISTS(SELECT 1 FROM configured_members c WHERE c.account_id=r.account_id AND c.group_id=$2)) AND r.expires_at>now() ORDER BY r.id FOR UPDATE OF r`, arg, groupID, accountID)
 	if err != nil {
 		return nil, err
 	}

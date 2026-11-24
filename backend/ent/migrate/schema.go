@@ -1150,6 +1150,19 @@ var (
 			},
 		},
 	}
+	// OperationsPelicanAccountFlagsColumns holds the columns for the "operations_pelican_account_flags" table.
+	OperationsPelicanAccountFlagsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "detect_paused", Type: field.TypeBool, Default: false},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// OperationsPelicanAccountFlagsTable holds the schema information for the "operations_pelican_account_flags" table.
+	OperationsPelicanAccountFlagsTable = &schema.Table{
+		Name:       "operations_pelican_account_flags",
+		Columns:    OperationsPelicanAccountFlagsColumns,
+		PrimaryKey: []*schema.Column{OperationsPelicanAccountFlagsColumns[0]},
+	}
 	// OperationsPelicanResultsColumns holds the columns for the "operations_pelican_results" table.
 	OperationsPelicanResultsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2285,6 +2298,7 @@ var (
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		OperationsPelicanAccountFlagsTable,
 		OperationsPelicanResultsTable,
 		OperationsPelicanTasksTable,
 		PaymentAuditLogsTable,
@@ -2388,6 +2402,9 @@ func init() {
 	IdentityAdoptionDecisionsTable.ForeignKeys[1].RefTable = PendingAuthSessionsTable
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
+	}
+	OperationsPelicanAccountFlagsTable.Annotation = &entsql.Annotation{
+		Table: "operations_pelican_account_flags",
 	}
 	OperationsPelicanResultsTable.Annotation = &entsql.Annotation{
 		Table: "operations_pelican_results",

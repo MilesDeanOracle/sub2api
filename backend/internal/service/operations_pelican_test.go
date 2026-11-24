@@ -328,3 +328,129 @@ func TestOperationsManualAccountCleanup(t *testing.T) {
 		require.Error(t, err)
 	}
 }
+
+type operationsTriggerRepo struct {
+	OperationsRepository
+	task     *OperationsTask
+	paused   map[int64]bool
+	kind     string
+	enqueued []*OperationsResult
+}
+
+func (r *operationsTriggerRepo) GetTask(context.Context, int64) (*OperationsTask, error) {
+	return r.task, nil
+}
+
+func (r *operationsTriggerRepo) ListDetectPausedAccounts(context.Context) (map[int64]bool, error) {
+	return r.paused, nil
+}
+
+func (r *operationsTriggerRepo) SetDetectPaused(_ context.Context, accountID int64, paused bool) error {
+	r.paused[accountID] = paused
+	return nil
+}
+
+func (r *operationsTriggerRepo) Enqueue(_ context.Context, _ int64, kind, _ string, _ int64, items []*OperationsResult, _ *time.Time) (*OperationsRound, error) {
+	r.kind = kind
+	r.enqueued = items
+	return &OperationsRound{RunID: "run-x", Queued: len(items)}, nil
+}
+
+func TestOperationsScheduledTriggerSkipsPausedAccounts(t *testing.T) {
+	accounts := operationsAccountsByID{byID: map[int64]*Account{7: operationsAccount(7), 8: operationsAccount(8)}}
+	images := &ImageStorageSettingService{fallback: config.ImageStorageConfig{Bucket: "bucket", AccessKeyID: "key", SecretAccessKey: "secret"}}
+	repo := &operationsTriggerRepo{
+		task: &OperationsTask{ID: 5, StorageSource: "image_storage", AccountConfigs: []OperationsAccountConfig{
+			{AccountID: 7, ModelID: "claude-x"}, {AccountID: 8, ModelID: "claude-x"},
+		}},
+		paused: map[int64]bool{8: true},
+	}
+	s := NewOperationsPelicanService(repo, accounts, nil, nil, images, nil, nil)
+
+	due := time.Now().UTC()
+	out, e := s.Trigger(context.Background(), 5, "scheduled:5:17000000", 0, &due)
+	require.NoError(t, e)
+	require.Equal(t, "scheduled", repo.kind)
+	require.Len(t, repo.enqueued, 1)
+	require.Equal(t, int64(7), repo.enqueued[0].AccountID)
+	require.Equal(t, 1, out.Queued)
+
+	// Manual triggers exclude paused accounts too.
+	out, e = s.Trigger(context.Background(), 5, "manual:5:17000000", 9, nil)
+	require.NoError(t, e)
+	require.Equal(t, "manual", repo.kind)
+	require.Len(t, repo.enqueued, 1)
+	require.Equal(t, int64(7), repo.enqueued[0].AccountID)
+	require.Equal(t, 1, out.Queued)
+
+	// An all-paused task still advances its schedule via the (empty) enqueue.
+	repo.paused = map[int64]bool{7: true, 8: true}
+	out, e = s.Trigger(context.Background(), 5, "scheduled:5:17000001", 0, &due)
+	require.NoError(t, e)
+	require.Empty(t, repo.enqueued)
+	require.Equal(t, 0, out.Queued)
+
+	// A manual trigger with nothing left to run is rejected with feedback.
+	repo.enqueued = nil
+	_, e = s.Trigger(context.Background(), 5, "manual:5:17000002", 9, nil)
+	require.Error(t, e)
+	require.Nil(t, repo.enqueued)
+}
+
+func TestOperationsSetDetectPaused(t *testing.T) {
+	repo := &operationsTriggerRepo{paused: map[int64]bool{}}
+	accounts := operationsAccountsByID{byID: map[int64]*Account{7: operationsAccount(7)}}
+	s := NewOperationsPelicanService(repo, accounts, nil, nil, nil, nil, nil)
+
+	v, e := s.SetDetectPaused(context.Background(), 7, true)
+	require.NoError(t, e)
+	require.True(t, v.DetectPaused)
+	require.True(t, repo.paused[7])
+
+	v, e = s.SetDetectPaused(context.Background(), 7, false)
+	require.NoError(t, e)
+	require.False(t, v.DetectPaused)
+	require.False(t, repo.paused[7])
+
+	_, e = s.SetDetectPaused(context.Background(), 999, true)
+	require.Error(t, e)
+}
+
+type operationsAccountsByID struct {
+	AccountRepository
+	byID map[int64]*Account
+}
+
+func (r operationsAccountsByID) GetByID(_ context.Context, id int64) (*Account, error) {
+	if a, ok := r.byID[id]; ok {
+		return a, nil
+	}
+	return nil, errors.New("account not found")
+}
+
+func operationsAccount(id int64) *Account {
+	return &Account{ID: id, Type: AccountTypeAPIKey, Platform: PlatformAnthropic, Status: StatusActive, Credentials: map[string]any{"api_key": "secret", "base_url": "https://example.com"}}
+}
+
+func (r operationsAccountsByID) ListActive(context.Context) ([]Account, error) {
+	out := make([]Account, 0, len(r.byID))
+	for _, a := range r.byID {
+		out = append(out, *a)
+	}
+	return out, nil
+}
+
+func TestOperationsAccountsExposeDetectPaused(t *testing.T) {
+	repo := &operationsTriggerRepo{paused: map[int64]bool{7: true}}
+	accounts := operationsAccountsByID{byID: map[int64]*Account{7: operationsAccount(7), 8: operationsAccount(8)}}
+	s := NewOperationsPelicanService(repo, accounts, nil, nil, nil, nil, nil)
+
+	out, e := s.Accounts(context.Background())
+	require.NoError(t, e)
+	byID := map[int64]bool{}
+	for _, a := range out {
+		byID[a.ID] = a.DetectPaused
+	}
+	require.True(t, byID[7])
+	require.False(t, byID[8])
+}

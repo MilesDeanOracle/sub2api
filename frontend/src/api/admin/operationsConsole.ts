@@ -4,7 +4,7 @@ export interface OperationsGroup { id: number; name: string }
 export interface OperationsWallGroup extends OperationsGroup { accounts: OperationsAccount[] }
 export interface OperationsWallGroups { current: OperationsWallGroup[]; past: OperationsWallGroup[] }
 export interface OperationsGroupCleanup { removed: number; detached: number; failed: number }
-export interface OperationsAccount { id: number; name: string; priority?: number; platform: string; protocol: string; groups: OperationsGroup[]; has_ungrouped?: boolean }
+export interface OperationsAccount { id: number; name: string; priority?: number; platform: string; protocol: string; groups: OperationsGroup[]; has_ungrouped?: boolean; detect_paused?: boolean }
 export interface AccountChoice { account_id: number; model_id: string }
 export interface OperationsTask {
   id: number; name: string; enabled: boolean; interval_hours: number; account_configs: AccountChoice[]
@@ -38,6 +38,7 @@ export const operationsApi = {
     return (task.id ? await apiClient.put<OperationsTask>(`${base}/tasks/${task.id}`, task, config) : await apiClient.post<OperationsTask>(`${base}/tasks`, task, config)).data
   },
   async enable(task: OperationsTask) { return (await apiClient.put<OperationsTask>(`${base}/tasks/${task.id}/enabled`, { enabled: !task.enabled, config_version: task.config_version })).data },
+  async setDetectPaused(id: number, paused: boolean) { return (await apiClient.put<OperationsAccount>(`${base}/accounts/${id}/detection`, { paused })).data },
   async remove(id: number) { return (await apiClient.delete(`${base}/tasks/${id}`)).data },
   async trigger(id: number, requestId: string) { return (await apiClient.post<{ run_id: string; queued: number; existing: boolean }>(`${base}/tasks/${id}/runs`, { request_id: requestId })).data },
   async results(params: ResultQuery, signal?: AbortSignal) { return (await apiClient.get<ResultPage>(`${base}/results`, { params, signal })).data },

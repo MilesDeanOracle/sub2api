@@ -47,13 +47,23 @@ async function fetchModels(id: number, refresh = false) {
   try { catalogs[id] = await operationsApi.models(id, refresh) } catch { delete catalogs[id]; modelErrors[id] = t('operationsConsole.modelFailed') } finally { modelLoading[id] = false }
 }
 function choice(id: number) { return form.value.account_configs.find(c => c.account_id === id) }
-function toggleAccount(id: number, checked: boolean) {
-  if (checked && !choice(id)) { form.value.account_configs.push({ account_id: id, model_id: '' }); void fetchModels(id) }
-  else if (!checked) form.value.account_configs = form.value.account_configs.filter(c => c.account_id !== id)
+async function toggleAccount(id: number, checked: boolean) {
+  if (checked && !choice(id)) {
+    form.value.account_configs.push({ account_id: id, model_id: '' }); void fetchModels(id)
+    // Checking a paused account back into the plan resumes its scheduled detection.
+    const account = accounts.value.find(a => a.id === id)
+    if (account?.detect_paused) {
+      try { await operationsApi.setDetectPaused(id, false); account.detect_paused = false } catch (err) { error(err) }
+    }
+  } else if (!checked) form.value.account_configs = form.value.account_configs.filter(c => c.account_id !== id)
 }
 function setModel(id: number, value: string | number | boolean | null) { const c = choice(id); if (c) c.model_id = String(value || '') }
 function edit(task?: OperationsTask) {
   form.value = task ? JSON.parse(JSON.stringify(task)) : blank(); group.value = 0; batchModel.value = ''; showEditor.value = true
+  // Accounts paused from the wall start unchecked; saving the plan drops them
+  // until they are re-checked (which resumes detection) or resumed on the wall.
+  const pausedIDs = new Set(accounts.value.filter(a => a.detect_paused).map(a => a.id))
+  form.value.account_configs = form.value.account_configs.filter(c => !pausedIDs.has(c.account_id))
   for (const c of form.value.account_configs) void fetchModels(c.account_id)
 }
 function applyModel() { if (batchModel.value) for (const c of form.value.account_configs) c.model_id = String(batchModel.value) }
@@ -110,7 +120,7 @@ onUnmounted(() => clearInterval(timer))
             <label v-for="item in unavailableChoices" :key="`unavailable-${item.account_id}`" class="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"><input type="checkbox" checked class="h-4 w-4" @change="toggleAccount(item.account_id, false)" />{{ t('operationsConsole.accountUnavailable', { id: item.account_id }) }} · {{ item.model_id }}</label>
             <p v-if="!visibleAccounts.length" class="p-4 text-sm text-slate-500">{{ t('operationsConsole.noAccounts') }}</p>
             <div v-for="account in visibleAccounts" :key="account.id" class="space-y-2 rounded-lg px-3 py-2.5 transition-colors" :class="choice(account.id) ? 'bg-white shadow-sm dark:bg-dark-900' : 'hover:bg-white/70 dark:hover:bg-dark-900/60'">
-              <label class="flex items-center gap-2 text-sm"><input type="checkbox" :checked="!!choice(account.id)" class="h-4 w-4 accent-primary-600" @change="toggleAccount(account.id, ($event.target as HTMLInputElement).checked)" /><span class="font-medium">{{ account.name }}</span><span class="text-xs text-slate-500">{{ account.groups.map(g => g.name).join(' / ') || t('operationsConsole.ungrouped') }} · {{ account.protocol }}</span></label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" :checked="!!choice(account.id)" class="h-4 w-4 accent-primary-600" @change="toggleAccount(account.id, ($event.target as HTMLInputElement).checked)" /><span class="font-medium">{{ account.name }}</span><span v-if="account.detect_paused" class="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" :title="t('operationsConsole.detectPausedHint')"><Icon name="pause" size="xs" />{{ t('operationsConsole.detectPausedBadge') }}</span><span class="text-xs text-slate-500">{{ account.groups.map(g => g.name).join(' / ') || t('operationsConsole.ungrouped') }} · {{ account.protocol }}</span></label>
               <div v-if="choice(account.id)" class="flex items-center gap-2 pl-6"><Select :model-value="choice(account.id)?.model_id || ''" class="min-w-0 flex-1" :options="(catalogs[account.id]?.models || []).map(m => ({ value: m, label: m }))" :placeholder="t('operationsConsole.selectModel')" :loading="modelLoading[account.id]" @update:model-value="setModel(account.id, $event)" /><Button type="button" variant="outline" :disabled="modelLoading[account.id]" @click="fetchModels(account.id, true)">{{ t('operationsConsole.discover') }}</Button></div>
               <p v-if="modelErrors[account.id]" class="pl-6 text-xs text-red-600">{{ modelErrors[account.id] }}</p>
             </div>

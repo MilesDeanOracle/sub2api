@@ -54,6 +54,8 @@ type Tx struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// OperationsPelicanAccountFlag is the client for interacting with the OperationsPelicanAccountFlag builders.
+	OperationsPelicanAccountFlag *OperationsPelicanAccountFlagClient
 	// OperationsPelicanResult is the client for interacting with the OperationsPelicanResult builders.
 	OperationsPelicanResult *OperationsPelicanResultClient
 	// OperationsPelicanTask is the client for interacting with the OperationsPelicanTask builders.
@@ -251,6 +253,7 @@ func (tx *Tx) init() {
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
+	tx.OperationsPelicanAccountFlag = NewOperationsPelicanAccountFlagClient(tx.config)
 	tx.OperationsPelicanResult = NewOperationsPelicanResultClient(tx.config)
 	tx.OperationsPelicanTask = NewOperationsPelicanTaskClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)

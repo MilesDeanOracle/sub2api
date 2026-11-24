@@ -522,3 +522,28 @@ func (r *operationsRepository) FailCleanup(ctx context.Context, id int64, messag
 	_, e := r.db.ExecContext(ctx, `UPDATE operations_pelican_results SET cleanup_status='failed',cleanup_attempts=cleanup_attempts+1,cleanup_error=$2,cleanup_next_at=now()+make_interval(mins=>LEAST(60,5*(cleanup_attempts+1))),updated_at=now() WHERE id=$1`, id, message)
 	return e
 }
+
+// ListDetectPausedAccounts returns accounts whose scheduled detection is paused.
+// The scheduler consults this set before enqueueing a due round.
+func (r *operationsRepository) ListDetectPausedAccounts(ctx context.Context) (map[int64]bool, error) {
+	rows, e := r.db.QueryContext(ctx, `SELECT account_id FROM operations_pelican_account_flags WHERE detect_paused`)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if e := rows.Scan(&id); e != nil {
+			return nil, e
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// SetDetectPaused upserts the per-account scheduled-detection switch.
+func (r *operationsRepository) SetDetectPaused(ctx context.Context, accountID int64, paused bool) error {
+	_, e := r.db.ExecContext(ctx, `INSERT INTO operations_pelican_account_flags(account_id,detect_paused,updated_at) VALUES($1,$2,now()) ON CONFLICT (account_id) DO UPDATE SET detect_paused=$2,updated_at=now()`, accountID, paused)
+	return e
+}

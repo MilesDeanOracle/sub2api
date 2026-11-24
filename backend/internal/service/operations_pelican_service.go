@@ -61,6 +61,10 @@ func (s *OperationsPelicanService) Accounts(ctx context.Context) ([]OperationsAc
 	if e != nil {
 		return nil, e
 	}
+	paused, e := s.repo.ListDetectPausedAccounts(ctx)
+	if e != nil {
+		return nil, e
+	}
 	out := []OperationsAccount{}
 	for i := range all {
 		a := &all[i]
@@ -68,7 +72,7 @@ func (s *OperationsPelicanService) Accounts(ctx context.Context) ([]OperationsAc
 		if e != nil {
 			continue
 		}
-		out = append(out, OperationsAccount{ID: a.ID, Name: a.Name, Platform: a.Platform, Protocol: p, Groups: operationsGroups(a)})
+		out = append(out, OperationsAccount{ID: a.ID, Name: a.Name, Platform: a.Platform, Protocol: p, Groups: operationsGroups(a), DetectPaused: paused[a.ID]})
 	}
 	return out, nil
 }
@@ -324,6 +328,24 @@ func (s *OperationsPelicanService) Enable(ctx context.Context, id int64, enabled
 	}
 	return out, e
 }
+// SetDetectPaused pauses or resumes scheduled detection for one account. Manual
+// runs are unaffected; the wall toggles this per upstream when it goes noisy.
+func (s *OperationsPelicanService) SetDetectPaused(ctx context.Context, accountID int64, paused bool) (*OperationsAccount, error) {
+	a, e := s.accounts.GetByID(ctx, accountID)
+	if e != nil {
+		return nil, e
+	}
+	if e := s.repo.SetDetectPaused(ctx, accountID, paused); e != nil {
+		return nil, e
+	}
+	// A paused account is often an unhealthy one; don't fail the toggle on
+	// protocol resolution — echo the account without it if unusable.
+	p, _, te := operationsAccountTarget(a, "")
+	if te != nil {
+		p = ""
+	}
+	return &OperationsAccount{ID: a.ID, Name: a.Name, Platform: a.Platform, Protocol: p, Groups: operationsGroups(a), DetectPaused: paused}, nil
+}
 func (s *OperationsPelicanService) Trigger(ctx context.Context, id int64, key string, actor int64, due *time.Time) (*OperationsRound, error) {
 	if len(key) < 8 || len(key) > 128 {
 		return nil, operationsBad("A request ID of 8–128 characters is required")
@@ -339,6 +361,26 @@ func (s *OperationsPelicanService) Trigger(ctx context.Context, id int64, key st
 	kind := "manual"
 	if due != nil {
 		kind = "scheduled"
+	}
+	// Accounts paused from the wall are excluded from every trigger — scheduled
+	// and manual alike. Scheduled rounds still enqueue (advancing next_run_at so
+	// an all-paused task cannot loop every 10s); a manual round with nothing
+	// left to run is rejected so the operator gets feedback instead of silence.
+	paused, pe := s.repo.ListDetectPausedAccounts(ctx)
+	if pe != nil {
+		return nil, pe
+	}
+	if len(paused) > 0 {
+		kept := make([]*OperationsResult, 0, len(items))
+		for _, item := range items {
+			if !paused[item.AccountID] {
+				kept = append(kept, item)
+			}
+		}
+		items = kept
+	}
+	if due == nil && len(items) == 0 && len(t.AccountConfigs) > 0 {
+		return nil, operationsBad("Every configured account is paused from detection")
 	}
 	out, e := s.repo.Enqueue(ctx, id, kind, key, actor, items, due)
 	if e == nil {
@@ -395,7 +437,7 @@ func (s *OperationsPelicanService) Content(ctx context.Context, id int64) (strin
 	}
 	store, e := s.boundStore(ctx, r)
 	if e != nil {
-		return "", errors.New("artifact storage unavailable")
+		return "", fmt.Errorf("artifact storage unavailable: %w", e)
 	}
 	data, e := store.Read(ctx, r.ObjectKey)
 	if e != nil {
@@ -465,7 +507,9 @@ func (s *OperationsPelicanService) boundStore(ctx context.Context, r *Operations
 	}
 	raw, e := s.encryptor.Decrypt(r.StorageBinding)
 	if e != nil {
-		return nil, e
+		// Almost always a totp.encryption_key mismatch: bindings are encrypted
+		// with the key active when the result was generated.
+		return nil, fmt.Errorf("decrypt storage binding failed (encryption key changed since generation?): %w", e)
 	}
 	var c BackupS3Config
 	if e = json.Unmarshal([]byte(raw), &c); e != nil {

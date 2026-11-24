@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanaccountflag"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
@@ -648,6 +649,33 @@ func (f TraverseIdentityAdoptionDecision) Traverse(ctx context.Context, q ent.Qu
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.IdentityAdoptionDecisionQuery", q)
+}
+
+// The OperationsPelicanAccountFlagFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OperationsPelicanAccountFlagFunc func(context.Context, *ent.OperationsPelicanAccountFlagQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OperationsPelicanAccountFlagFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OperationsPelicanAccountFlagQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanAccountFlagQuery", q)
+}
+
+// The TraverseOperationsPelicanAccountFlag type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOperationsPelicanAccountFlag func(context.Context, *ent.OperationsPelicanAccountFlagQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOperationsPelicanAccountFlag) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOperationsPelicanAccountFlag) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OperationsPelicanAccountFlagQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OperationsPelicanAccountFlagQuery", q)
 }
 
 // The OperationsPelicanResultFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1314,6 +1342,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.IdempotencyRecordQuery, predicate.IdempotencyRecord, idempotencyrecord.OrderOption]{typ: ent.TypeIdempotencyRecord, tq: q}, nil
 	case *ent.IdentityAdoptionDecisionQuery:
 		return &query[*ent.IdentityAdoptionDecisionQuery, predicate.IdentityAdoptionDecision, identityadoptiondecision.OrderOption]{typ: ent.TypeIdentityAdoptionDecision, tq: q}, nil
+	case *ent.OperationsPelicanAccountFlagQuery:
+		return &query[*ent.OperationsPelicanAccountFlagQuery, predicate.OperationsPelicanAccountFlag, operationspelicanaccountflag.OrderOption]{typ: ent.TypeOperationsPelicanAccountFlag, tq: q}, nil
 	case *ent.OperationsPelicanResultQuery:
 		return &query[*ent.OperationsPelicanResultQuery, predicate.OperationsPelicanResult, operationspelicanresult.OrderOption]{typ: ent.TypeOperationsPelicanResult, tq: q}, nil
 	case *ent.OperationsPelicanTaskQuery:

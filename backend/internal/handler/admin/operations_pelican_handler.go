@@ -106,6 +106,22 @@ func (h *OperationsPelicanHandler) Enable(c *gin.Context) {
 	v, e := h.svc.Enable(c.Request.Context(), id, in.Enabled, in.ConfigVersion, operationsActor(c))
 	operationsReply(c, v, e)
 }
+// SetAccountDetection toggles the per-account scheduled-detection switch.
+func (h *OperationsPelicanHandler) SetAccountDetection(c *gin.Context) {
+	id, ok := operationsID(c)
+	if !ok {
+		return
+	}
+	var in struct {
+		Paused bool `json:"paused"`
+	}
+	if e := c.ShouldBindJSON(&in); e != nil {
+		response.BadRequest(c, "Invalid detection state")
+		return
+	}
+	v, e := h.svc.SetDetectPaused(c.Request.Context(), id, in.Paused)
+	operationsReply(c, v, e)
+}
 func (h *OperationsPelicanHandler) Delete(c *gin.Context) {
 	id, ok := operationsID(c)
 	if !ok {

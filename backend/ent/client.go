@@ -35,6 +35,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanaccountflag"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
@@ -107,6 +108,8 @@ type Client struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// OperationsPelicanAccountFlag is the client for interacting with the OperationsPelicanAccountFlag builders.
+	OperationsPelicanAccountFlag *OperationsPelicanAccountFlagClient
 	// OperationsPelicanResult is the client for interacting with the OperationsPelicanResult builders.
 	OperationsPelicanResult *OperationsPelicanResultClient
 	// OperationsPelicanTask is the client for interacting with the OperationsPelicanTask builders.
@@ -184,6 +187,7 @@ func (c *Client) init() {
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
+	c.OperationsPelicanAccountFlag = NewOperationsPelicanAccountFlagClient(c.config)
 	c.OperationsPelicanResult = NewOperationsPelicanResultClient(c.config)
 	c.OperationsPelicanTask = NewOperationsPelicanTaskClient(c.config)
 	c.PaymentAuditLog = NewPaymentAuditLogClient(c.config)
@@ -319,6 +323,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
+		OperationsPelicanAccountFlag:  NewOperationsPelicanAccountFlagClient(cfg),
 		OperationsPelicanResult:       NewOperationsPelicanResultClient(cfg),
 		OperationsPelicanTask:         NewOperationsPelicanTaskClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
@@ -381,6 +386,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
+		OperationsPelicanAccountFlag:  NewOperationsPelicanAccountFlagClient(cfg),
 		OperationsPelicanResult:       NewOperationsPelicanResultClient(cfg),
 		OperationsPelicanTask:         NewOperationsPelicanTaskClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
@@ -439,13 +445,13 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ChannelMonitorHistory, c.ChannelMonitorProbeAnomaly,
 		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
 		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision,
-		c.OperationsPelicanResult, c.OperationsPelicanTask, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RechargeQuickButton, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.OperationsPelicanAccountFlag, c.OperationsPelicanResult,
+		c.OperationsPelicanTask, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -461,13 +467,13 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ChannelMonitorHistory, c.ChannelMonitorProbeAnomaly,
 		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
 		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision,
-		c.OperationsPelicanResult, c.OperationsPelicanTask, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RechargeQuickButton, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.OperationsPelicanAccountFlag, c.OperationsPelicanResult,
+		c.OperationsPelicanTask, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RechargeQuickButton, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -516,6 +522,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *IdentityAdoptionDecisionMutation:
 		return c.IdentityAdoptionDecision.mutate(ctx, m)
+	case *OperationsPelicanAccountFlagMutation:
+		return c.OperationsPelicanAccountFlag.mutate(ctx, m)
 	case *OperationsPelicanResultMutation:
 		return c.OperationsPelicanResult.mutate(ctx, m)
 	case *OperationsPelicanTaskMutation:
@@ -3775,6 +3783,139 @@ func (c *IdentityAdoptionDecisionClient) mutate(ctx context.Context, m *Identity
 		return (&IdentityAdoptionDecisionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown IdentityAdoptionDecision mutation op: %q", m.Op())
+	}
+}
+
+// OperationsPelicanAccountFlagClient is a client for the OperationsPelicanAccountFlag schema.
+type OperationsPelicanAccountFlagClient struct {
+	config
+}
+
+// NewOperationsPelicanAccountFlagClient returns a client for the OperationsPelicanAccountFlag from the given config.
+func NewOperationsPelicanAccountFlagClient(c config) *OperationsPelicanAccountFlagClient {
+	return &OperationsPelicanAccountFlagClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `operationspelicanaccountflag.Hooks(f(g(h())))`.
+func (c *OperationsPelicanAccountFlagClient) Use(hooks ...Hook) {
+	c.hooks.OperationsPelicanAccountFlag = append(c.hooks.OperationsPelicanAccountFlag, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `operationspelicanaccountflag.Intercept(f(g(h())))`.
+func (c *OperationsPelicanAccountFlagClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OperationsPelicanAccountFlag = append(c.inters.OperationsPelicanAccountFlag, interceptors...)
+}
+
+// Create returns a builder for creating a OperationsPelicanAccountFlag entity.
+func (c *OperationsPelicanAccountFlagClient) Create() *OperationsPelicanAccountFlagCreate {
+	mutation := newOperationsPelicanAccountFlagMutation(c.config, OpCreate)
+	return &OperationsPelicanAccountFlagCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OperationsPelicanAccountFlag entities.
+func (c *OperationsPelicanAccountFlagClient) CreateBulk(builders ...*OperationsPelicanAccountFlagCreate) *OperationsPelicanAccountFlagCreateBulk {
+	return &OperationsPelicanAccountFlagCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OperationsPelicanAccountFlagClient) MapCreateBulk(slice any, setFunc func(*OperationsPelicanAccountFlagCreate, int)) *OperationsPelicanAccountFlagCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OperationsPelicanAccountFlagCreateBulk{err: fmt.Errorf("calling to OperationsPelicanAccountFlagClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OperationsPelicanAccountFlagCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OperationsPelicanAccountFlagCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OperationsPelicanAccountFlag.
+func (c *OperationsPelicanAccountFlagClient) Update() *OperationsPelicanAccountFlagUpdate {
+	mutation := newOperationsPelicanAccountFlagMutation(c.config, OpUpdate)
+	return &OperationsPelicanAccountFlagUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OperationsPelicanAccountFlagClient) UpdateOne(_m *OperationsPelicanAccountFlag) *OperationsPelicanAccountFlagUpdateOne {
+	mutation := newOperationsPelicanAccountFlagMutation(c.config, OpUpdateOne, withOperationsPelicanAccountFlag(_m))
+	return &OperationsPelicanAccountFlagUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OperationsPelicanAccountFlagClient) UpdateOneID(id int64) *OperationsPelicanAccountFlagUpdateOne {
+	mutation := newOperationsPelicanAccountFlagMutation(c.config, OpUpdateOne, withOperationsPelicanAccountFlagID(id))
+	return &OperationsPelicanAccountFlagUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OperationsPelicanAccountFlag.
+func (c *OperationsPelicanAccountFlagClient) Delete() *OperationsPelicanAccountFlagDelete {
+	mutation := newOperationsPelicanAccountFlagMutation(c.config, OpDelete)
+	return &OperationsPelicanAccountFlagDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OperationsPelicanAccountFlagClient) DeleteOne(_m *OperationsPelicanAccountFlag) *OperationsPelicanAccountFlagDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OperationsPelicanAccountFlagClient) DeleteOneID(id int64) *OperationsPelicanAccountFlagDeleteOne {
+	builder := c.Delete().Where(operationspelicanaccountflag.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OperationsPelicanAccountFlagDeleteOne{builder}
+}
+
+// Query returns a query builder for OperationsPelicanAccountFlag.
+func (c *OperationsPelicanAccountFlagClient) Query() *OperationsPelicanAccountFlagQuery {
+	return &OperationsPelicanAccountFlagQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOperationsPelicanAccountFlag},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OperationsPelicanAccountFlag entity by its id.
+func (c *OperationsPelicanAccountFlagClient) Get(ctx context.Context, id int64) (*OperationsPelicanAccountFlag, error) {
+	return c.Query().Where(operationspelicanaccountflag.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OperationsPelicanAccountFlagClient) GetX(ctx context.Context, id int64) *OperationsPelicanAccountFlag {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OperationsPelicanAccountFlagClient) Hooks() []Hook {
+	return c.hooks.OperationsPelicanAccountFlag
+}
+
+// Interceptors returns the client interceptors.
+func (c *OperationsPelicanAccountFlagClient) Interceptors() []Interceptor {
+	return c.inters.OperationsPelicanAccountFlag
+}
+
+func (c *OperationsPelicanAccountFlagClient) mutate(ctx context.Context, m *OperationsPelicanAccountFlagMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OperationsPelicanAccountFlagCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OperationsPelicanAccountFlagUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OperationsPelicanAccountFlagUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OperationsPelicanAccountFlagDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OperationsPelicanAccountFlag mutation op: %q", m.Op())
 	}
 }
 
@@ -7446,12 +7587,12 @@ type (
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorProbeAnomaly, ChannelMonitorRequestTemplate, CompositeModelRoute,
 		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		OperationsPelicanResult, OperationsPelicanTask, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RechargeQuickButton, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Hook
+		OperationsPelicanAccountFlag, OperationsPelicanResult, OperationsPelicanTask,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -7459,12 +7600,12 @@ type (
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorProbeAnomaly, ChannelMonitorRequestTemplate, CompositeModelRoute,
 		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		OperationsPelicanResult, OperationsPelicanTask, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RechargeQuickButton, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Interceptor
+		OperationsPelicanAccountFlag, OperationsPelicanResult, OperationsPelicanTask,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RechargeQuickButton, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

@@ -31,6 +31,7 @@ type OperationsAccount struct {
 	Protocol     string            `json:"protocol"`
 	Groups       []OperationsGroup `json:"groups"`
 	HasUngrouped bool              `json:"has_ungrouped,omitempty"`
+	DetectPaused bool              `json:"detect_paused,omitempty"`
 }
 type OperationsTask struct {
 	ID              int64                     `json:"id"`
@@ -183,6 +184,8 @@ type OperationsRepository interface {
 	ClaimCleanup(context.Context, int) ([]*OperationsResult, error)
 	CompleteCleanup(context.Context, int64) error
 	FailCleanup(context.Context, int64, string) error
+	ListDetectPausedAccounts(context.Context) (map[int64]bool, error)
+	SetDetectPaused(context.Context, int64, bool) error
 }
 type OperationsStoredObject struct {
 	VersionID string

@@ -13,6 +13,7 @@ func registerOperationsPelicanRoutes(admin *gin.RouterGroup, h *handler.Handlers
 	ops := admin.Group("/operations")
 	ops.Use(handler.Guard)
 	ops.GET("/accounts", handler.Accounts)
+	ops.PUT("/accounts/:id/detection", handler.SetAccountDetection)
 	ops.GET("/accounts/:id/models", handler.Models)
 	ops.GET("/storage-sources", handler.StorageSources)
 	ops.POST("/storage-sources/:source/test", handler.TestStorage)

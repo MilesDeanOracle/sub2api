@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/operationspelicanaccountflag"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicanresult"
 	"github.com/Wei-Shaw/sub2api/ent/operationspelicantask"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
@@ -1357,6 +1358,18 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	operationspelicanaccountflagFields := schema.OperationsPelicanAccountFlag{}.Fields()
+	_ = operationspelicanaccountflagFields
+	// operationspelicanaccountflagDescDetectPaused is the schema descriptor for detect_paused field.
+	operationspelicanaccountflagDescDetectPaused := operationspelicanaccountflagFields[1].Descriptor()
+	// operationspelicanaccountflag.DefaultDetectPaused holds the default value on creation for the detect_paused field.
+	operationspelicanaccountflag.DefaultDetectPaused = operationspelicanaccountflagDescDetectPaused.Default.(bool)
+	// operationspelicanaccountflagDescUpdatedAt is the schema descriptor for updated_at field.
+	operationspelicanaccountflagDescUpdatedAt := operationspelicanaccountflagFields[2].Descriptor()
+	// operationspelicanaccountflag.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	operationspelicanaccountflag.DefaultUpdatedAt = operationspelicanaccountflagDescUpdatedAt.Default.(func() time.Time)
+	// operationspelicanaccountflag.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	operationspelicanaccountflag.UpdateDefaultUpdatedAt = operationspelicanaccountflagDescUpdatedAt.UpdateDefault.(func() time.Time)
 	operationspelicanresultFields := schema.OperationsPelicanResult{}.Fields()
 	_ = operationspelicanresultFields
 	// operationspelicanresultDescWorkerToken is the schema descriptor for worker_token field.
