@@ -56,12 +56,21 @@ help: ## 显示所有可用命令
 	@awk -F ':.*##' '/^##/ { sub(/^## */, ""); print $$0; next } /^[a-zA-Z0-9_-]+:.*##/ { if (!seen[$$1]++) { sub(/^ +/, "", $$2); printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2 } }' $(MAKEFILE_LIST)
 endif
 
+# make dev <后端端口>：把目标后面的端口数字取出来作为远程后端端口（等价写法：make dev PORT=8099）
+# 需生成一条空规则吞掉这个多余 goal，否则 make 会把端口数字当作目标去构建
+ifeq ($(firstword $(MAKECMDGOALS)),dev)
+DEV_PORT := $(if $(PORT),$(PORT),$(word 2,$(MAKECMDGOALS)))
+ifneq ($(DEV_PORT),)
+$(eval $(DEV_PORT):;@:)
+endif
+endif
+
 ifeq ($(OS),Windows_NT)
-dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（输入用户名密码后连接）
-	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1
+dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（可指定后端端口：make dev 8099）
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -BackendPort "$(DEV_PORT)"
 else
-dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（输入用户名密码后连接）
-	@bash scripts/dev.sh
+dev: ## 通过 SSH 隧道连接远程后端并启动前端开发服务器（可指定后端端口：make dev 8099）
+	@bash scripts/dev.sh "$(DEV_PORT)"
 endif
 
 ifeq ($(OS),Windows_NT)

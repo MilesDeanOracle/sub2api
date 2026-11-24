@@ -1,9 +1,12 @@
 ﻿# make dev (Windows)：先通过 SSH 隧道把远程后端服务转发到本机，再启动前端开发服务器。
+# 用法：make dev [后端端口]（如 make dev 8099，不传则使用下方 $RemotePort 默认值）
 # 流程与 scripts/dev.sh 一致（Linux/macOS 使用 dev.sh）：
 #   1. 提示输入 SSH 用户名（密码由 ssh 在连接时提示输入，脚本不保存密码）
 #   2. 后台建立隧道 127.0.0.1:8099 -> 隧道服务器 154.51.40.64 上的后端服务
 #   3. 以 VITE_DEV_PROXY_TARGET=http://127.0.0.1:8099 启动 vite 开发服务器
 #   4. 前端退出（Ctrl+C）时自动关闭隧道
+param([string]$BackendPort = '')
+
 $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置 =====
@@ -13,6 +16,15 @@ $LocalPort  = 8099             # 本机访问后端的端口
 $RemoteHost = '127.0.0.1'      # 后端服务在隧道服务器上的地址
 $RemotePort = 8099             # 后端服务在隧道服务器上的端口
 # ============================
+
+# 命令行参数：远程后端端口（可选），覆盖上方 $RemotePort 默认值
+if ($BackendPort) {
+    if ($BackendPort -notmatch '^\d+$' -or [int]$BackendPort -lt 1 -or [int]$BackendPort -gt 65535) {
+        Write-Host "错误：端口必须是 1-65535 的数字，收到 '$BackendPort'"
+        exit 1
+    }
+    $RemotePort = [int]$BackendPort
+}
 
 Set-Location (Join-Path $PSScriptRoot '..')
 
