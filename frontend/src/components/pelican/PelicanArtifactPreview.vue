@@ -19,6 +19,7 @@
 
     <div v-if="prepared" ref="stageRef" class="pelican-preview-stage" :class="{ 'pelican-preview-fitted': fitContent }">
       <iframe
+        v-if="!fitContent || stageReady"
         :key="frameKey"
         :srcdoc="prepared"
         :title="title"
@@ -56,9 +57,15 @@ const { t } = useI18n()
 const shellRef = ref<HTMLElement | null>(null)
 const stageRef = ref<HTMLElement | null>(null)
 const stageSize = ref({ width: 0, height: 0 })
+// The fitted frame must never be laid out at scale(0): a frame first painted
+// with an empty rect loads its document as hidden (rAF suspended), leaving
+// JS-driven artwork blank until the iframe element is recreated by replay.
+const stageReady = ref(false)
 let resizeObserver: ResizeObserver | undefined
 const frameKey = ref(0)
-const scriptNonce = ref<string | undefined>()
+// Read the host nonce synchronously so the very first srcdoc already carries
+// it; the site CSP has no 'unsafe-inline' and srcdoc inherits that policy.
+const scriptNonce = ref<string | undefined>(document.querySelector<HTMLScriptElement>('script[nonce]')?.nonce || undefined)
 
 const prepared = computed(() =>
   props.html ? prepareArtifactDocument(props.html, scriptNonce.value, props.fitContent) : ''
@@ -73,7 +80,9 @@ const frameStyle = computed<CSSProperties | undefined>(() => {
 
 function measureStage() {
   const stage = stageRef.value
-  if (stage) stageSize.value = { width: stage.clientWidth, height: stage.clientHeight }
+  if (!stage) return
+  stageSize.value = { width: stage.clientWidth, height: stage.clientHeight }
+  if (stageSize.value.width > 0) stageReady.value = true
 }
 
 watch(stageRef, stage => {
@@ -83,8 +92,6 @@ watch(stageRef, stage => {
 })
 
 onMounted(() => {
-  const script = document.querySelector<HTMLScriptElement>('script[nonce]')
-  scriptNonce.value = script?.nonce || undefined
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(measureStage)
     if (stageRef.value) resizeObserver.observe(stageRef.value)

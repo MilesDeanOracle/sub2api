@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import PelicanArtifactPreview from './PelicanArtifactPreview.vue'
 import { operationsApi, type OperationsResult } from '@/api/admin/operationsConsole'
+import { getCachedArtifact, storeArtifact } from '@/lib/pelican/contentCache'
 
 const props = withDefaults(defineProps<{ result: OperationsResult; active?: boolean; previewEnabled?: boolean; retainPreview?: boolean }>(), { previewEnabled: true, retainPreview: false })
 const { t } = useI18n()
@@ -24,16 +25,33 @@ const metrics = computed(() => [
   { key: 'tps', value: props.result.tps == null ? t('operationsConsole.unavailable') : props.result.tps.toFixed(1), hint: t('operationsConsole.tpsHint') },
   { key: 'outputTokens', value: props.result.output_tokens?.toLocaleString() ?? t('operationsConsole.unavailable'), hint: '' }
 ])
+let fetchSeq = 0
 async function load() {
-  if (!props.previewEnabled || loading.value || html.value !== null || props.result.status !== 'succeeded') return
+  if (!props.previewEnabled || html.value !== null || props.result.status !== 'succeeded') return
+  const id = props.result.id
+  const seq = ++fetchSeq
+  const cached = getCachedArtifact(id)
+  if (cached !== undefined) { html.value = cached; return }
   loading.value = true; failed.value = false
-  try { html.value = await operationsApi.content(props.result.id) } catch { failed.value = true } finally { loading.value = false }
+  try {
+    const fetched = await operationsApi.content(id)
+    storeArtifact(id, fetched)
+    if (seq === fetchSeq && props.result.id === id) html.value = fetched
+  } catch { if (seq === fetchSeq) failed.value = true }
+  finally { if (seq === fetchSeq) loading.value = false }
 }
 watch([visible, () => props.previewEnabled], ([inView, enabled]) => { if (inView && enabled) void load() })
 watch(() => props.result.status, () => { if (visible.value) void load() })
+// Stacks reuse slot card instances when results shift after a refresh; a new
+// result id must drop the previous html instead of showing mismatched content.
+watch(() => props.result.id, () => {
+  fetchSeq++
+  html.value = null; failed.value = false; loading.value = false
+  if (visible.value) void load()
+})
 onMounted(() => {
   if (!('IntersectionObserver' in window)) { visible.value = true; return }
-  observer = new IntersectionObserver(entries => { visible.value = entries.some(e => e.isIntersecting) }, { rootMargin: '150px' })
+  observer = new IntersectionObserver(entries => { visible.value = entries.some(e => e.isIntersecting) }, { rootMargin: '300px' })
   if (root.value) observer.observe(root.value)
 })
 onUnmounted(() => observer?.disconnect())
