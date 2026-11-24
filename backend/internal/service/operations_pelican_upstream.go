@@ -149,7 +149,7 @@ func operationsAuth(req *http.Request, a *Account, protocol, base string) {
 		req.Header.Set("Authorization", "Bearer "+a.GetCredential("api_key"))
 	}
 	req.Header.Set("User-Agent", "sub2api-operations/1.0")
-	a.ApplyHeaderOverrides(req.Header)
+	a.ApplyHeaderOverrides(req.Context(), req.Header)
 }
 
 // Budget mapping is explicit and recorded, rather than forwarding OpenAI effort
