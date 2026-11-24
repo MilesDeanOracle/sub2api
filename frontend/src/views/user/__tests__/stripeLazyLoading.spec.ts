@@ -24,7 +24,7 @@ describe('Stripe lazy-loading contract', () => {
   it('keeps Stripe out of the shared vendor chunk', () => {
     const viteConfig = readFrontendFile('vite.config.ts')
     const stripeRule = viteConfig.indexOf("id.includes('/@stripe/stripe-js/')")
-    const miscFallback = viteConfig.indexOf("return 'vendor-misc'")
+    const miscFallback = viteConfig.indexOf("return 'vendor'")
 
     expect(stripeRule).toBeGreaterThan(-1)
     expect(viteConfig.slice(stripeRule, miscFallback)).toContain("return 'vendor-stripe'")

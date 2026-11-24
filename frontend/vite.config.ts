@@ -116,6 +116,14 @@ export default defineConfig(({ mode }) => {
               return 'vendor-stripe'
             }
 
+            // echarts/zrender（图表）与 xlsx（Excel 导出）只被懒加载路由引用，
+            // 必须交给 Rollup 自然分块：若并入 vendor 会被强制塞进每个页面
+            // 的首屏依赖（合计约 1.4MB）。它们不反向依赖应用代码，
+            // 独立成块不会造成跨 chunk 循环引用。
+            if (/[\\/]node_modules[\\/](echarts|zrender|xlsx)[\\/]/.test(id)) {
+              return undefined
+            }
+
             // 其余第三方库全部并入单一 vendor 块。
             // 按包名细分会造成跨 chunk 循环引用（如 vue 生态 ↔ 工具库），
             // 运行时报 "Cannot access 'xx' before initialization" 白屏；
