@@ -1,5 +1,5 @@
 export default {
-  title: '运营管理',
+  title: '财账管理',
   description: '查看运营收益、用量分布和上游账号实时余额',
   cost: '成本',
   profit: '利润',

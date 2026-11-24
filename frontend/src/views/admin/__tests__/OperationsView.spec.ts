@@ -72,11 +72,16 @@ describe('OperationsView', () => {
     await wrapper.find('section button').trigger('click')
     await flushPromises()
     expect(wrapper.text()).not.toContain('operations.balanceBackendOutdated')
-    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
     wrapper.unmount()
   })
 
-  it('shows actual charges, account costs and profit, and keeps zero upstream balances distinct from failures', async () => {
+  it('shows actual charges, account costs and profit, keeps zero-balance rows, hides failed upstream queries, and marks balances under 50 red', async () => {
+    getUpstreamBalances.mockResolvedValueOnce([
+      { base_url: 'https://low.example', account_name: 'Low', account_id: 3, account_count: 1, balance: 0, unit: 'USD', status: 'ok', kind: 'wallet' },
+      { base_url: 'https://healthy.example', account_name: 'Healthy', account_id: 4, account_count: 2, balance: 75.5, unit: 'USD', status: 'ok', kind: 'wallet' },
+      { base_url: 'https://failed.example', account_name: 'Other', account_id: 2, account_count: 1, balance: null, unit: 'USD', status: 'failed', kind: 'unknown', error: 'http_error', http_status: 401 },
+    ])
     const wrapper = render()
     await flushPromises()
     expect(wrapper.get('[data-testid="operations-consumption"]').text()).toBe('$100.0000')
@@ -85,10 +90,14 @@ describe('OperationsView', () => {
     expect(wrapper.get('[data-testid="operations-requests"]').text()).toBe('123')
     expect(wrapper.get('[data-testid="operations-tokens"]').text()).toBe((98765).toLocaleString())
     const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
     expect(rows[0].text()).toContain('0.0000 USD')
     expect(rows[0].text()).not.toContain('Primary')
-    expect(rows[1].text()).toContain('HTTP 401')
-    expect(rows[1].text()).not.toContain('0.0000 USD')
+    const balanceCellOf = (row: ReturnType<typeof wrapper.findAll<'tbody tr'>>[number]) => row.findAll('td')[2]
+    expect(balanceCellOf(rows[0]).classes()).toContain('text-red-600')
+    expect(rows[1].text()).toContain('75.5000 USD')
+    expect(balanceCellOf(rows[1]).classes()).not.toContain('text-red-600')
+    expect(wrapper.text()).not.toContain('HTTP 401')
     wrapper.unmount()
   })
 

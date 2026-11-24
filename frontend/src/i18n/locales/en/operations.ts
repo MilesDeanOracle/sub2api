@@ -1,5 +1,5 @@
 export default {
-  title: 'Operations Management',
+  title: 'Financial Management',
   description: 'View operating profit, usage distributions, and live upstream balances',
   cost: 'Cost',
   profit: 'Profit',

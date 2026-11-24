@@ -51,12 +51,12 @@
               <th class="p-2">{{ t('operations.accountCount') }}</th><th class="p-2">{{ t('operations.balance') }}</th>
               <th class="p-2">{{ t('common.status') }}</th><th class="p-2">{{ t('operations.queriedAt') }}</th>
             </tr></thead>
-            <tbody :class="{ 'select-none blur-sm': !balancesVisible }" :inert="balancesVisible ? undefined : true" :aria-hidden="!balancesVisible"><tr v-for="row in balances" :key="row.base_url" class="border-t border-gray-100 dark:border-dark-700">
+            <tbody :class="{ 'select-none blur-sm': !balancesVisible }" :inert="balancesVisible ? undefined : true" :aria-hidden="!balancesVisible"><tr v-for="row in balanceRows" :key="row.base_url" class="border-t border-gray-100 dark:border-dark-700">
               <td class="p-2 font-mono text-xs">
                 <a :href="row.base_url" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline dark:text-blue-400">{{ row.base_url }}</a>
               </td>
               <td class="p-2 tabular-nums">{{ row.account_count }}</td>
-              <td class="p-2 tabular-nums">{{ row.status === 'ok' && row.balance != null ? `${row.balance.toFixed(4)} ${row.unit}` : '—' }}</td>
+              <td class="p-2 tabular-nums" :class="isLowBalance(row) ? 'font-semibold text-red-600 dark:text-red-400' : ''">{{ row.status === 'ok' && row.balance != null ? `${row.balance.toFixed(4)} ${row.unit}` : '—' }}</td>
               <td class="p-2" :class="row.status === 'ok' ? 'text-green-600' : 'text-amber-600'">{{ row.status === 'ok' ? t('operations.success') : balanceErrorLabel(row) }}</td>
               <td class="whitespace-nowrap p-2 text-xs text-gray-500">{{ row.queried_at ? new Date(row.queried_at).toLocaleString() : '—' }}</td>
             </tr></tbody>
@@ -151,6 +151,8 @@ async function loadUsage() {
   usageLoading.value = false
 }
 const balances = ref<UpstreamBalance[]>([])
+// 余额表格仅展示查询成功的上游；failed / unsupported 的行不显示
+const balanceRows = computed(() => balances.value.filter(row => row.status === 'ok'))
 const balancesVisible = ref(false)
 const balanceLoading = ref(false)
 const balanceError = ref('')
@@ -175,6 +177,11 @@ async function loadBalances() {
   } finally {
     if (!controller.signal.aborted) balanceLoading.value = false
   }
+}
+// 余额低于该阈值（美元）时标红提示
+const LOW_BALANCE_THRESHOLD = 50
+function isLowBalance(row: UpstreamBalance) {
+  return row.balance != null && row.balance < LOW_BALANCE_THRESHOLD
 }
 function balanceErrorLabel(row: UpstreamBalance) {
   if (row.error === 'no_balance') return t('operations.noBalance')
