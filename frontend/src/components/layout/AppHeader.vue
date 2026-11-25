@@ -1,7 +1,8 @@
 <template>
   <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
     <div class="relative flex min-h-16 flex-wrap items-center justify-between gap-2 px-2 pb-2 sm:px-4 md:px-6 2xl:h-16 2xl:flex-nowrap 2xl:pb-0">
-      <div v-if="user && (feedbackEnabled || qqGroupEnabled || pelicanVisible)" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
+      <div v-if="user" class="flex w-full flex-wrap items-center justify-center gap-2.5 pt-2 2xl:pointer-events-none 2xl:absolute 2xl:inset-x-0 2xl:top-1/2 2xl:-translate-y-1/2 2xl:pt-0">
+        <UserDashboardActivity quick-entry />
         <button
           v-if="feedbackEnabled"
           type="button"
@@ -306,6 +307,7 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import { useFeedbackStore } from '@/stores/feedback'
 import Icon from '@/components/icons/Icon.vue'
+import UserDashboardActivity from '@/components/user/dashboard/UserDashboardActivity.vue'
 import PelicanLogo from '@/components/pelican/PelicanLogo.vue'
 import EchoWallLogo from '@/components/feedback/EchoWallLogo.vue'
 import QqGroupLogo from './QqGroupLogo.vue'

@@ -25,6 +25,12 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
+		activity := authenticated.Group("/activity")
+		activity.GET("/status", h.Activity.Status)
+		activity.GET("/consumption", h.Activity.ConsumptionStatus)
+		activity.POST("/consumption/claim", h.Activity.ClaimConsumption)
+		activity.POST("/checkin", h.Activity.Checkin)
+		activity.POST("/second-recharge/claim", h.Activity.ClaimSecondRecharge)
 		// Feedback submits only the form; private user enrichment runs asynchronously.
 		if h.Feedback != nil {
 			feedback := authenticated.Group("/feedback")
