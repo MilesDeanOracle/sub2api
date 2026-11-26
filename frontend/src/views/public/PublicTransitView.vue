@@ -340,7 +340,8 @@ import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import MonitorCardGrid from '@/components/user/monitor/MonitorCardGrid.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
-import type { MonitorStatus, Provider, UserMonitorDetail, UserMonitorView } from '@/api/channelMonitor'
+import { formatMultiplier, formatPercent, multiplierBadgeClass, normalizeStatus } from '@/utils/publicTransitFormat'
+import type { Provider, UserMonitorDetail, UserMonitorView } from '@/api/channelMonitor'
 import {
   getPublicTransitSnapshot,
   type PublicTransitCacheUsageWindow,
@@ -531,35 +532,6 @@ function platformTextClass(platform: string) {
   }
 }
 
-function formatPercent(value: number) {
-  return `${value.toFixed(1)}%`
-}
-
-function formatMultiplier(value: number) {
-  if (!Number.isFinite(value)) return '-'
-  const normalized = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(3).replace(/\.?0+$/, '')
-  return `${normalized}x`
-}
-
-function multiplierBadgeClass(value: number) {
-  if (!Number.isFinite(value)) {
-    return 'bg-gray-100 text-gray-500 ring-gray-200 dark:bg-dark-800 dark:text-dark-300 dark:ring-dark-700'
-  }
-  if (value <= 0.25) {
-    return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/60'
-  }
-  if (value < 1) {
-    return 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900/60'
-  }
-  if (value === 1) {
-    return 'bg-slate-50 text-slate-700 ring-slate-200 dark:bg-dark-800 dark:text-dark-200 dark:ring-dark-700'
-  }
-  if (value <= 2) {
-    return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/60'
-  }
-  return 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/60'
-}
-
 function formatTokenCompact(value?: number) {
   const safe = value != null && Number.isFinite(value) ? value : 0
   if (safe >= 1_000_000_000) return `${(safe / 1_000_000_000).toFixed(1)}B`
@@ -608,13 +580,6 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
-}
-
-function normalizeStatus(status: string): MonitorStatus {
-  if (status === 'operational' || status === 'degraded' || status === 'failed' || status === 'error') {
-    return status
-  }
-  return 'error'
 }
 
 function normalizeProvider(provider: string): Provider {

@@ -37,6 +37,7 @@ func RegisterAdminRoutes(
 		registerAdminComplianceRoutes(admin, h)
 
 		registerOperationsPelicanRoutes(admin, h)
+		registerOperationsGroupCacheRoutes(admin, h)
 
 		// 仪表盘
 		registerDashboardRoutes(admin, h)

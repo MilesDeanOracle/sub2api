@@ -588,6 +588,11 @@ const (
 	// without this key fall back to the API switch to avoid breaking published pages.
 	SettingKeyPublicTransitPageEnabled = "public_transit_page_enabled"
 
+	// SettingKeyPublicTransitGroupCachePrefix is the key prefix of the per-group
+	// public snapshot cache hit rate floor. One row per group:
+	// "public_transit_group_cache.<group id>" = {"enabled":bool,"floor":number|null}.
+	SettingKeyPublicTransitGroupCachePrefix = "public_transit_group_cache."
+
 	// =========================
 	// Overload Cooldown (529)
 	// =========================

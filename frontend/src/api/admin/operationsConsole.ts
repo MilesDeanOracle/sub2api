@@ -1,4 +1,5 @@
 import { apiClient } from '../client'
+import type { GroupPlatform } from '@/types'
 
 export interface OperationsGroup { id: number; name: string }
 export interface OperationsWallGroup extends OperationsGroup { accounts: OperationsAccount[] }
@@ -26,6 +27,18 @@ export interface StorageSource { id: string; available: boolean; endpoint: strin
 export interface ModelCatalog { models: string[]; source: string; queried_at: string; metadata: Record<string, { supported_reasoning_levels?: string[]; reasoning?: boolean }> }
 export interface ResultQuery { view: 'latest' | 'history'; scope?: 'current' | 'past'; group_by?: 'account'; group_id?: number; account_id?: number; task_id?: number; status?: string; before_id?: number; before_account_id?: number; limit?: number; from?: string; to?: string }
 export interface ResultPage { items: OperationsResult[]; has_more: boolean; next_id: number; next_account_id?: number; account_has_more?: Record<number, boolean> }
+/** cache_hit_rate and the token counts are real cumulative values; setting.floor is the minimum rate the public snapshot may disclose (null = unset). */
+export interface GroupCacheSetting { enabled: boolean; floor: number | null }
+/** Query conditions of the operations console list; an empty string means "any". */
+export interface GroupCacheQuery { search: string; platform: string; status: string }
+/** items is always an array, also when nothing matches the query. */
+export interface GroupCachePage { items: GroupCacheRow[] }
+export interface GroupCacheRow {
+  group_id: number; name: string; platform: GroupPlatform; rate_multiplier: number; model_count: number
+  monitor?: { status: string; model: string }; cache_hit_rate: number
+  input_tokens: number; cache_creation_tokens: number; cache_read_tokens: number
+  setting: GroupCacheSetting
+}
 const base = '/admin/operations'
 export const operationsApi = {
   async accounts() { return (await apiClient.get<OperationsAccount[]>(`${base}/accounts`)).data },
@@ -48,5 +61,7 @@ export const operationsApi = {
   async cleanAccount(id: number, groupID?: number) { return (await apiClient.delete<OperationsGroupCleanup>(`${base}/results/accounts/${id}`, { params: { group_id: groupID }, timeout: 180000 })).data },
   async content(id: number) { return (await apiClient.get<{ html: string }>(`${base}/results/${id}/content`)).data.html },
   async status() { return (await apiClient.get<OperationsStatus>(`${base}/status`)).data },
-  async run(id: string) { return (await apiClient.get<OperationsResult[]>(`${base}/runs/${id}`)).data }
+  async run(id: string) { return (await apiClient.get<OperationsResult[]>(`${base}/runs/${id}`)).data },
+  async groupCache(query: GroupCacheQuery) { return (await apiClient.get<GroupCachePage>(`${base}/group-cache`, { params: query })).data },
+  async updateGroupCache(id: number, setting: GroupCacheSetting) { return (await apiClient.put<GroupCacheSetting>(`${base}/group-cache/${id}`, setting)).data }
 }

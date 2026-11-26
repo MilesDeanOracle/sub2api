@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// publicTransitGroupsOfEntries drops the internal IDs the snapshot never exports.
+func publicTransitGroupsOfEntries(entries []publicTransitGroupEntry) []PublicTransitGroup {
+	groups := make([]PublicTransitGroup, 0, len(entries))
+	for _, entry := range entries {
+		groups = append(groups, entry.Group)
+	}
+	return groups
+}
+
 func TestBuildPublicTransitGroups_FiltersExclusiveGroupsAndExportsPricing(t *testing.T) {
 	configuredGroups := []Group{
 		{
@@ -88,7 +97,7 @@ func TestBuildPublicTransitGroups_FiltersExclusiveGroupsAndExportsPricing(t *tes
 			},
 		}),
 	}
-	groups := buildPublicTransitGroups(configuredGroups, channels, cacheUsage, nil)
+	groups := publicTransitGroupsOfEntries(buildPublicTransitGroupEntries(configuredGroups, channels, cacheUsage, nil))
 
 	require.Len(t, groups, 1)
 	require.Equal(t, "public-pro", groups[0].Name)
@@ -139,7 +148,7 @@ func TestBuildPublicTransitGroups_ExportsConfiguredGroupsWithoutAvailableChannel
 		},
 	}
 
-	groups := buildPublicTransitGroups(configuredGroups, nil, nil, nil)
+	groups := publicTransitGroupsOfEntries(buildPublicTransitGroupEntries(configuredGroups, nil, nil, nil))
 
 	require.Len(t, groups, 1)
 	require.Equal(t, "gpt pro号池", groups[0].Name)

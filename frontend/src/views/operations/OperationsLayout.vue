@@ -13,7 +13,8 @@ const route = useRoute()
 const status = ref<OperationsStatus>({ running: 0, queued: 0, cleanup_failed: 0, max_workers: 4 })
 const nav = [
   { path: '/operations/pelican', key: 'wall', icon: 'grid', hint: 'retention' },
-  { path: '/operations/config', key: 'config', icon: 'cog', hint: 'pool' }
+  { path: '/operations/config', key: 'config', icon: 'cog', hint: 'pool' },
+  { path: '/operations/group-cache', key: 'groupCache', icon: 'database', hint: 'groupCacheHint' }
 ] as const
 const current = computed(() => nav.find(item => route.path.startsWith(item.path)) ?? nav[0]!)
 const slots = computed(() => Array.from({ length: status.value.max_workers || 4 }, (_, i) => i < status.value.running))

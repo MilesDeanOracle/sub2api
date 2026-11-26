@@ -313,37 +313,23 @@ func (s *PublicTransitService) Snapshot(ctx context.Context, baseURL string) (*P
 		return nil, fmt.Errorf("load payment config: %w", err)
 	}
 
-	channels, err := s.channelService.ListAvailable(ctx)
+	entries, err := s.publicTransitEntries(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list public channels: %w", err)
+		return nil, err
 	}
 
-	configuredGroups, err := s.groupRepo.ListActive(ctx)
+	monitorItems, err := s.publicMonitorItems(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list public groups: %w", err)
-	}
-
-	var monitorItems []PublicTransitMonitor
-	if s.settingService.GetChannelMonitorRuntime(ctx).Enabled {
-		monitors, err := s.monitorService.ListUserView(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("list public monitors: %w", err)
-		}
-		monitorDetails, err := s.publicMonitorDetails(ctx, monitors)
-		if err != nil {
-			return nil, fmt.Errorf("load public monitor details: %w", err)
-		}
-		monitorItems = buildPublicTransitMonitors(monitors, monitorDetails)
+		return nil, err
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	runtime := s.settingService.GetPublicTransitRuntime(ctx)
-	cacheUsageByGroupID, err := s.publicGroupCacheUsage(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load public group cache usage: %w", err)
-	}
 
-	groups := buildPublicTransitGroups(configuredGroups, channels, cacheUsageByGroupID, publicPricingService(s.channelService))
+	groups, err := s.publicTransitGroups(ctx, entries)
+	if err != nil {
+		return nil, err
+	}
 	completeness := buildPublicTransitCompleteness(groups, monitorItems)
 
 	station := PublicTransitStation{
@@ -400,13 +386,56 @@ func (s *PublicTransitService) Snapshot(ctx context.Context, baseURL string) (*P
 	}, nil
 }
 
-func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChannel, cacheUsageByGroupID map[int64]PublicTransitCacheUsage, pricingService *PricingService) []PublicTransitGroup {
+// publicTransitEntries loads the exported groups with their real, unadjusted
+// cache usage in snapshot order.
+func (s *PublicTransitService) publicTransitEntries(ctx context.Context) ([]publicTransitGroupEntry, error) {
+	channels, err := s.channelService.ListAvailable(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list public channels: %w", err)
+	}
+
+	configuredGroups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list public groups: %w", err)
+	}
+
+	cacheUsageByGroupID, err := s.publicGroupCacheUsage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load public group cache usage: %w", err)
+	}
+
+	return buildPublicTransitGroupEntries(configuredGroups, channels, cacheUsageByGroupID, publicPricingService(s.channelService)), nil
+}
+
+func (s *PublicTransitService) publicMonitorItems(ctx context.Context) ([]PublicTransitMonitor, error) {
+	if !s.settingService.GetChannelMonitorRuntime(ctx).Enabled {
+		return nil, nil
+	}
+	monitors, err := s.monitorService.ListUserView(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list public monitors: %w", err)
+	}
+	monitorDetails, err := s.publicMonitorDetails(ctx, monitors)
+	if err != nil {
+		return nil, fmt.Errorf("load public monitor details: %w", err)
+	}
+	return buildPublicTransitMonitors(monitors, monitorDetails), nil
+}
+
+// publicTransitGroupEntry pairs an exported group with its internal ID. The ID
+// never leaves through the public snapshot; only the operations console uses it.
+type publicTransitGroupEntry struct {
+	ID    int64
+	Group PublicTransitGroup
+}
+
+func buildPublicTransitGroupEntries(configuredGroups []Group, channels []AvailableChannel, cacheUsageByGroupID map[int64]PublicTransitCacheUsage, pricingService *PricingService) []publicTransitGroupEntry {
 	type groupKey struct {
 		id       int64
 		name     string
 		platform string
 	}
-	byKey := make(map[groupKey]*PublicTransitGroup)
+	byKey := make(map[groupKey]*publicTransitGroupEntry)
 	modelSeen := make(map[groupKey]map[string]struct{})
 	groupByKey := make(map[groupKey]Group)
 
@@ -419,7 +448,7 @@ func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChan
 		}
 		key := groupKey{id: g.ID, name: g.Name, platform: g.Platform}
 		groupByKey[key] = g
-		byKey[key] = &PublicTransitGroup{
+		byKey[key] = &publicTransitGroupEntry{ID: g.ID, Group: PublicTransitGroup{
 			Name:             g.Name,
 			Platform:         g.Platform,
 			SubscriptionType: g.SubscriptionType,
@@ -427,7 +456,7 @@ func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChan
 			IsExclusive:      false,
 			CacheUsage:       publicCacheUsageForGroup(cacheUsageByGroupID, g.ID),
 			Models:           []PublicTransitModel{},
-		}
+		}}
 		modelSeen[key] = make(map[string]struct{})
 	}
 
@@ -451,7 +480,7 @@ func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChan
 					IsExclusive:      g.IsExclusive,
 					Status:           StatusActive,
 				}
-				byKey[key] = &PublicTransitGroup{
+				byKey[key] = &publicTransitGroupEntry{ID: g.ID, Group: PublicTransitGroup{
 					Name:             g.Name,
 					Platform:         g.Platform,
 					SubscriptionType: g.SubscriptionType,
@@ -459,7 +488,7 @@ func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChan
 					IsExclusive:      false,
 					CacheUsage:       publicCacheUsageForGroup(cacheUsageByGroupID, g.ID),
 					Models:           []PublicTransitModel{},
-				}
+				}}
 				modelSeen[key] = make(map[string]struct{})
 				out = byKey[key]
 			}
@@ -473,25 +502,25 @@ func buildPublicTransitGroups(configuredGroups []Group, channels []AvailableChan
 				}
 				modelSeen[key][modelKey] = struct{}{}
 				group := groupByKey[key]
-				out.Models = append(out.Models, toPublicTransitModel(m, group))
+				out.Group.Models = append(out.Group.Models, toPublicTransitModel(m, group))
 			}
 		}
 	}
 
-	groups := make([]PublicTransitGroup, 0, len(byKey))
+	entries := make([]publicTransitGroupEntry, 0, len(byKey))
 	for _, g := range byKey {
-		sort.SliceStable(g.Models, func(i, j int) bool {
-			return strings.ToLower(g.Models[i].StandardModel) < strings.ToLower(g.Models[j].StandardModel)
+		sort.SliceStable(g.Group.Models, func(i, j int) bool {
+			return strings.ToLower(g.Group.Models[i].StandardModel) < strings.ToLower(g.Group.Models[j].StandardModel)
 		})
-		groups = append(groups, *g)
+		entries = append(entries, *g)
 	}
-	sort.SliceStable(groups, func(i, j int) bool {
-		if groups[i].Platform == groups[j].Platform {
-			return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].Group.Platform == entries[j].Group.Platform {
+			return strings.ToLower(entries[i].Group.Name) < strings.ToLower(entries[j].Group.Name)
 		}
-		return groups[i].Platform < groups[j].Platform
+		return entries[i].Group.Platform < entries[j].Group.Platform
 	})
-	return groups
+	return entries
 }
 
 func publicPricingService(channelService *ChannelService) *PricingService {

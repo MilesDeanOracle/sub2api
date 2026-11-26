@@ -27,7 +27,8 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: '/operations/pelican' },
       { path: 'pelican', name: 'OperationsPelican', component: () => import('@/views/operations/OperationsWallView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.wall' } },
-      { path: 'config', name: 'OperationsConfig', component: () => import('@/views/operations/OperationsConfigView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.config' } }
+      { path: 'config', name: 'OperationsConfig', component: () => import('@/views/operations/OperationsConfigView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.config' } },
+      { path: 'group-cache', name: 'OperationsGroupCache', component: () => import('@/views/operations/OperationsGroupCacheView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.groupCache' } }
     ]
   },
   // ==================== Setup Routes ====================
