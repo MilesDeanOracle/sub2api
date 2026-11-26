@@ -210,18 +210,19 @@ func TestFinalizeRefundFailedRecordsRollbackFailureWhenHeldDeductionCannotBeRetu
 	require.Equal(t, 1, countRefundAuditsForTest(t, ctx, client, order.ID, "REFUND_ROLLBACK_FAILED"))
 	require.Equal(t, 1, countRefundAuditsForTest(t, ctx, client, order.ID, "REFUND_FAILED"))
 
-	// 扣减仍被保留且归还失败：禁止直接重试，先人工核对，避免旧持有金额被误判。
+	// 扣减仍被保留：重试退款必须跳过扣减，否则同一笔退款会扣两次。
 	retryProvider := &successRefundProviderTestDouble{}
 	restoreRetry := replacePaymentProviderFactoryForTest(t, retryProvider)
 	defer restoreRetry()
 	plan, early, err := svc.PrepareRefund(ctx, order.ID, 0, "retry", true, true)
 	require.NoError(t, err)
 	require.Nil(t, early)
-	_, err = svc.ExecuteRefund(ctx, plan)
-	require.ErrorContains(t, err, "manual reconciliation")
+	retried, err := svc.ExecuteRefund(ctx, plan)
+	require.NoError(t, err)
+	require.True(t, retried.Success)
 	require.Zero(t, wallet.deductCalls)
 	require.Equal(t, 40.0, wallet.balance)
-	require.Zero(t, retryProvider.refundCalls)
+	require.Equal(t, 1, retryProvider.refundCalls)
 }
 
 func TestFinalizeRefundFailedReturnsHeldDeductionAtomically(t *testing.T) {

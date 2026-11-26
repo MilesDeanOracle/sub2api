@@ -169,12 +169,30 @@ func (s *PaymentService) RequestRefund(ctx context.Context, oid, uid int64, reas
 	nr := strings.TrimSpace(reason)
 	now := time.Now()
 	by := fmt.Sprintf("%d", uid)
-	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(oid), paymentorder.UserIDEQ(uid), paymentorder.StatusEQ(OrderStatusCompleted), paymentorder.OrderTypeEQ(payment.OrderTypeBalance)).SetStatus(OrderStatusRefundRequested).SetRefundRequestedAt(now).SetRefundRequestReason(nr).SetRefundRequestedBy(by).SetRefundAmount(o.Amount).Save(ctx)
+	client := s.entClient
+	var activityTx *dbent.Tx
+	if s.activityRefundAccounting {
+		activityTx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return err
+		}
+		defer activityTx.Rollback()
+		client = activityTx.Client()
+		if err := lockActivityWalletTx(ctx, client, uid); err != nil {
+			return err
+		}
+	}
+	c, err := client.PaymentOrder.Update().Where(paymentorder.IDEQ(oid), paymentorder.UserIDEQ(uid), paymentorder.StatusEQ(OrderStatusCompleted), paymentorder.OrderTypeEQ(payment.OrderTypeBalance)).SetStatus(OrderStatusRefundRequested).SetRefundRequestedAt(now).SetRefundRequestReason(nr).SetRefundRequestedBy(by).SetRefundAmount(o.Amount).Save(ctx)
 	if err != nil {
 		return fmt.Errorf("update: %w", err)
 	}
 	if c == 0 {
 		return infraerrors.Conflict("CONFLICT", "order status changed")
+	}
+	if activityTx != nil {
+		if err := activityTx.Commit(); err != nil {
+			return err
+		}
 	}
 	s.writeAuditLog(ctx, oid, "REFUND_REQUESTED", fmt.Sprintf("user:%d", uid), map[string]any{"amount": o.Amount, "reason": nr})
 	return nil
@@ -305,20 +323,17 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
-	if p.Order.OrderType == payment.OrderTypeBalance {
-		if p.DeductionType != payment.DeductionTypeBalance && !p.Force {
-			return nil, infraerrors.BadRequest("REFUND_REQUIRES_FORCE", "a refund without balance deduction requires explicit force authorization")
-		}
-		return s.executeHeldBalanceRefund(ctx, p)
-	}
-	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
+	c, err := s.claimRefundWithActivityRewards(ctx, p)
 	if err != nil {
+		if errors.Is(err, ErrActivityRecoveryInsufficient) || errors.Is(err, ErrActivityRecoveryReview) {
+			return nil, infraerrors.BadRequest("ACTIVITY_REFUND_REVIEW", err.Error())
+		}
 		return nil, fmt.Errorf("lock: %w", err)
 	}
 	if c == 0 {
 		return nil, infraerrors.Conflict("CONFLICT", "order status changed")
 	}
-	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
+	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 && !p.activityPrincipalHeld {
 		// Skip balance deduction on retry if previous attempt already deducted
 		// but failed to roll back (REFUND_ROLLBACK_FAILED in audit log).
 		if !s.hasAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED") {
@@ -389,14 +404,17 @@ func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.
 		Reason:  p.Reason,
 	})
 	finishProviderCall()
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		resp, err = normalizeActivityRefundResult(resp, err)
+	}
 	if err != nil {
 		if resp != nil && strings.TrimSpace(resp.Status) == payment.ProviderStatusPending {
 			return resp, nil
 		}
-		return resp, err
+		return nil, err
 	}
 	if err := validateRefundProviderResponse(resp); err != nil {
-		return resp, err
+		return nil, err
 	}
 	return resp, nil
 }
@@ -461,12 +479,18 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 		TradeNo:     o.PaymentTradeNo,
 		OrderID:     o.OutTradeNo,
 		RefundID:    pendingDetail.RefundID,
-		Amount:      formatGatewayRefundAmount(calculateGatewayRefundAmount(o.Amount, o.PayAmount, o.RefundAmount, PaymentOrderCurrency(o)), o),
+		Amount:      formatGatewayRefundAmount(o.RefundAmount, o),
 		RequestedAt: pendingDetail.requestedAt,
 	})
 	finishProviderCall()
 	if err != nil {
 		return nil, fmt.Errorf("query refund: %w", err)
+	}
+	if s.activityRefundAccounting && o.OrderType == payment.OrderTypeBalance {
+		resp, err = normalizeActivityRefundResult(resp, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 	plan := s.refundFinalizePlan(o)
 	switch {
@@ -505,6 +529,11 @@ func (s *PaymentService) finalizePendingRefundSuccess(ctx context.Context, p *Re
 		}
 	}()
 	txCtx := dbent.NewTxContext(ctx, tx)
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		if err := lockActivityWalletTx(txCtx, tx.Client(), p.Order.UserID); err != nil {
+			return nil, err
+		}
+	}
 
 	claimed, err := tx.PaymentOrder.Update().
 		Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusEQ(OrderStatusRefundPending)).
@@ -593,7 +622,7 @@ func (s *PaymentService) finalizeRefundFailed(ctx context.Context, p *RefundPlan
 		return nil, err
 	}
 	if returnErr == nil {
-		if p.deductionHeld && p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
+		if p.DeductionType == payment.DeductionTypeBalance && ((p.deductionHeld && p.BalanceToDeduct > 0) || s.activityRefundAccounting) {
 			s.invalidateRefundBalanceCache(ctx, p.Order.UserID)
 		}
 		return &RefundResult{Success: false, Warning: warning}, nil
@@ -623,6 +652,11 @@ func (s *PaymentService) finalizeRefundFailedTx(ctx context.Context, p *RefundPl
 		}
 	}()
 	txCtx := dbent.NewTxContext(ctx, tx)
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		if err := lockActivityWalletTx(txCtx, tx.Client(), p.Order.UserID); err != nil {
+			return nil, err
+		}
+	}
 
 	claimed, err := tx.PaymentOrder.Update().
 		Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusEQ(OrderStatusRefundPending)).
@@ -652,6 +686,11 @@ func (s *PaymentService) finalizeRefundFailedTx(ctx context.Context, p *RefundPl
 			return nil, err
 		}
 	}
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance && rollbackErr == nil {
+		if err := releaseLotteryRecovery(txCtx, tx.Client(), p.Order.UserID, p.OrderID); err != nil {
+			return nil, err
+		}
+	}
 	if err := createPaymentAuditLogTx(txCtx, tx.Client(), p.OrderID, "REFUND_FAILED", map[string]any{"detail": psErrMsg(gErr)}); err != nil {
 		return nil, err
 	}
@@ -665,15 +704,7 @@ func (s *PaymentService) finalizeRefundFailedTx(ctx context.Context, p *RefundPl
 // returnHeldRefundDeduction 归还进入 REFUND_PENDING 时保留的扣减；ctx 携带事务时随事务提交或回滚。
 func (s *PaymentService) returnHeldRefundDeduction(ctx context.Context, p *RefundPlan) error {
 	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
-		var restoreErr error
-		if restorer, ok := s.userRepo.(interface {
-			RestoreRefundBalance(context.Context, int64, float64) error
-		}); ok {
-			restoreErr = restorer.RestoreRefundBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
-		} else {
-			restoreErr = s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
-		}
-		if err := restoreErr; err != nil {
+		if err := s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
 			return fmt.Errorf("return held balance deduction: %w", err)
 		}
 	}
@@ -765,6 +796,12 @@ func (s *PaymentService) getRefundProvider(ctx context.Context, o *dbent.Payment
 }
 
 func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr error) (*RefundResult, error) {
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		if err := s.rollbackActivityRefund(ctx, p, gErr); err != nil {
+			return nil, err
+		}
+		return &RefundResult{Success: false, Warning: "gateway failed: " + psErrMsg(gErr) + ", rolled back"}, nil
+	}
 	if s.RollbackRefund(ctx, p, gErr) {
 		s.restoreStatus(ctx, p)
 		s.writeAuditLog(ctx, p.OrderID, "REFUND_GATEWAY_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
@@ -777,6 +814,25 @@ func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr e
 }
 
 func (s *PaymentService) markRefundOk(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		tx, err := s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+		if err := lockActivityWalletTx(ctx, tx.Client(), p.Order.UserID); err != nil {
+			return nil, err
+		}
+		result, err := s.markRefundOkTx(ctx, tx.Client(), p)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
 	fs := OrderStatusRefunded
 	if p.RefundAmount < p.Order.Amount {
 		fs = OrderStatusPartiallyRefunded
@@ -799,6 +855,11 @@ func (s *PaymentService) markRefundOkTx(ctx context.Context, client *dbent.Clien
 	_, err := client.PaymentOrder.UpdateOneID(p.OrderID).SetStatus(fs).SetRefundAmount(p.RefundAmount).SetRefundReason(p.Reason).SetRefundAt(now).SetForceRefund(p.Force).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("mark refund: %w", err)
+	}
+	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
+		if err := settleLotteryRefund(ctx, client, p.Order.UserID, p.OrderID); err != nil {
+			return nil, err
+		}
 	}
 	detail, err := json.Marshal(map[string]any{"refundAmount": p.RefundAmount, "reason": p.Reason, "balanceDeducted": p.BalanceToDeduct, "force": p.Force})
 	if err != nil {
@@ -879,15 +940,7 @@ func refundResponseID(resp *payment.RefundResponse) string {
 
 func (s *PaymentService) RollbackRefund(ctx context.Context, p *RefundPlan, gErr error) bool {
 	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
-		var restoreErr error
-		if restorer, ok := s.userRepo.(interface {
-			RestoreRefundBalance(context.Context, int64, float64) error
-		}); ok {
-			restoreErr = restorer.RestoreRefundBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
-		} else {
-			restoreErr = s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
-		}
-		if err := restoreErr; err != nil {
+		if err := s.userRepo.UpdateBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
 			slog.Error("[CRITICAL] rollback failed", "orderID", p.OrderID, "amount", p.BalanceToDeduct, "error", err)
 			s.writeAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED", "admin", map[string]any{"gatewayError": psErrMsg(gErr), "rollbackError": psErrMsg(err), "balanceDeducted": p.BalanceToDeduct})
 			return false

@@ -27,9 +27,14 @@ func RegisterUserRoutes(
 	{
 		activity := authenticated.Group("/activity")
 		activity.GET("/status", h.Activity.Status)
+		activity.GET("/wallet", h.Activity.WalletStatus)
+		activity.POST("/wallet/withdraw", h.Activity.WithdrawWallet)
 		activity.GET("/consumption", h.Activity.ConsumptionStatus)
 		activity.POST("/consumption/claim", h.Activity.ClaimConsumption)
 		activity.POST("/checkin", h.Activity.Checkin)
+		activity.GET("/lottery", h.Activity.LotteryStatus)
+		activity.POST("/lottery/draw", h.Activity.LotteryDraw)
+		activity.GET("/lottery/history", h.Activity.LotteryHistory)
 		activity.POST("/second-recharge/claim", h.Activity.ClaimSecondRecharge)
 		// Feedback submits only the form; private user enrichment runs asynchronously.
 		if h.Feedback != nil {

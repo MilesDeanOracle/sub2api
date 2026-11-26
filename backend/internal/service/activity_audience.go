@@ -14,7 +14,9 @@ type ActivityAudience struct {
 	UserIDs []int64 `json:"user_ids"`
 }
 
-func validActivityKind(kind string) bool { return kind == "checkin" || kind == "consumption" }
+func validActivityKind(kind string) bool {
+	return kind == "checkin" || kind == "consumption" || kind == "lottery"
+}
 
 func (s *ActivityService) Audience(ctx context.Context, kind string) (*ActivityAudience, error) {
 	if !validActivityKind(kind) {
@@ -28,14 +30,20 @@ func (s *ActivityService) Audience(ctx context.Context, kind string) (*ActivityA
 // The row share lock makes a completed scope update effective for subsequent
 // claims. Lock order remains user -> audience -> runtime/config.
 func activityAudienceAllowed(ctx context.Context, tx *sql.Tx, kind string, uid int64) error {
+	_, err := activityAudienceModeAllowed(ctx, tx, kind, uid)
+	return err
+}
+
+func activityAudienceModeAllowed(ctx context.Context, tx *sql.Tx, kind string, uid int64) (string, error) {
+	var mode string
 	var allowed bool
-	if err := tx.QueryRowContext(ctx, `SELECT mode='all' OR $2=ANY(user_ids) FROM activity_audiences WHERE kind=$1 FOR SHARE`, kind, uid).Scan(&allowed); err != nil {
-		return err
+	if err := tx.QueryRowContext(ctx, `SELECT mode, mode='all' OR $2=ANY(user_ids) FROM activity_audiences WHERE kind=$1 FOR SHARE`, kind, uid).Scan(&mode, &allowed); err != nil {
+		return "", err
 	}
 	if !allowed {
-		return ErrActivityIneligible
+		return mode, ErrActivityIneligible
 	}
-	return nil
+	return mode, nil
 }
 
 func (s *ActivityService) UpdateAudience(ctx context.Context, actor int64, kind string, in ActivityAudience) error {

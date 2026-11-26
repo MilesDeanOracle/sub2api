@@ -135,7 +135,8 @@ type RefundPlan struct {
 	SubDaysToDeduct int
 	SubscriptionID  int64
 	// deductionHeld 表示扣减已在进入 REFUND_PENDING 前执行并保留，终态收敛时不再重复扣减。
-	deductionHeld bool
+	deductionHeld         bool
+	activityPrincipalHeld bool
 }
 
 type RefundResult struct {
@@ -188,7 +189,8 @@ type TopUsersByCurrency map[string][]TopUserStat
 // --- Service ---
 
 type PaymentService struct {
-	activityService          *ActivityService
+	// Enabled by the production provider; isolated payment tests omit activity tables.
+	activityRefundAccounting bool
 	providerMu               sync.Mutex
 	providersLoaded          bool
 	entClient                *dbent.Client

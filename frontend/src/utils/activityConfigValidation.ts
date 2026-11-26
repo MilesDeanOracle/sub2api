@@ -1,6 +1,6 @@
 import type { AdminActivityConfig } from '@/api/admin/activity'
 
-export type ActivityAmountKey = Exclude<keyof AdminActivityConfig, 'checkin_enabled' | 'second_recharge_enabled' | 'checkin_month_spent_cents' | 'second_total_spent_cents' | 'total_spent_cents'>
+export type ActivityAmountKey = Exclude<keyof AdminActivityConfig, 'checkin_enabled' | 'checkin_require_recharge' | 'second_recharge_enabled' | 'checkin_month_spent_cents' | 'second_total_spent_cents' | 'total_spent_cents'>
 export type ActivityConfigErrors = Partial<Record<ActivityAmountKey, 'moneyPrecision' | 'nonNegativeInteger' | 'positive' | 'coverageRange' | 'capRange' | 'rewardBudget' | 'rewardCap'>>
 
 // Mirrors the server constraints; the server remains authoritative.
@@ -23,7 +23,6 @@ export function validateActivityConfig(config: AdminActivityConfig): ActivityCon
     if (config.second_recharge_reward_cents > config.user_lifetime_cap_cents) errors.user_lifetime_cap_cents = 'rewardCap'
   }
   if (config.checkin_enabled || config.second_recharge_enabled) {
-    positive('total_budget_cents')
     positive('user_lifetime_cap_cents')
   }
   return errors

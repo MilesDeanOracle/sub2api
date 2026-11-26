@@ -35,7 +35,8 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.rewards' },
         children: [
           { path: 'checkin', name: 'OperationsCheckinRewards', component: () => import('@/views/operations/OperationsCheckinRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.checkinRewards' } },
-          { path: 'consumption', name: 'OperationsConsumptionRewards', component: () => import('@/views/operations/OperationsConsumptionRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.consumptionRewards' } }
+          { path: 'consumption', name: 'OperationsConsumptionRewards', component: () => import('@/views/operations/OperationsConsumptionRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.consumptionRewards' } },
+          { path: 'lottery', name: 'OperationsLotteryRewards', component: () => import('@/views/operations/OperationsLotteryRewardsView.vue'), meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'operationsConsole.lotteryRewards' } }
         ]
       }
     ]

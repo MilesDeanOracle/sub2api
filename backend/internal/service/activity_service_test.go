@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/DATA-DOG/go-sqlmock"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestActivityDayUsesShanghaiCalendar(t *testing.T) {
@@ -46,11 +47,11 @@ func TestActivityCheckinCapTracksRechargeMultiplier(t *testing.T) {
 	}
 }
 
-func TestActivitySharedBudget(t *testing.T) {
-	if got := activityRemainingBudget(60, 100, 75, 200, 0); got != 25 {
-		t.Fatalf("global budget got %d", got)
+func TestActivityUserCap(t *testing.T) {
+	if got := activityRemainingUserCap(60, 200, 0); got != 60 {
+		t.Fatalf("reward got %d", got)
 	}
-	if got := activityRemainingBudget(60, 200, 0, 100, 90); got != 10 {
+	if got := activityRemainingUserCap(60, 100, 90); got != 10 {
 		t.Fatalf("user cap got %d", got)
 	}
 }
@@ -70,7 +71,7 @@ func TestCheckinSpendEligibility(t *testing.T) {
 			}
 			defer db.Close()
 			if tc.minimum > 0 {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT COALESCE(SUM(actual_cost),0) >= $2::numeric/100 FROM usage_logs WHERE user_id=$1 AND actual_cost>0 AND COALESCE(request_type,0)<>4`)).WithArgs(int64(42), tc.minimum).WillReturnRows(sqlmock.NewRows([]string{"eligible"}).AddRow(tc.qualifies))
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT COALESCE(SUM(actual_cost),0) >= $2::numeric/100 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0)<>4`)).WithArgs(int64(42), tc.minimum).WillReturnRows(sqlmock.NewRows([]string{"eligible"}).AddRow(tc.qualifies))
 			}
 			got, err := checkinSpendEligible(context.Background(), db, 42, tc.minimum)
 			if err != nil || got != tc.qualifies {
@@ -82,6 +83,7 @@ func TestCheckinSpendEligibility(t *testing.T) {
 		})
 	}
 }
+
 func TestCheckinSpendEligibilityFailsOnDatabaseError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

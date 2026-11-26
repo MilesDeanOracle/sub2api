@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -7,24 +7,55 @@ import Icon from '@/components/icons/Icon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import RewardFieldTip from '@/components/admin/payment/RewardFieldTip.vue'
 import { operationsApi, type OperationsStatus } from '@/api/admin/operationsConsole'
+import { getAdminActivityHealth, updateAdminActivityRuntime, type ActivityHealth } from '@/api/admin/activity'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 const route = useRoute()
 const status = ref<OperationsStatus>({ running: 0, queued: 0, cleanup_failed: 0, max_workers: 4 })
+const rewardHealth = ref<ActivityHealth | null>(null)
+const togglingRuntime = ref(false)
 const nav = [
   { path: '/operations/pelican', key: 'wall', icon: 'grid', hint: 'retention' },
   { path: '/operations/config', key: 'config', icon: 'cog', hint: 'pool' }
 ] as const
 const rewardNav = [
   { path: '/operations/rewards/checkin', key: 'checkinRewards', hint: 'checkinRewardsHint' },
-  { path: '/operations/rewards/consumption', key: 'consumptionRewards', hint: 'consumptionRewardsHint' }
+  { path: '/operations/rewards/consumption', key: 'consumptionRewards', hint: 'consumptionRewardsHint' },
+  { path: '/operations/rewards/lottery', key: 'lotteryRewards', hint: 'lotteryRewardsHint' }
 ] as const
 const marketingActive = computed(() => route.path.startsWith('/operations/rewards'))
 const current = computed(() => [...nav, ...rewardNav].find(item => route.path.startsWith(item.path)) ?? nav[0]!)
 const slots = computed(() => Array.from({ length: status.value.max_workers || 4 }, (_, i) => i < status.value.running))
 let timer: ReturnType<typeof setInterval> | undefined
-async function refresh() { try { status.value = await operationsApi.status() } catch { /* Each page reports its own fetch errors. */ } }
+async function refresh() {
+  try {
+    if (marketingActive.value) {
+      rewardHealth.value = await getAdminActivityHealth()
+    } else {
+      status.value = await operationsApi.status()
+    }
+  } catch { /* Each page reports its own fetch errors. */ }
+}
+async function toggleRuntime(kind: 'processing' | 'awards') {
+  if (!rewardHealth.value || togglingRuntime.value) return
+  togglingRuntime.value = true
+  try {
+    let proc = rewardHealth.value.processing_enabled
+    let awards = rewardHealth.value.awards_enabled
+    if (kind === 'processing') {
+      proc = !proc
+      if (!proc) awards = false
+    } else {
+      awards = !awards
+      if (awards) proc = true
+    }
+    rewardHealth.value = await updateAdminActivityRuntime(proc, awards)
+  } finally {
+    togglingRuntime.value = false
+  }
+}
+watch(marketingActive, () => { void refresh() })
 onMounted(() => { void refresh(); timer = setInterval(() => { if (!document.hidden) void refresh() }, 5000) })
 onUnmounted(() => clearInterval(timer))
 </script>
@@ -91,6 +122,34 @@ onUnmounted(() => clearInterval(timer))
             </span>
             <span v-if="status.queued" class="flex items-center gap-1"><Icon name="clock" size="xs" />{{ t('operationsConsole.queued') }} {{ status.queued }}</span>
             <span v-if="status.cleanup_failed" class="flex items-center gap-1 text-red-600 dark:text-red-400"><Icon name="exclamationTriangle" size="xs" />{{ t('operationsConsole.cleanupFailed') }}: {{ status.cleanup_failed }}</span>
+          </div>
+          <div v-else-if="rewardHealth" class="flex flex-wrap items-center gap-2 text-xs text-slate-500" aria-live="polite">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-colors"
+              :class="rewardHealth.processing_enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300'"
+              :disabled="togglingRuntime"
+              @click="toggleRuntime('processing')"
+            >
+              <span class="h-1.5 w-1.5 rounded-full" :class="rewardHealth.processing_enabled ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+              {{ rewardHealth.processing_enabled ? t('operationsConsole.rewardProcessingOn') : t('operationsConsole.rewardProcessingOff') }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-colors"
+              :class="rewardHealth.awards_enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300'"
+              :disabled="togglingRuntime"
+              @click="toggleRuntime('awards')"
+            >
+              <span class="h-1.5 w-1.5 rounded-full" :class="rewardHealth.awards_enabled ? 'bg-emerald-500' : 'bg-red-500'"></span>
+              {{ rewardHealth.awards_enabled ? t('operationsConsole.rewardAwardsOn') : t('operationsConsole.rewardAwardsOff') }}
+            </button>
+            <span class="rounded-full bg-white px-3 py-1 shadow-sm dark:bg-dark-900">
+              {{ t('operationsConsole.rewardPending') }}: <strong class="font-semibold text-slate-700 dark:text-slate-200">{{ rewardHealth.pending_events }}</strong>
+            </span>
+            <span v-if="rewardHealth.failed_events > 0 || rewardHealth.last_error" class="flex items-center gap-1 text-red-600 dark:text-red-400" :title="rewardHealth.last_error">
+              <Icon name="exclamationTriangle" size="xs" />{{ t('operationsConsole.rewardDeferred') }}: {{ rewardHealth.failed_events }}
+            </span>
           </div>
         </header>
         <RouterView />

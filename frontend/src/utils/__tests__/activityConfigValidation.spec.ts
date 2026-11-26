@@ -13,7 +13,7 @@ describe('activity config validation', () => {
   it('identifies the missing budgets and rewards from the reported configuration', () => {
     expect(validateActivityConfig(config())).toEqual({
       checkin_monthly_budget_cents: 'positive', second_recharge_reward_cents: 'positive',
-      second_recharge_total_budget_cents: 'rewardBudget', total_budget_cents: 'positive', user_lifetime_cap_cents: 'positive',
+      second_recharge_total_budget_cents: 'rewardBudget', user_lifetime_cap_cents: 'positive',
     })
   })
   it('permits disabled activities with zero budgets and rejects empty numeric values', () => {
@@ -22,8 +22,8 @@ describe('activity config validation', () => {
     value.checkin_daily_cents = '' as unknown as number
     expect(validateActivityConfig(value).checkin_daily_cents).toBe('nonNegativeInteger')
   })
-  it('accepts a funded check-in without requiring a disabled second recharge reward', () => {
-    expect(validateActivityConfig({ ...config(), second_recharge_enabled: false, checkin_monthly_budget_cents: 10000, total_budget_cents: 10000, user_lifetime_cap_cents: 1500 })).toEqual({})
+  it('accepts a funded check-in with zero legacy shared budget', () => {
+    expect(validateActivityConfig({ ...config(), second_recharge_enabled: false, checkin_monthly_budget_cents: 10000, total_budget_cents: 0, user_lifetime_cap_cents: 1500 })).toEqual({})
   })
   it('rejects a second recharge reward that exceeds its budget and user cap', () => {
     const errors = validateActivityConfig({ ...config(), second_recharge_reward_cents: 500, second_recharge_total_budget_cents: 100, user_lifetime_cap_cents: 100 })

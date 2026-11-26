@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DefaultQQGroupName = "技术交流群"
+	DefaultQQGroupName = "交流群"
 	DefaultQQGroupURL  = "https://qm.qq.com/cgi-bin/qm/qr?k=z77tL_WEPI5-c3fdp_oJDFXJPnXVp-LF&jump_from=webapi&authKey=zR8OIdt3V5nYIkcXWBb70JeuoBtdsLIjNOMUM4+1uO9VaXPcidkgKvdn6DU4q0J5"
 )
 
