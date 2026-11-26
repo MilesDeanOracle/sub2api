@@ -3,10 +3,10 @@ import {enableAutoUnmount,flushPromises,mount} from '@vue/test-utils'
 import {ref} from 'vue'
 import Checkin from '../AdminActivityConfig.vue'
 import Consumption from '../AdminConsumptionCampaigns.vue'
-const mocks=vi.hoisted(()=>({config:vi.fn(),save:vi.fn(),reviews:vi.fn(),campaigns:vi.fn(),saveCampaign:vi.fn(),state:vi.fn(),consumptionConfig:vi.fn(),setEnabled:vi.fn()}))
+const mocks=vi.hoisted(()=>({config:vi.fn(),save:vi.fn(),reviews:vi.fn(),campaigns:vi.fn(),saveCampaign:vi.fn(),state:vi.fn(),consumptionConfig:vi.fn(),setEnabled:vi.fn(),funds:vi.fn(),correct:vi.fn()}))
 vi.mock('vue-i18n',()=>({useI18n:()=>({t:(key:string)=>key,locale:ref('zh')})}))
 vi.mock('@/api/admin/activity',()=>({getAdminActivityConfig:mocks.config,updateAdminActivityConfig:mocks.save,getActivityRefundReviews:mocks.reviews,markActivityRefundReviewed:vi.fn()}))
-vi.mock('@/api/consumption',()=>({consumptionAPI:{campaigns:mocks.campaigns,save:mocks.saveCampaign,state:mocks.state,config:mocks.consumptionConfig,setEnabled:mocks.setEnabled}}))
+vi.mock('@/api/consumption',()=>({consumptionAPI:{campaigns:mocks.campaigns,save:mocks.saveCampaign,state:mocks.state,config:mocks.consumptionConfig,setEnabled:mocks.setEnabled,funds:mocks.funds,correct:mocks.correct}}))
 vi.mock('@/api/admin/activityAudience',()=>({activityAudienceAPI:{get:vi.fn(),save:vi.fn()}}))
 enableAutoUnmount(afterEach)
 const config={checkin_min_spend_cents:0,checkin_enabled:false,checkin_rollout_percent:100,checkin_daily_cents:10,checkin_milestone_cents:50,checkin_monthly_cap_cents:1500,checkin_monthly_budget_cents:30000,total_budget_cents:0,user_lifetime_cap_cents:3000,total_spent_cents:0,checkin_month_spent_cents:0,second_recharge_enabled:false,second_recharge_reward_cents:0,second_recharge_total_budget_cents:0,second_recharge_min_pay_cents:0,second_total_spent_cents:0}
@@ -109,6 +109,22 @@ describe('production marketing reward forms',()=>{
   const wrapper=mount(Consumption,options);await flushPromises()
   expect(wrapper.get('#consumption-master-switch').attributes('disabled')).toBeDefined()
   expect(mocks.setEnabled).not.toHaveBeenCalled()
+ })
+
+ it('accepts negative transactional event IDs when reversing reward progress',async()=>{
+  mocks.funds.mockResolvedValue({wallet:{available:0,total_earned:0,total_withdrawn:0,unabsorbed_gift:'0'},ledger:[{id:-12,request_id:'billed',actual_cost:'10',absorbed_gift:'0',eligible_cost:'10',reversed:false,note:''}]})
+  mocks.correct.mockResolvedValue({saved:true})
+  const wrapper=mount(Consumption,options);await flushPromises()
+  await wrapper.get('details input[type=number]').setValue('1')
+  await wrapper.get('details form').trigger('submit');await flushPromises()
+  const event=wrapper.get('input[name=ledger_id]')
+  await event.setValue('-12')
+  expect((event.element as HTMLInputElement).checkValidity()).toBe(true)
+  const form=event.element.closest('form')!
+  const note=form.querySelector('input:not([type=number])') as HTMLInputElement
+  note.value='duplicate settlement';note.dispatchEvent(new Event('input',{bubbles:true}))
+  form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await flushPromises()
+  expect(mocks.correct).toHaveBeenCalledWith(-12,'duplicate settlement')
  })
 
 })

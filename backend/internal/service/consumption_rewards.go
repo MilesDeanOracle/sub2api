@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"math"
 	"time"
 
@@ -337,21 +338,8 @@ func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64, sele
 	}
 	out.Wallet = wallet
 
-	if err := s.db.QueryRowContext(ctx, `
-		SELECT (SELECT enabled FROM activity_consumption_config WHERE id=1), r.awards_enabled,
-		       EXISTS(SELECT 1 FROM activity_consumption_outbox WHERE user_id=$1 AND processed_at IS NULL)
-		       OR (r.processing_enabled AND w.cursor_initialized AND EXISTS(
-		           SELECT 1 FROM usage_logs u
-		           WHERE u.id > w.last_usage_log_id
-		             AND u.user_id = $1
-		             AND COALESCE(u.billing_type, 0) = 0
-		             AND u.actual_cost > 0
-		             AND COALESCE(u.request_type, 0) <> 4
-		       ))
-		FROM activity_runtime r
-		CROSS JOIN activity_worker_status w
-		WHERE r.id = 1 AND w.id = 1
-	`, uid).Scan(&out.Enabled, &out.AwardsEnabled, &out.ProcessingPending); err != nil {
+	out.Enabled, out.AwardsEnabled, out.ProcessingPending, err = activitystore.ConsumptionRuntime(ctx, s.db, uid)
+	if err != nil {
 		return nil, err
 	}
 
@@ -376,7 +364,7 @@ func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64, sele
 	if err != nil {
 		return nil, err
 	}
-	c, err := scanCampaign(s.db.QueryRowContext(ctx, `SELECT `+consumptionColumns+` FROM activity_consumption_campaigns c WHERE published_at IS NOT NULL AND ($2::bigint=0 OR c.id=$2) AND (activity_rollout_allowed('consumption', c.rollout_percent, $1) OR EXISTS(SELECT 1 FROM activity_consumption_entitlements e WHERE e.campaign_id=c.id AND e.user_id=$1)) ORDER BY EXISTS(SELECT 1 FROM activity_consumption_entitlements e WHERE e.campaign_id=c.id AND e.user_id=$1 AND e.state='reserved' AND c.claim_until>NOW()) DESC,(c.state='active' AND c.starts_at<=NOW() AND c.ends_at>NOW()) DESC,id DESC LIMIT 1`, uid, selectedID))
+	c, err := scanCampaign(s.db.QueryRowContext(ctx, `SELECT `+consumptionColumns+` FROM activity_consumption_campaigns c WHERE published_at IS NOT NULL AND ($2::bigint=0 OR c.id=$2) AND (activity_rollout_allowed('consumption', c.rollout_percent, $1) OR EXISTS(SELECT 1 FROM activity_consumption_entitlements e WHERE e.campaign_id=c.id AND e.user_id=$1)) ORDER BY EXISTS(SELECT 1 FROM activity_consumption_entitlements e WHERE e.campaign_id=c.id AND e.user_id=$1 AND e.state='reserved' AND c.claim_until>NOW()) DESC,CASE WHEN EXISTS(SELECT 1 FROM activity_consumption_entitlements e WHERE e.campaign_id=c.id AND e.user_id=$1 AND e.state='reserved' AND c.claim_until>NOW()) THEN c.claim_until END ASC,(c.state='active' AND c.starts_at<=NOW() AND c.ends_at>NOW()) DESC,id DESC LIMIT 1`, uid, selectedID))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
@@ -453,7 +441,7 @@ func (s *ActivityService) ClaimConsumption(ctx context.Context, uid, cid int64, 
 	}
 	defer tx.Rollback()
 
-	if err := lockActivityWalletTx(ctx, tx, uid); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, uid); err != nil {
 		return err
 	}
 
@@ -532,6 +520,9 @@ func (s *ActivityService) CorrectConsumption(ctx context.Context, actor, usageLo
 	if note == "" {
 		return fmt.Errorf("audit note is required")
 	}
+	if usageLogID == 0 {
+		return fmt.Errorf("usage event ID is required")
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -577,7 +568,7 @@ func (s *ActivityService) ResolveConsumptionReview(ctx context.Context, actor, u
 		return err
 	}
 	defer tx.Rollback()
-	if err := lockActivityWalletTx(ctx, tx, uid); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, uid); err != nil {
 		return err
 	}
 	var lock int64
@@ -671,7 +662,7 @@ func (s *ActivityService) ConsumptionAudit(ctx context.Context) ([]map[string]an
 }
 
 func (s *ActivityService) ConsumptionUsageLedger(ctx context.Context, uid int64) ([]map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT usage_log_id,request_id,actual_cost::text,absorbed_gift::text,eligible_cost::text,occurred_at,reversed_at IS NOT NULL,reverse_note FROM activity_usage_events WHERE user_id=$1 ORDER BY usage_log_id DESC LIMIT 100`, uid)
+	rows, err := s.db.QueryContext(ctx, `SELECT usage_log_id,request_id,actual_cost::text,absorbed_gift::text,eligible_cost::text,occurred_at,reversed_at IS NOT NULL,reverse_note FROM activity_usage_events WHERE user_id=$1 ORDER BY occurred_at DESC, usage_log_id ASC LIMIT 100`, uid)
 	if err != nil {
 		return nil, err
 	}

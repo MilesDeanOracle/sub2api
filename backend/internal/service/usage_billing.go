@@ -30,6 +30,7 @@ type UsageBillingCommand struct {
 	ServiceTier         string
 	ReasoningEffort     string
 	BillingType         int8
+	RequestType         RequestType // Eligibility metadata; deliberately excluded from the established idempotency fingerprint.
 	InputTokens         int
 	OutputTokens        int
 	CacheCreationTokens int

@@ -262,7 +262,7 @@ func (s *BatchImageSettlementService) recordUsageLog(ctx context.Context, job *B
 		UserID:                job.UserID,
 		APIKeyID:              *job.APIKeyID,
 		AccountID:             *job.AccountID,
-		RequestID:             strings.TrimSpace(requestID),
+		RequestID:             BatchImageCaptureRequestID(job.BatchID),
 		Model:                 job.Model,
 		RequestedModel:        job.Model,
 		InboundEndpoint:       &inboundEndpoint,

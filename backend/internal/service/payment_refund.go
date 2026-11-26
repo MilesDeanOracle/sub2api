@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"log/slog"
 	"math"
 	"strconv"
@@ -178,7 +179,7 @@ func (s *PaymentService) RequestRefund(ctx context.Context, oid, uid int64, reas
 		}
 		defer activityTx.Rollback()
 		client = activityTx.Client()
-		if err := lockActivityWalletTx(ctx, client, uid); err != nil {
+		if err := activitystore.LockWallet(ctx, client, uid); err != nil {
 			return err
 		}
 	}
@@ -323,6 +324,11 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	// Retaining a balance order's principal is an explicit administrative override.
+	// Reject before claiming the order, reserving rewards, or calling the provider.
+	if p.Order.OrderType == payment.OrderTypeBalance && (!p.DeductBalance || p.DeductionType != payment.DeductionTypeBalance) && !p.Force {
+		return nil, infraerrors.BadRequest("REFUND_REQUIRES_FORCE", "refunding without balance deduction requires force")
+	}
 	c, err := s.claimRefundWithActivityRewards(ctx, p)
 	if err != nil {
 		if errors.Is(err, ErrActivityRecoveryInsufficient) || errors.Is(err, ErrActivityRecoveryReview) {
@@ -479,7 +485,7 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 		TradeNo:     o.PaymentTradeNo,
 		OrderID:     o.OutTradeNo,
 		RefundID:    pendingDetail.RefundID,
-		Amount:      formatGatewayRefundAmount(o.RefundAmount, o),
+		Amount:      formatGatewayRefundAmount(calculateGatewayRefundAmount(o.Amount, o.PayAmount, o.RefundAmount, PaymentOrderCurrency(o)), o),
 		RequestedAt: pendingDetail.requestedAt,
 	})
 	finishProviderCall()
@@ -530,7 +536,7 @@ func (s *PaymentService) finalizePendingRefundSuccess(ctx context.Context, p *Re
 	}()
 	txCtx := dbent.NewTxContext(ctx, tx)
 	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
-		if err := lockActivityWalletTx(txCtx, tx.Client(), p.Order.UserID); err != nil {
+		if err := activitystore.LockWallet(txCtx, tx.Client(), p.Order.UserID); err != nil {
 			return nil, err
 		}
 	}
@@ -653,7 +659,7 @@ func (s *PaymentService) finalizeRefundFailedTx(ctx context.Context, p *RefundPl
 	}()
 	txCtx := dbent.NewTxContext(ctx, tx)
 	if s.activityRefundAccounting && p.Order.OrderType == payment.OrderTypeBalance {
-		if err := lockActivityWalletTx(txCtx, tx.Client(), p.Order.UserID); err != nil {
+		if err := activitystore.LockWallet(txCtx, tx.Client(), p.Order.UserID); err != nil {
 			return nil, err
 		}
 	}
@@ -820,7 +826,7 @@ func (s *PaymentService) markRefundOk(ctx context.Context, p *RefundPlan) (*Refu
 			return nil, err
 		}
 		defer tx.Rollback()
-		if err := lockActivityWalletTx(ctx, tx.Client(), p.Order.UserID); err != nil {
+		if err := activitystore.LockWallet(ctx, tx.Client(), p.Order.UserID); err != nil {
 			return nil, err
 		}
 		result, err := s.markRefundOkTx(ctx, tx.Client(), p)

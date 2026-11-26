@@ -38,6 +38,8 @@ func RegisterAdminRoutes(
 		admin.GET("/activity/health", h.Activity.AdminHealth)
 		admin.PUT("/activity/runtime", h.Activity.UpdateAdminRuntime)
 		admin.GET("/activity/config", h.Activity.AdminConfig)
+		admin.GET("/activity/reward-moments", h.Activity.RewardMomentsConfig)
+		admin.PUT("/activity/reward-moments", h.Activity.SetRewardMomentsConfig)
 		admin.GET("/activity/consumption/config", h.Activity.ConsumptionConfig)
 		admin.PUT("/activity/consumption/config", h.Activity.SetConsumptionEnabled)
 		admin.GET("/activity/consumption/campaigns", h.Activity.ConsumptionCampaigns)

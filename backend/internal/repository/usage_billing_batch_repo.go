@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"math"
 	"sort"
 	"strings"
@@ -82,6 +83,15 @@ func (r *usageBillingRepository) ApplyBatch(ctx context.Context, cmds []*service
 	}
 	if err := applyUsageBillingBatchBalance(ctx, tx, userID, cmds, applied, outcomes); err != nil {
 		return nil, err
+	}
+	if r.activityAccounting {
+		for i, cmd := range cmds {
+			if applied[i] && cmd.BalanceCost > 0 {
+				if err := activitystore.RecordUsage(ctx, tx, cmd.UserID, cmd.APIKeyID, cmd.RequestID, cmd.BalanceCost, cmd.RequestType != service.RequestTypeCyberBlocked); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 	if err := applyUsageBillingBatchAPIKeys(ctx, tx, cmds, applied, outcomes); err != nil {
 		return nil, err

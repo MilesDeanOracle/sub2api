@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -226,6 +227,30 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
 		}
 
+		// These immutable files belong to the retired trigger-based activity chain.
+		// Validate applied copies above, but never install that chain on a new DB.
+		// 257zz/267 explicitly bridge existing schemas and retain all old history.
+		if retiredActivityMigration(name) {
+			continue
+		}
+
+		if name == "268_activity_atomic_billing.sql" {
+			if err := requireActivityMaintenance(ctx, lockConn); err != nil {
+				return fmt.Errorf("migration %s: %w", name, err)
+			}
+		}
+		if name == "257zz_activity_legacy_bridge.sql" {
+			var legacy bool
+			if err := lockConn.QueryRowContext(ctx, `SELECT to_regclass('activity_config') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='activity_config' AND column_name='checkin_require_recharge')`).Scan(&legacy); err != nil {
+				return err
+			}
+			if legacy {
+				if err := requireActivityMaintenance(ctx, lockConn); err != nil {
+					return fmt.Errorf("migration %s: %w", name, err)
+				}
+			}
+		}
+
 		nonTx, err := validateMigrationExecutionMode(name, content)
 		if err != nil {
 			return fmt.Errorf("validate migration %s: %w", name, err)
@@ -263,6 +288,12 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 
+		if name == "257zz_activity_legacy_bridge.sql" || name == "268_activity_atomic_billing.sql" {
+			if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout='5s'`); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
 		// 执行迁移 SQL
 		if _, err := tx.ExecContext(ctx, content); err != nil {
 			_ = tx.Rollback()
@@ -600,6 +631,45 @@ func pgAdvisoryUnlock(ctx context.Context, db advisoryLockConnection) error {
 	_, err := db.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationsAdvisoryLockID)
 	if err != nil {
 		return fmt.Errorf("release migrations lock: %w", err)
+	}
+	return nil
+}
+
+// Retired files remain embedded for checksum validation, not execution. Missing
+// historical steps are superseded by the forward schema/data bridge.
+func retiredActivityMigration(name string) bool {
+	switch name {
+	case "257_activity_rewards.sql":
+		return true
+	case "258_activity_checkin_min_spend.sql":
+		return true
+	case "259_consumption_rewards.sql":
+		return true
+	case "260_consumption_refund_lock_order.sql":
+		return true
+	case "261_consumption_batch_rounding.sql":
+		return true
+	case "262_activity_production_hardening.sql":
+		return true
+	case "263_activity_audiences.sql":
+		return true
+	}
+	return false
+}
+
+// Billing cutovers must not overlap old binaries that cannot write atomic
+// activity events. This restores the existing maintenance acknowledgement used
+// by the retired activity lineage, without weakening checksum validation.
+func requireActivityMaintenance(ctx context.Context, conn *sql.Conn) error {
+	if os.Getenv("ACTIVITY_MAINTENANCE_CONFIRMED") == "1" {
+		return nil
+	}
+	var hasUsers bool
+	if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users LIMIT 1)`).Scan(&hasUsers); err != nil {
+		return err
+	}
+	if hasUsers {
+		return errors.New("activity accounting upgrade requires a drained maintenance window; rehearse backup and reconciliation, stop all balance writers and flush pending usage logs, then set ACTIVITY_MAINTENANCE_CONFIRMED=1 for this migration run")
 	}
 	return nil
 }

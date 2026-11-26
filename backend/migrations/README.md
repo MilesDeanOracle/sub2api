@@ -182,3 +182,25 @@ VALUES ('NNN_migration.sql', 'calculated_checksum', NOW());
 
 - Migration runner: `internal/repository/migrations_runner.go`
 - PostgreSQL docs: https://www.postgresql.org/docs/
+
+### Activity migration lineage repair
+
+The retired trigger-based activity files 257–263 are preserved byte for byte.
+The runner validates their checksums where already applied, but does not execute
+missing retired files. New installations use the isolated activity chain.
+`257zz_activity_legacy_bridge.sql` upgrades the old schema before the previously
+released isolated 258 migration; `267_activity_legacy_conversion.sql` copies old
+eligible settlements and marks historical awards as already transferred, without
+crediting balances or wallets again. Original migration records are retained.
+This explicit lineage repair is the only exception to normal sequential execution.
+
+Before upgrading a trigger-based installation, drain **all old application
+writers**, flush pending usage-log writes, and settle active image balance holds and pending provider refunds.
+The bridge takes exclusive core-table locks and rejects unresolved holds/refunds.
+Set `ACTIVITY_MAINTENANCE_CONFIRMED=1` only for the drained migration run. The
+268 billing cutover also requires this acknowledgement on an existing isolated
+installation with users; new billing and old binaries must not run together.
+Keep old activity processing disabled until the converted totals are reconciled;
+the migration preserves existing runtime switches. Do not roll an old application
+binary back over the converted schema. Restore the pre-upgrade database backup
+with that binary if a rollback is required. Never remove migration history rows.

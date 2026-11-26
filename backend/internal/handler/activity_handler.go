@@ -308,7 +308,7 @@ func (h *ActivityHandler) CorrectConsumption(c *gin.Context) {
 		LedgerID int64  `json:"ledger_id"`
 		Note     string `json:"note"`
 	}
-	if c.ShouldBindJSON(&body) != nil || body.LedgerID <= 0 {
+	if c.ShouldBindJSON(&body) != nil || body.LedgerID == 0 {
 		response.BadRequest(c, "Invalid settlement")
 		return
 	}

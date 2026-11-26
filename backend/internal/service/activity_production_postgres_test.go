@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 
 	"database/sql"
 	"encoding/json"
@@ -63,12 +64,13 @@ func newActivityProductionFixture(t *testing.T) *activityProductionFixture {
 	f.exec(string(rawOrder))
 	f.exec(`ALTER TABLE payment_orders ADD COLUMN bonus_amount NUMERIC DEFAULT 0, ADD COLUMN out_trade_no TEXT NOT NULL DEFAULT '', ADD COLUMN provider_key TEXT, ADD COLUMN provider_snapshot JSONB;
  CREATE TABLE payment_audit_logs(id BIGSERIAL PRIMARY KEY,order_id TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '',operator TEXT NOT NULL DEFAULT '',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`)
-	for _, file := range []string{"258_activity_rewards.sql", "259_activity_lottery.sql", "260_activity_independent_budgets.sql", "264_activity_production_safety.sql", "265_activity_lottery_nine_grid.sql", "266_activity_consumption_master_switch.sql"} {
+	for _, file := range []string{"258_activity_rewards.sql", "259_activity_lottery.sql", "260_activity_independent_budgets.sql", "264_activity_production_safety.sql", "265_activity_lottery_nine_grid.sql", "266_activity_consumption_master_switch.sql", "268_activity_atomic_billing.sql"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "migrations", file))
 		require.NoError(t, err)
 		f.exec(string(raw))
 	}
-	f.exec(`UPDATE activity_audiences SET mode='all'; UPDATE activity_config SET checkin_enabled=true,checkin_require_recharge=false,checkin_rollout_percent=100,checkin_min_spend_cents=0,checkin_daily_cents=25,checkin_monthly_budget_cents=10000,user_lifetime_cap_cents=10000;
+	// Legacy-log fixtures explicitly keep the reconciliation interval open.
+	f.exec(`UPDATE activity_billing_config SET cutover_at='infinity'; UPDATE activity_audiences SET mode='all'; UPDATE activity_config SET checkin_enabled=true,checkin_require_recharge=false,checkin_rollout_percent=100,checkin_min_spend_cents=0,checkin_daily_cents=25,checkin_monthly_budget_cents=10000,user_lifetime_cap_cents=10000;
  UPDATE activity_lottery_config SET enabled=true,budget_cents=1000000;
  INSERT INTO activity_lottery_windows(unit_pay_cents,opened_at) VALUES(1000,NOW()-interval '1 day');
  INSERT INTO payment_orders(id,user_id,amount,pay_amount,status,order_type,paid_at,completed_at,expires_at) VALUES(100,1,100,100,'COMPLETED','balance',NOW(),NOW(),NOW());`)
@@ -98,7 +100,7 @@ func (f *activityProductionFixture) transaction(fn func(*sql.Tx) error) error {
 		return err
 	}
 	defer tx.Rollback()
-	if err := lockActivityWalletTx(f.ctx, tx, 1); err != nil {
+	if err := activitystore.LockWallet(f.ctx, tx, 1); err != nil {
 		return err
 	}
 	if err := fn(tx); err != nil {
@@ -545,4 +547,77 @@ func TestActivityRefundUncertainResponses(t *testing.T) {
 			require.Equal(t, tc.want, response.Status)
 		})
 	}
+}
+
+func accountingConsumptionFixture(t *testing.T) *activityProductionFixture {
+	f := newActivityProductionFixture(t)
+	f.exec(`INSERT INTO activity_consumption_campaigns(id,name,starts_at,ends_at,claim_until,rollout_percent,budget_cents,state,published_at) VALUES(1,'review reproduction',NOW()-interval '1 hour',NOW()+interval '1 day',NOW()+interval '3 days',100,10000,'active',NOW()-interval '1 hour');
+ INSERT INTO activity_consumption_tiers(campaign_id,position,threshold_cents,reward_cents) VALUES(1,1,1000,30)`)
+	_, err := f.service.IngestUsageEvents(f.ctx)
+	require.NoError(t, err)
+	return f
+}
+
+func TestRegressionOutOfOrderUsageCommitPostgres(t *testing.T) {
+	f := accountingConsumptionFixture(t)
+	early, err := f.db.BeginTx(f.ctx, nil)
+	require.NoError(t, err)
+	defer early.Rollback()
+	var lowerID int64
+	require.NoError(t, early.QueryRow(`INSERT INTO usage_logs(user_id,request_id,actual_cost) VALUES(1,'lower-id-later-commit',10) RETURNING id`).Scan(&lowerID))
+	f.exec(`INSERT INTO usage_logs(user_id,request_id,actual_cost) VALUES(1,'higher-id-first-commit',10)`)
+	first, err := f.service.IngestUsageEvents(f.ctx)
+	require.NoError(t, err)
+	require.NoError(t, early.Commit())
+	second, err := f.service.IngestUsageEvents(f.ctx)
+	require.NoError(t, err)
+	count := f.scalar(`SELECT COUNT(*)::text FROM activity_usage_events`)
+	t.Logf("lowerID=%d firstIngest=%d secondIngest=%d eventCount=%s cursor=%s spend=%s", lowerID, first, second, count, f.scalar(`SELECT last_usage_log_id::text FROM activity_worker_status`), f.scalar(`SELECT activity_consumption_spend(1,1)::text`))
+	require.Equal(t, "2", count, "both committed consumption records must be ingested")
+}
+
+func TestRegressionTransferMustNotAbsorbEarlierUsagePostgres(t *testing.T) {
+	f := accountingConsumptionFixture(t)
+	f.exec(`UPDATE users SET balance=balance-10 WHERE id=1;
+ INSERT INTO usage_logs(user_id,request_id,actual_cost) VALUES(1,'principal-before-transfer',10)`)
+	require.NoError(t, f.transaction(func(tx *sql.Tx) error { return creditActivityWalletTx(f.ctx, tx, 1, "lottery", "review-gift", 1000) }))
+	transferred, err := f.service.WithdrawWallet(f.ctx, 1)
+	require.NoError(t, err)
+	require.EqualValues(t, 1000, transferred.WithdrawnCents)
+	_, err = f.service.IngestUsageEvents(f.ctx)
+	require.NoError(t, err)
+	spend := f.scalar(`SELECT activity_consumption_spend(1,1)::text`)
+	t.Logf("principalConsumptionBeforeTransfer=10 transferredGift=10 spend=%s absorbed=%s giftRemaining=%s", spend, f.scalar(`SELECT absorbed_gift::text FROM activity_usage_events WHERE request_id='principal-before-transfer'`), f.scalar(`SELECT unabsorbed_gift::text FROM activity_wallets WHERE user_id=1`))
+	require.Equal(t, "10.00000000", spend, "later gift transfer must not absorb earlier principal consumption")
+}
+
+func TestRegressionConsumptionPendingAndSignedEventsPostgres(t *testing.T) {
+	f := accountingConsumptionFixture(t)
+	// A committed legacy row below the diagnostic cursor still needs processing.
+	f.exec(`UPDATE activity_worker_status SET cursor_initialized=true,last_usage_log_id=1000;
+ INSERT INTO usage_logs(id,user_id,request_id,actual_cost) VALUES(10,1,'legacy-below-cursor',10)`)
+	status, err := f.service.ConsumptionStatus(f.ctx, 1)
+	require.NoError(t, err)
+	require.True(t, status.ProcessingPending)
+	_, err = f.service.IngestUsageEvents(f.ctx)
+	require.NoError(t, err)
+	f.exec(`UPDATE activity_consumption_outbox SET processed_at=NOW()`)
+	status, err = f.service.ConsumptionStatus(f.ctx, 1)
+	require.NoError(t, err)
+	require.False(t, status.ProcessingPending)
+	// A modern log without a transactional bill cannot earn rewards or stay pending.
+	f.exec(`UPDATE activity_billing_config SET cutover_at=NOW()-interval '1 second';
+ INSERT INTO usage_logs(id,user_id,request_id,actual_cost) VALUES(2000,1,'unbilled-after-cutover',10)`)
+	status, err = f.service.ConsumptionStatus(f.ctx, 1)
+	require.NoError(t, err)
+	require.False(t, status.ProcessingPending)
+	// Chronological display and correction support the new decreasing ID sequence.
+	f.exec(`INSERT INTO activity_usage_events(usage_log_id,user_id,request_id,actual_cost,eligible_cost,occurred_at,billing_recorded)
+ VALUES(-1,1,'older-bill',10,10,NOW()-interval '1 minute',true),(-2,1,'newer-bill',10,10,NOW(),true)`)
+	ledger, err := f.service.ConsumptionUsageLedger(f.ctx, 1)
+	require.NoError(t, err)
+	require.EqualValues(t, -2, ledger[0]["id"])
+	require.NoError(t, f.service.CorrectConsumption(f.ctx, 99, -2, "duplicate bill"))
+	require.Equal(t, "true", f.scalar(`SELECT (reversed_at IS NOT NULL)::text FROM activity_usage_events WHERE usage_log_id=-2`))
+	require.Equal(t, "duplicate bill", f.scalar(`SELECT reverse_note FROM activity_usage_events WHERE usage_log_id=-2`))
 }

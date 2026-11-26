@@ -36,7 +36,7 @@ const rulesOpen=ref(false);const rulesID=useId();const titleID=useId();const cam
 const rewardsRef=ref<HTMLElement|null>(null)
 let focusRequested=window.location.hash==='#consumption-rewards'
 async function focusRewards(){await nextTick();if(!rewardsRef.value)return;focusRequested=false;rewardsRef.value.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});rewardsRef.value.focus({preventScroll:true})}
-function requestClaim(){selectedCampaign.value=undefined;focusRequested=true;void refresh()}
+function requestClaim(event:Event){selectedCampaign.value=(event as CustomEvent<{campaignId?:number}>).detail?.campaignId;focusRequested=true;void refresh()}
 function walletUpdated(){if(!claiming.value&&!withdrawing.value)void refresh()}
 const copy=computed(()=>locale.value.startsWith('zh')?{title:'消费达标赠额度',rules:'活动规则',gift:'赠',refresh:'刷新进度',pending:'消费已记录，奖励资格正在结算',paused:'奖励发放暂时暂停',masterPaused:'消费奖励活动已关闭，关闭期间的消费不累计；已预留奖励仍可在截止前领取。',reached:'已达标，等待奖励确认',load:'奖励进度暂时加载失败',retry:'重试'}:{title:'Usage rewards',rules:'Activity rules',gift:'Get',refresh:'Refresh progress',pending:'Spending recorded; rewards are processing',paused:'Reward payouts are temporarily paused',masterPaused:'Usage rewards are off. Spending while off does not count; reserved rewards remain claimable until the deadline.',reached:'Threshold reached; awaiting confirmation',load:'Unable to load reward progress',retry:'Retry'})
 const campaign=computed(()=>summary.value?.campaign)

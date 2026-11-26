@@ -305,7 +305,7 @@ func TestGroupUsageSummaryIncludesYesterdayAcrossWatermark(t *testing.T) {
 			require.NoError(t, err)
 
 			repo := newUsageLogRepositoryWithSQL(nil, tx)
-			result, err := repo.GetAllGroupUsageSummary(ctx, todayStart)
+			result, err := repo.GetAllGroupUsageSummary(ctx, todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 			require.NoError(t, err)
 			require.Len(t, result, 1)
 			require.InDelta(t, 9, result[0].TotalCost, 0.0000001)
@@ -362,7 +362,7 @@ func TestGroupUsageRollupSyncRebuildsAfterTimezoneChange(t *testing.T) {
 	require.InDelta(t, 3, rollupCost, 0.0000001)
 
 	usageRepo := newUsageLogRepositoryWithSQL(nil, tx)
-	result, err := usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
+	result, err := usageRepo.GetAllGroupUsageSummary(ctx, todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.InDelta(t, 8, result[0].TotalCost, 0.0000001)
@@ -396,7 +396,7 @@ func TestGroupUsageSummaryUsesConfiguredDSTBoundaries(t *testing.T) {
 	require.NoError(t, err)
 
 	repo := newUsageLogRepositoryWithSQL(nil, tx)
-	result, err := repo.GetAllGroupUsageSummary(ctx, todayStart)
+	result, err := repo.GetAllGroupUsageSummary(ctx, todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.InDelta(t, 112, result[0].TotalCost, 0.0000001)
@@ -426,6 +426,9 @@ func createGroupUsageRollupTriggerTestSchema(t *testing.T, ctx context.Context, 
 			user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			group_id BIGINT REFERENCES groups(id) ON DELETE SET NULL,
 			actual_cost NUMERIC(20, 10) NOT NULL,
+			input_tokens BIGINT NOT NULL DEFAULT 0,
+			cache_creation_tokens BIGINT NOT NULL DEFAULT 0,
+			cache_read_tokens BIGINT NOT NULL DEFAULT 0,
 			created_at TIMESTAMPTZ NOT NULL
 		);
 	`
@@ -436,6 +439,9 @@ func createGroupUsageRollupTriggerTestSchema(t *testing.T, ctx context.Context, 
 				user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 				group_id BIGINT REFERENCES groups(id) ON DELETE SET NULL,
 				actual_cost NUMERIC(20, 10) NOT NULL,
+				input_tokens BIGINT NOT NULL DEFAULT 0,
+				cache_creation_tokens BIGINT NOT NULL DEFAULT 0,
+				cache_read_tokens BIGINT NOT NULL DEFAULT 0,
 				created_at TIMESTAMPTZ NOT NULL
 			) PARTITION BY RANGE (created_at);
 			CREATE TABLE usage_logs_default PARTITION OF usage_logs DEFAULT;

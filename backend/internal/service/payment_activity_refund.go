@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
@@ -20,7 +21,7 @@ func (s *PaymentService) claimRefundWithActivityRewards(ctx context.Context, p *
 		return 0, err
 	}
 	defer tx.Rollback()
-	if err := lockActivityWalletTx(ctx, tx.Client(), p.Order.UserID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx.Client(), p.Order.UserID); err != nil {
 		return 0, err
 	}
 	count, err := tx.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
@@ -39,20 +40,25 @@ func (s *PaymentService) claimRefundWithActivityRewards(ctx context.Context, p *
 	principalHeld := false
 	principalDeducted := decimal.Zero
 	if p.DeductionType == payment.DeductionTypeBalance && p.DeductBalance && !hadRollbackFailure {
-		var availableRaw string
-		if err := activityScan(ctx, tx.Client(), `SELECT GREATEST(0,balance-COALESCE(frozen_balance,0))::text FROM users WHERE id=$1`, []any{p.Order.UserID}, &availableRaw); err != nil {
-			return 0, err
-		}
-		available, err := decimal.NewFromString(availableRaw)
+		funds, err := activitystore.LoadFunds(ctx, tx.Client(), p.Order.UserID)
 		if err != nil {
 			return 0, err
 		}
+		available, err := decimal.NewFromString(funds.Balance)
+		if err != nil {
+			return 0, err
+		}
+		frozen, err := decimal.NewFromString(funds.Frozen)
+		if err != nil {
+			return 0, err
+		}
+		available = decimal.Max(decimal.Zero, available.Sub(frozen))
 		requested := decimal.NewFromFloat(p.RefundAmount)
 		if available.LessThan(requested) && !p.Force {
 			return 0, ErrActivityRecoveryInsufficient
 		}
 		principalDeducted = decimal.Min(available, requested)
-		if _, err := tx.ExecContext(ctx, `UPDATE users SET balance=balance-$2::numeric,updated_at=NOW() WHERE id=$1`, p.Order.UserID, principalDeducted.String()); err != nil {
+		if err := activitystore.AdjustBalance(ctx, tx.Client(), p.Order.UserID, principalDeducted.Neg().String()); err != nil {
 			return 0, err
 		}
 		principalHeld = true
@@ -79,7 +85,7 @@ func (s *PaymentService) rollbackActivityRefund(ctx context.Context, p *RefundPl
 		return err
 	}
 	defer tx.Rollback()
-	if err := lockActivityWalletTx(ctx, tx.Client(), p.Order.UserID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx.Client(), p.Order.UserID); err != nil {
 		return err
 	}
 	changed, err := tx.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusEQ(OrderStatusRefunding)).SetStatus(p.Order.Status).Save(ctx)
@@ -90,7 +96,7 @@ func (s *PaymentService) rollbackActivityRefund(ctx context.Context, p *RefundPl
 		return fmt.Errorf("refund status changed during rollback")
 	}
 	if p.BalanceToDeduct > 0 {
-		if _, err := tx.ExecContext(ctx, `UPDATE users SET balance=balance+$2::numeric,updated_at=NOW() WHERE id=$1`, p.Order.UserID, decimal.NewFromFloat(p.BalanceToDeduct).String()); err != nil {
+		if err := activitystore.AdjustBalance(ctx, tx.Client(), p.Order.UserID, decimal.NewFromFloat(p.BalanceToDeduct).String()); err != nil {
 			return err
 		}
 	}

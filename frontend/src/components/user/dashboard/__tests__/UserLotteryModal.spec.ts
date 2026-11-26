@@ -105,6 +105,18 @@ describe('UserLotteryModal & AdminLotteryConfig', () => {
     }))
   })
 
+  it('opens the existing nine-grid from the shared reward action without drawing', async () => {
+    const wrapper = mount(UserLotteryModal, {
+      props: { quickEntry: true },
+      global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' } } },
+    })
+    await flushPromises()
+    window.dispatchEvent(new CustomEvent('activity-lottery-requested'))
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="lottery-prize-card"]')).toHaveLength(8)
+    expect(mocks.draw).not.toHaveBeenCalled()
+  })
+
   it('reuses the unresolved batch key after a lost response', async () => {
     mocks.draw.mockRejectedValue(new Error('Network Error'))
     const wrapper = mount(UserLotteryModal, {
@@ -187,7 +199,7 @@ describe('UserLotteryModal & AdminLotteryConfig', () => {
     expect(wrapper.get('input[name=reward_1]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('input[name=weight_1]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('#lottery-budget').attributes('disabled')).toBeUndefined()
-    expect(wrapper.text()).toContain('未使用次数: 10')
+    expect(wrapper.text()).toContain('operationsConsole.lotteryConfig.outstanding: 10')
   })
 
   it('preserves locked historical odds for budget saves until the entire pool can switch', async () => {

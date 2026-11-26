@@ -246,9 +246,10 @@ async function doWithdraw() {
   }
 }
 function onWalletUpdated() { if (!document.hidden) { void refresh(); if (ledgerOpen.value) void loadLedger() } }
+function onCheckinRequested() { if (props.quickEntry) void openCheckin() }
 let dayTimer: ReturnType<typeof setInterval> | undefined
-onMounted(() => { dayTimer=setInterval(()=>{const previous=today.value;now.value=Date.now();const local=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now.value));if(local!==previous)void refresh()},30000); void refresh(); window.addEventListener('focus', onWalletUpdated); document.addEventListener('visibilitychange', onWalletUpdated); window.addEventListener('activity-wallet-updated', onWalletUpdated); if (!props.quickEntry) void loadSample() })
-onUnmounted(() => { clearInterval(dayTimer); window.removeEventListener('focus', onWalletUpdated); document.removeEventListener('visibilitychange', onWalletUpdated); window.removeEventListener('activity-wallet-updated', onWalletUpdated) })
+onMounted(() => { window.addEventListener('activity-checkin-requested', onCheckinRequested); dayTimer=setInterval(()=>{const previous=today.value;now.value=Date.now();const local=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now.value));if(local!==previous)void refresh()},30000); void refresh(); window.addEventListener('focus', onWalletUpdated); document.addEventListener('visibilitychange', onWalletUpdated); window.addEventListener('activity-wallet-updated', onWalletUpdated); if (!props.quickEntry) void loadSample() })
+onUnmounted(() => { window.removeEventListener('activity-checkin-requested', onCheckinRequested); clearInterval(dayTimer); window.removeEventListener('focus', onWalletUpdated); document.removeEventListener('visibilitychange', onWalletUpdated); window.removeEventListener('activity-wallet-updated', onWalletUpdated) })
 </script>
 
 <style scoped>

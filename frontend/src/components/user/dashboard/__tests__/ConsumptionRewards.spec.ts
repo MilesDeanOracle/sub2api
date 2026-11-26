@@ -115,6 +115,8 @@ describe('dashboard reward progress',()=>{
   window.dispatchEvent(new CustomEvent('activity-claim-requested'));await flushPromises()
   expect(mocks.status).toHaveBeenLastCalledWith(undefined)
   expect(scroll).toHaveBeenCalled();expect(document.activeElement).toBe(wrapper.element)
+  window.dispatchEvent(new CustomEvent('activity-claim-requested',{detail:{campaignId:2}}));await flushPromises()
+  expect(mocks.status).toHaveBeenLastCalledWith(2)
  })
 
  it('does not let a stale refresh overwrite a newly claimed reward wallet',async()=>{

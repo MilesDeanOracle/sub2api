@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"log/slog"
 	"sync"
 	"time"
@@ -77,219 +78,9 @@ func (s *ActivityService) Stop() {
 	s.worker.once.Do(func() { s.worker.cancel(); <-s.worker.done })
 }
 
-// IngestUsageEvents reads new rows from usage_logs via a primary-key cursor,
-// deducts any unabsorbed withdrawn gift balance on activity_wallets, and
-// enqueues eligible consumption events into activity_consumption_outbox.
+// IngestUsageEvents reconciles logs from before transactional activity billing.
 func (s *ActivityService) IngestUsageEvents(ctx context.Context) (int, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	var enabled bool
-	if err := tx.QueryRowContext(ctx, `SELECT processing_enabled FROM activity_runtime WHERE id=1`).Scan(&enabled); err != nil {
-		return 0, err
-	}
-	if !enabled {
-		return 0, nil
-	}
-
-	var cursorInit bool
-	var lastID int64
-	err = tx.QueryRowContext(ctx, `SELECT cursor_initialized, last_usage_log_id FROM activity_worker_status WHERE id=1 FOR UPDATE NOWAIT`).Scan(&cursorInit, &lastID)
-	if err != nil {
-		// Another replica holds the ingestion cursor lock right now.
-		return 0, nil
-	}
-
-	if !cursorInit {
-		var earliest sql.NullTime
-		if err := tx.QueryRowContext(ctx, `SELECT MIN(starts_at) FROM activity_consumption_campaigns WHERE published_at IS NOT NULL`).Scan(&earliest); err != nil {
-			return 0, err
-		}
-		if earliest.Valid {
-			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM usage_logs WHERE created_at < $1`, earliest.Time).Scan(&lastID); err != nil {
-				return 0, err
-			}
-		} else {
-			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM usage_logs`).Scan(&lastID); err != nil {
-				return 0, err
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE activity_worker_status SET cursor_initialized=TRUE, last_usage_log_id=$1 WHERE id=1`, lastID); err != nil {
-			return 0, err
-		}
-	}
-
-	rows, err := tx.QueryContext(ctx, `
-		SELECT id, user_id, COALESCE(request_id, ''), COALESCE(api_key_id, 0),
-		       actual_cost::text, COALESCE(billing_type, 0), COALESCE(request_type, 0), created_at
-		FROM usage_logs
-		WHERE id > $1
-		ORDER BY id ASC
-		LIMIT 200
-	`, lastID)
-	if err != nil {
-		return 0, err
-	}
-	type rawUsage struct {
-		id          int64
-		userID      int64
-		requestID   string
-		apiKeyID    int64
-		actualCost  string
-		billingType int
-		requestType int
-		createdAt   time.Time
-	}
-	batch := make([]rawUsage, 0, 200)
-	for rows.Next() {
-		var u rawUsage
-		if err := rows.Scan(&u.id, &u.userID, &u.requestID, &u.apiKeyID, &u.actualCost, &u.billingType, &u.requestType, &u.createdAt); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		batch = append(batch, u)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, err
-	}
-	rows.Close()
-
-	if len(batch) == 0 {
-		return 0, tx.Commit()
-	}
-
-	maxID := lastID
-	for _, u := range batch {
-		if u.id > maxID {
-			maxID = u.id
-		}
-		if u.billingType != 0 || u.requestType == 4 {
-			continue
-		}
-		var positive bool
-		if err := tx.QueryRowContext(ctx, `SELECT $1::numeric > 0`, u.actualCost).Scan(&positive); err != nil {
-			return 0, err
-		}
-		if !positive {
-			continue
-		}
-
-		// Record post-launch first billed API call idempotently without triggers.
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO activity_first_calls (user_id, request_id, occurred_at)
-			SELECT $1, $2, $3
-			WHERE EXISTS (
-				SELECT 1 FROM users usr CROSS JOIN activity_config cfg
-				WHERE usr.id = $1 AND usr.created_at >= cfg.first_call_tracking_started_at
-			)
-			ON CONFLICT (user_id) DO NOTHING
-		`, u.userID, u.requestID, u.createdAt); err != nil {
-			return 0, err
-		}
-
-		// Serialize reward eligibility with master-switch changes without stopping
-		// billing ingestion or gift absorption for the other activities.
-		var consumptionLock int
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM activity_consumption_config WHERE id=1 FOR SHARE`).Scan(&consumptionLock); err != nil {
-			return 0, err
-		}
-		// Avoid persisting activity_usage_events when no published consumption campaign
-		// covers this usage event, while still burning down any withdrawn gift balance.
-		var inCampaign bool
-		if err := tx.QueryRowContext(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM activity_consumption_campaigns c
-				WHERE c.published_at IS NOT NULL
-				  AND c.state IN ('active', 'paused', 'closed')
-				  AND c.published_at <= $1
-				  AND c.starts_at <= $1
-				  AND $1 < LEAST(c.ends_at, COALESCE(c.stopped_at, c.ends_at))
-				  AND c.claim_until > NOW()
-				  AND activity_rollout_allowed('consumption', c.rollout_percent, $2)
-                  AND activity_consumption_enabled_at($1)
-			)
-		`, u.createdAt, u.userID).Scan(&inCampaign); err != nil {
-			return 0, err
-		}
-		if !inCampaign {
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE activity_wallets
-				SET unabsorbed_gift = GREATEST(unabsorbed_gift - $2::numeric, 0),
-				    updated_at = NOW()
-				WHERE user_id = $1 AND unabsorbed_gift > 0
-			`, u.userID, u.actualCost); err != nil {
-				return 0, err
-			}
-			continue
-		}
-
-		if _, err := tx.ExecContext(ctx, `INSERT INTO activity_wallets(user_id) VALUES($1) ON CONFLICT DO NOTHING`, u.userID); err != nil {
-			return 0, err
-		}
-
-		var absorbed, eligible string
-		var inserted bool
-		err := tx.QueryRowContext(ctx, `
-			WITH w AS (
-				SELECT unabsorbed_gift
-				FROM activity_wallets
-				WHERE user_id = $2
-				FOR UPDATE
-			),
-			calc AS (
-				SELECT LEAST($5::numeric, w.unabsorbed_gift) AS absorbed,
-				       GREATEST($5::numeric - LEAST($5::numeric, w.unabsorbed_gift), 0) AS eligible
-				FROM w
-			),
-			ins AS (
-				INSERT INTO activity_usage_events (
-					usage_log_id, user_id, request_id, api_key_id,
-					actual_cost, absorbed_gift, eligible_cost, occurred_at
-				)
-				SELECT $1, $2, $3, $4, $5::numeric, calc.absorbed, calc.eligible, $6
-				FROM calc
-				ON CONFLICT (usage_log_id) DO NOTHING
-				RETURNING absorbed_gift::text, eligible_cost::text
-			)
-			SELECT absorbed_gift, eligible_cost, TRUE FROM ins
-		`, u.id, u.userID, u.requestID, u.apiKeyID, u.actualCost, u.createdAt).Scan(&absorbed, &eligible, &inserted)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return 0, err
-		}
-		if inserted {
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE activity_wallets
-				SET unabsorbed_gift = GREATEST(unabsorbed_gift - $2::numeric, 0),
-				    updated_at = NOW()
-				WHERE user_id = $1 AND $2::numeric > 0
-			`, u.userID, absorbed); err != nil {
-				return 0, err
-			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO activity_consumption_outbox (event_id, user_id, created_at)
-				SELECT $1, $2, $3
-				WHERE $4::numeric > 0
-				ON CONFLICT (event_id) DO NOTHING
-			`, u.id, u.userID, u.createdAt, eligible); err != nil {
-				return 0, err
-			}
-		}
-	}
-
-	if _, err := tx.ExecContext(ctx, `UPDATE activity_worker_status SET last_usage_log_id=$1 WHERE id=1`, maxID); err != nil {
-		return 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	return len(batch), nil
+	return activitystore.IngestUsageEvents(ctx, s.db)
 }
 
 // SyncRefundReviews scans payment_orders read-only for balance orders in refund
@@ -349,7 +140,7 @@ func (s *ActivityService) SyncRefundReviews(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = lockActivityWalletTx(ctx, tx, uid)
+		err = activitystore.LockWallet(ctx, tx, uid)
 		if err == nil {
 			err = syncUserRefundReviewsTx(ctx, tx, uid)
 		}

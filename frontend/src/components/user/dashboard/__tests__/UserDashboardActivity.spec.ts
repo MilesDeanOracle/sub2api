@@ -15,6 +15,12 @@ afterEach(()=>vi.useRealTimers())
 const status=()=>({server_day:'2026-11-30',checkin_visible:true,checkin_enabled:true,checkin_eligible:true,checked_today:false,eligible:true,checkin_min_spend:0,next_reward_cents:5,daily_reward:0.25,milestone_reward:1,streak:1,next_milestone:7,month_cap:15,month_reward:1,checked_days:[],wallet_balance:0})
 const options=()=>({props:{quickEntry:true},global:{plugins:[createI18n({legacy:false,locale:'zh',messages:{zh}})],stubs:{BaseDialog:{props:['show'],template:'<div v-if="show"><slot /></div>'}}}})
 describe('checkin availability and calendar',()=>{
+ it('opens existing check-in details from the shared reward action panel',async()=>{
+  mocks.status.mockResolvedValue(status());const wrapper=mount(Checkin,options());await flushPromises()
+  window.dispatchEvent(new CustomEvent('activity-checkin-requested'));await flushPromises()
+  expect(wrapper.find('.checkin-action').exists()).toBe(true)
+  expect(mocks.checkin).not.toHaveBeenCalled()
+ })
  it('shows the full wallet transfer amount and explains the actual restriction',async()=>{
   mocks.status.mockResolvedValue({...status(),wallet_balance_cents:269,wallet_balance:2.69,withdraw_blocked:true,withdraw_block_reason:'recovery_debt'})
   const wrapper=mount(Checkin,options());await flushPromises()

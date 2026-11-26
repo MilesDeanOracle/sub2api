@@ -57,7 +57,7 @@ func TestConsumptionPostgres(t *testing.T) {
 		CREATE TABLE usage_logs(id BIGSERIAL PRIMARY KEY, user_id BIGINT, api_key_id BIGINT DEFAULT 1, request_id TEXT, actual_cost NUMERIC(20,10), billing_type INT DEFAULT 0, request_type INT DEFAULT 0, created_at TIMESTAMPTZ DEFAULT clock_timestamp());
 		INSERT INTO users(id, balance) VALUES(1, 120);
 	`)
-	for _, migration := range []string{"258_activity_rewards.sql", "259_activity_lottery.sql", "260_activity_independent_budgets.sql", "264_activity_production_safety.sql", "266_activity_consumption_master_switch.sql"} {
+	for _, migration := range []string{"258_activity_rewards.sql", "259_activity_lottery.sql", "260_activity_independent_budgets.sql", "264_activity_production_safety.sql", "266_activity_consumption_master_switch.sql", "268_activity_atomic_billing.sql"} {
 		b, err := os.ReadFile(filepath.Join("..", "..", "migrations", migration))
 		require.NoError(t, err)
 		exec(string(b))
@@ -83,7 +83,8 @@ func TestConsumptionPostgres(t *testing.T) {
 		  AND ref_cls.relname IN ('users', 'usage_logs', 'payment_orders', 'settings')
 	`, schema))
 
-	exec(`UPDATE activity_audiences SET mode='all'`)
+	// Exercise historical-log reconciliation; atomic billing has its own repo tests.
+	exec(`UPDATE activity_billing_config SET cutover_at='infinity'; UPDATE activity_audiences SET mode='all'`)
 	s := NewActivityService(db, nil, nil)
 	ctx := context.Background()
 	_, err = s.IngestUsageEvents(ctx)

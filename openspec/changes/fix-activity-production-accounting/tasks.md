@@ -1,0 +1,7 @@
+- [x] Refund override and gateway-currency regression tests.
+- [x] Immutable legacy history and fresh/current/legacy upgrade regression tests.
+- [x] Atomic billing events, late commits, transfer ordering, batch billing and image holds.
+- [x] Repository accounting boundary and synchronized lottery locales.
+- [x] Signed event correction, chronological audit ledger and durable processing status.
+- [x] Relevant PostgreSQL tests, Go unit/build, frontend lint/typecheck/test/build.
+- [x] Record broader-suite failures/retries and remaining real-channel / authenticated UI acceptance conditions.

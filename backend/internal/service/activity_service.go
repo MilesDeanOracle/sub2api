@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"log/slog"
 	"math"
 	"strconv"
@@ -317,7 +318,7 @@ func (s *ActivityService) WithdrawWallet(ctx context.Context, userID int64) (*Ac
 	}
 	defer tx.Rollback()
 
-	if err := lockActivityWalletTx(ctx, tx, userID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, userID); err != nil {
 		return nil, err
 	}
 
@@ -351,38 +352,11 @@ func (s *ActivityService) WithdrawWallet(ctx context.Context, userID int64) (*Ac
 		return nil, err
 	}
 
-	var newBalance string
-	err = tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance + ($1::numeric / 100), updated_at = NOW()
-		WHERE id = $2 AND status = 'active' AND deleted_at IS NULL
-		RETURNING balance::text
-	`, availableCents, userID).Scan(&newBalance)
+	newBalance, ledgerID, err := activitystore.TransferWallet(ctx, tx, userID, availableCents)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrActivityIneligible
 	}
 	if err != nil {
-		return nil, err
-	}
-
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE activity_wallets
-		SET available_cents = 0,
-		    total_withdrawn_cents = total_withdrawn_cents + $2,
-		    unabsorbed_gift = unabsorbed_gift + ($2::numeric / 100),
-		    updated_at = NOW()
-		WHERE user_id = $1
-	`, userID, availableCents); err != nil {
-		return nil, err
-	}
-
-	var ledgerID int64
-	sourceID := fmt.Sprintf("withdraw:%d:%d", userID, time.Now().UnixNano())
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO activity_wallet_ledger (user_id, direction, kind, source_id, amount_cents, wallet_after_cents, user_balance_after)
-		VALUES ($1, 'withdraw', 'manual_withdraw', $2, $3, 0, $4::numeric)
-		RETURNING id
-	`, userID, sourceID, availableCents, newBalance).Scan(&ledgerID); err != nil {
 		return nil, err
 	}
 
@@ -575,7 +549,7 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	}
 	defer tx.Rollback()
 
-	if err := lockActivityWalletTx(ctx, tx, userID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, userID); err != nil {
 		return nil, err
 	}
 
@@ -862,7 +836,7 @@ func (s *ActivityService) MarkRefundReviewed(ctx context.Context, orderID int64,
 	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM activity_refund_reviews WHERE order_id=$1 AND review_status='pending'`, orderID).Scan(&uid); err != nil {
 		return err
 	}
-	if err := lockActivityWalletTx(ctx, tx, uid); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, uid); err != nil {
 		return err
 	}
 	if err := settleUserRefundRewardsTx(ctx, tx, uid); err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"math"
 	"math/big"
 	"strings"
@@ -494,7 +495,7 @@ func (s *ActivityService) SyncLotteryOrders(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := lockActivityWalletTx(ctx, tx, uid); err != nil {
+		if err := activitystore.LockWallet(ctx, tx, uid); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -561,7 +562,7 @@ func (s *ActivityService) LotteryStatus(ctx context.Context, userID int64) (*Lot
 		return nil, err
 	}
 	defer tx.Rollback()
-	if err := lockActivityWalletTx(ctx, tx, userID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, userID); err != nil {
 		return nil, err
 	}
 	if err := pauseDepletedLotteryTx(ctx, tx); err != nil {
@@ -686,7 +687,7 @@ func (s *ActivityService) DrawLottery(ctx context.Context, userID int64, count i
 	}
 	defer tx.Rollback()
 
-	if err := lockActivityWalletTx(ctx, tx, userID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, userID); err != nil {
 		return nil, err
 	}
 
@@ -835,7 +836,7 @@ func (s *ActivityService) DrawLottery(ctx context.Context, userID int64, count i
 		`, userID, idempotencyKey, count, idx, chosen.Position, chosen.RewardCents).Scan(&item.ID, &item.CreatedAt); err != nil {
 			return nil, err
 		}
-		if err := allocateLotteryDraw(ctx, tx, userID, item.ID); err != nil {
+		if err := activitystore.AllocateDraw(ctx, tx, userID, item.ID); err != nil {
 			return nil, err
 		}
 		totalRewardCents += int64(chosen.RewardCents)
@@ -1060,7 +1061,7 @@ func (s *ActivityService) AdminLotteryUser(ctx context.Context, userID int64) (*
 	if err != nil {
 		return nil, err
 	}
-	if err := lockActivityWalletTx(ctx, tx, userID); err != nil {
+	if err := activitystore.LockWallet(ctx, tx, userID); err != nil {
 		_ = tx.Rollback()
 		return nil, err
 	}

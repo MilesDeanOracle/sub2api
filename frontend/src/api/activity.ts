@@ -148,6 +148,25 @@ export interface LotteryHistoryResponse {
   page_size: number
 }
 
+export interface RewardMoment {
+  id: string
+  alias: string
+  kind: 'checkin' | 'lottery' | 'consumption'
+  campaign_id?: number
+  campaign_name?: string
+  amount_cents: number
+  created_at: string
+}
+export interface RewardSharing { allowed: boolean; display_enabled: boolean }
+export interface RewardMomentsConfig { enabled: boolean; user_ids: number[] }
+export const rewardMomentsAPI = {
+  async feed() { return (await apiClient.get<{ enabled: boolean; items: RewardMoment[] }>('/activity/reward-moments')).data },
+  async sharing() { return (await apiClient.get<RewardSharing>('/activity/reward-sharing')).data },
+  async setSharing(allowed: boolean) { return (await apiClient.put<RewardSharing>('/activity/reward-sharing', { allowed })).data },
+  async config() { return (await apiClient.get<RewardMomentsConfig>('/admin/activity/reward-moments')).data },
+  async saveConfig(config: RewardMomentsConfig) { return (await apiClient.put<RewardMomentsConfig>('/admin/activity/reward-moments', config)).data }
+}
+
 export async function getLotteryStatus(): Promise<LotteryStatus> {
   const { data } = await apiClient.get<LotteryStatus>('/activity/lottery')
   return data

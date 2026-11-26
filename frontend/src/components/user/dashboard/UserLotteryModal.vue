@@ -301,7 +301,7 @@ import { useAuthStore } from '@/stores/auth'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { walletTransferBlockKey } from '@/utils/activityWallet'
 
-withDefaults(defineProps<{ quickEntry?: boolean }>(), { quickEntry: false })
+const props = withDefaults(defineProps<{ quickEntry?: boolean }>(), { quickEntry: false })
 const { t, locale } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
@@ -543,7 +543,10 @@ watch(
   }
 )
 
+function onLotteryRequested() { if (props.quickEntry) void openModal() }
+
 onMounted(() => {
+  window.addEventListener('activity-lottery-requested', onLotteryRequested)
   void refresh()
   window.addEventListener('focus', onExternalSync)
   document.addEventListener('visibilitychange', onExternalSync)
@@ -552,6 +555,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('activity-lottery-requested', onLotteryRequested)
   window.removeEventListener('focus', onExternalSync)
   document.removeEventListener('visibilitychange', onExternalSync)
   window.removeEventListener('activity-wallet-updated', onExternalSync)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -12,11 +13,12 @@ import (
 )
 
 type usageBillingRepository struct {
-	db *sql.DB
+	db                 *sql.DB
+	activityAccounting bool
 }
 
 func NewUsageBillingRepository(_ *dbent.Client, sqlDB *sql.DB) service.UsageBillingBatchRepository {
-	return &usageBillingRepository{db: sqlDB}
+	return &usageBillingRepository{db: sqlDB, activityAccounting: true}
 }
 
 func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBillingCommand) (_ *service.UsageBillingApplyResult, err error) {
@@ -110,21 +112,22 @@ func (r *usageBillingRepository) claimUsageBillingRequest(ctx context.Context, t
 }
 
 func (r *usageBillingRepository) ReserveBatchImageBalance(ctx context.Context, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, reserveUsageBillingBatchImageBalance)
+	return r.applyBatchImageBalanceHold(ctx, cmd, reserveUsageBillingBatchImageBalance, "reserve")
 }
 
 func (r *usageBillingRepository) CaptureBatchImageBalance(ctx context.Context, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, captureUsageBillingBatchImageBalance)
+	return r.applyBatchImageBalanceHold(ctx, cmd, captureUsageBillingBatchImageBalance, "capture")
 }
 
 func (r *usageBillingRepository) ReleaseBatchImageBalance(ctx context.Context, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, releaseUsageBillingBatchImageBalance)
+	return r.applyBatchImageBalanceHold(ctx, cmd, releaseUsageBillingBatchImageBalance, "release")
 }
 
 func (r *usageBillingRepository) applyBatchImageBalanceHold(
 	ctx context.Context,
 	cmd *service.BatchImageBalanceHoldCommand,
 	apply func(context.Context, *sql.Tx, *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error),
+	operation string,
 ) (_ *service.BatchImageBalanceHoldResult, err error) {
 	if cmd == nil {
 		return &service.BatchImageBalanceHoldResult{}, nil
@@ -163,6 +166,16 @@ func (r *usageBillingRepository) applyBatchImageBalanceHold(
 		result = &service.BatchImageBalanceHoldResult{}
 	}
 	result.Applied = true
+	if r.activityAccounting && (cmd.HoldAmount > 0 || cmd.ActualAmount > 0) {
+		if operation == "reserve" {
+			err = activitystore.ReserveHold(ctx, tx, cmd.UserID, cmd.BatchID, service.QuantizeUsageBillingAmount(cmd.HoldAmount))
+		} else {
+			err = activitystore.FinishHold(ctx, tx, cmd.UserID, cmd.APIKeyID, cmd.BatchID, cmd.RequestID, service.QuantizeUsageBillingAmount(cmd.ActualAmount), operation == "capture")
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -185,6 +198,11 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 		result.NewBalance = &newBalance
 		result.BalanceOverdrafted = !sufficient
+		if r.activityAccounting {
+			if err := activitystore.RecordUsage(ctx, tx, cmd.UserID, cmd.APIKeyID, cmd.RequestID, cmd.BalanceCost, cmd.RequestType != service.RequestTypeCyberBlocked); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Key 已不存在时跳过其自身的额度/限速计数，其余结算项不受影响。

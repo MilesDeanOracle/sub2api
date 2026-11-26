@@ -27,6 +27,9 @@ func RegisterUserRoutes(
 	{
 		activity := authenticated.Group("/activity")
 		activity.GET("/status", h.Activity.Status)
+		activity.GET("/reward-moments", panelRateLimiter.Heavy(), h.Activity.RewardMoments)
+		activity.GET("/reward-sharing", h.Activity.RewardSharing)
+		activity.PUT("/reward-sharing", h.Activity.SetRewardSharing)
 		activity.GET("/wallet", h.Activity.WalletStatus)
 		activity.POST("/wallet/withdraw", h.Activity.WithdrawWallet)
 		activity.GET("/consumption", h.Activity.ConsumptionStatus)

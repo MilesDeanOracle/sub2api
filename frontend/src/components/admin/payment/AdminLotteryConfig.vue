@@ -3,8 +3,8 @@
     <form ref="formRef" aria-labelledby="lottery-admin-title" novalidate @submit.prevent="save">
       <header class="page-intro">
         <div>
-          <h2 id="lottery-admin-title" style="font-size: 24px">{{ copy.title }}</h2>
-          <p class="intro-copy">{{ copy.intro }} · {{ copy.unit }}</p>
+          <h2 id="lottery-admin-title" style="font-size: 24px">{{ t('operationsConsole.lotteryConfig.title') }}</h2>
+          <p class="intro-copy">{{ t('operationsConsole.lotteryConfig.intro') }} · {{ t('operationsConsole.lotteryConfig.unit') }}</p>
         </div>
         <label
           v-if="form"
@@ -16,11 +16,11 @@
             type="checkbox"
             name="lottery_enabled"
             :disabled="saving"
-            :aria-label="copy.switchLabel"
+            :aria-label="t('operationsConsole.lotteryConfig.switchLabel')"
             @change="toggleEnabled"
           />
           <span class="switch-track" aria-hidden="true"></span>
-          <span class="font-semibold">{{ form.enabled ? copy.enabled : copy.disabled }}</span>
+          <span class="font-semibold">{{ form.enabled ? t('operationsConsole.lotteryConfig.enabled') : t('operationsConsole.lotteryConfig.disabled') }}</span>
         </label>
       </header>
 
@@ -37,14 +37,14 @@
 
       <template v-if="form">
         <!-- Eight independent prizes with a central draw action. -->
-        <section class="tier-story" :aria-label="copy.preview">
+        <section class="tier-story" :aria-label="t('operationsConsole.lotteryConfig.preview')">
           <div class="tier-story-heading">
             <div>
-              <h2>{{ copy.preview }}</h2>
-              <p>{{ copy.ruleSummary.replace('{yuan}', dollar(form.unit_pay_yuan)) }}</p>
+              <h2>{{ t('operationsConsole.lotteryConfig.preview') }}</h2>
+              <p>{{ t('operationsConsole.lotteryConfig.ruleSummary', { yuan: dollar(form.unit_pay_yuan) }) }}</p>
             </div>
             <div class="total-reward">
-              <span>{{ copy.expectedCost }}</span>
+              <span>{{ t('operationsConsole.lotteryConfig.expectedCost') }}</span>
               <strong data-testid="lottery-expected-ev">
                 ${{ expectedDollars.toFixed(2) }} ({{ rebatePercent.toFixed(2) }}%)
               </strong>
@@ -52,35 +52,35 @@
           </div>
           <div class="tier-track lottery-tier-track" data-testid="lottery-admin-nine-grid">
             <div v-for="(tier, idx) in form.tiers" :key="tier.position" class="tier-stop" :style="{ gridArea: `tier-${tier.position}` }">
-              <span class="tier-index">{{ copy.slot.replace('{n}', String(tier.position)) }}</span>
+              <span class="tier-index">{{ t('operationsConsole.lotteryConfig.slot', { n: tier.position }) }}</span>
               <span class="tier-node" aria-hidden="true">{{ tier.position }}</span>
-              <span class="tier-condition">{{ copy.probability }} <b>{{ tierPercent(idx) }}%</b></span>
+              <span class="tier-condition">{{ t('operationsConsole.lotteryConfig.probability') }} <b>{{ tierPercent(idx) }}%</b></span>
               <div class="tier-value">
-                <span>{{ copy.prize }}</span>
+                <span>{{ t('operationsConsole.lotteryConfig.prize') }}</span>
                 <strong>${{ dollar(tier.reward_usd) }}</strong>
               </div>
             </div>
-            <div class="lottery-preview-center">{{ copy.drawAction }}</div>
+            <div class="lottery-preview-center">{{ t('operationsConsole.lotteryConfig.drawAction') }}</div>
           </div>
-          <div class="tier-story-foot">{{ copy.guardRule }}</div>
+          <div class="tier-story-foot">{{ t('operationsConsole.lotteryConfig.guardRule') }}</div>
         </section>
 
         <div class="workspace-grid">
           <section class="config-surface">
             <div class="surface-title">
               <div>
-                <h2>{{ copy.rulesTitle }}</h2>
-                <p>{{ copy.pending }}</p>
+                <h2>{{ t('operationsConsole.lotteryConfig.rulesTitle') }}</h2>
+                <p>{{ t('operationsConsole.lotteryConfig.pending') }}</p>
               </div>
             </div>
 
             <section class="section-group">
-              <h3>{{ copy.grantSection }}</h3>
+              <h3>{{ t('operationsConsole.lotteryConfig.grantSection') }}</h3>
               <div class="field-grid">
                 <div class="field">
                   <div>
-                    <label for="lottery-unit-pay">{{ copy.unitPayLabel }}</label>
-                    <RewardFieldTip :label="copy.unitPayLabel" :text="copy.unitPayHelp" />
+                    <label for="lottery-unit-pay">{{ t('operationsConsole.lotteryConfig.unitPayLabel') }}</label>
+                    <RewardFieldTip :label="t('operationsConsole.lotteryConfig.unitPayLabel')" :text="t('operationsConsole.lotteryConfig.unitPayHelp')" />
                   </div>
                   <div class="input-unit">
                     <span aria-hidden="true">¥</span>
@@ -96,7 +96,7 @@
                       @input="clearError('unit_pay_yuan')"
                     />
                   </div>
-                  <small id="lottery-unit-pay-help">{{ copy.unitPayHelp }}</small>
+                  <small id="lottery-unit-pay-help">{{ t('operationsConsole.lotteryConfig.unitPayHelp') }}</small>
                   <span v-if="errors.unit_pay_yuan" id="lottery-unit-pay-err" class="error-text">
                     {{ errors.unit_pay_yuan }}
                   </span>
@@ -105,20 +105,20 @@
             </section>
 
             <section class="section-group">
-              <h3>{{ copy.tiersSection }}</h3>
-              <p class="section-copy">{{ copy.tiersHelp }}</p>
-              <p v-if="hasLegacyPool" class="section-copy" role="status">{{ copy.legacyPool }}</p>
-              <button type="button" data-testid="lottery-use-defaults" class="action-secondary lottery-defaults" :disabled="saving || accounting?.tiers_locked" @click="useDefaultTiers">{{ copy.useDefaults }}</button>
-              <p v-if="accounting?.tiers_locked" class="section-copy" role="status">{{ copy.tiersLocked }}</p>
+              <h3>{{ t('operationsConsole.lotteryConfig.tiersSection') }}</h3>
+              <p class="section-copy">{{ t('operationsConsole.lotteryConfig.tiersHelp') }}</p>
+              <p v-if="hasLegacyPool" class="section-copy" role="status">{{ t('operationsConsole.lotteryConfig.legacyPool') }}</p>
+              <button type="button" data-testid="lottery-use-defaults" class="action-secondary lottery-defaults" :disabled="saving || accounting?.tiers_locked" @click="useDefaultTiers">{{ t('operationsConsole.lotteryConfig.useDefaults') }}</button>
+              <p v-if="accounting?.tiers_locked" class="section-copy" role="status">{{ t('operationsConsole.lotteryConfig.tiersLocked') }}</p>
               <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs">
-                  <caption class="sr-only">{{ copy.tiersSection }}</caption>
+                  <caption class="sr-only">{{ t('operationsConsole.lotteryConfig.tiersSection') }}</caption>
                   <thead>
                     <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                      <th scope="col" class="py-2 pr-3">{{ copy.colSlot }}</th>
-                      <th scope="col" class="py-2 pr-3">{{ copy.colReward }}</th>
-                      <th scope="col" class="py-2 pr-3">{{ copy.colWeight }}</th>
-                      <th scope="col" class="py-2">{{ copy.colRate }}</th>
+                      <th scope="col" class="py-2 pr-3">{{ t('operationsConsole.lotteryConfig.colSlot') }}</th>
+                      <th scope="col" class="py-2 pr-3">{{ t('operationsConsole.lotteryConfig.colReward') }}</th>
+                      <th scope="col" class="py-2 pr-3">{{ t('operationsConsole.lotteryConfig.colWeight') }}</th>
+                      <th scope="col" class="py-2">{{ t('operationsConsole.lotteryConfig.colRate') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -127,10 +127,10 @@
                       :key="tier.position"
                       class="border-b border-gray-100 dark:border-dark-800"
                     >
-                      <td class="py-2.5 pr-3 font-semibold">{{ copy.slot.replace('{n}', String(tier.position)) }}</td>
+                      <td class="py-2.5 pr-3 font-semibold">{{ t('operationsConsole.lotteryConfig.slot', { n: tier.position }) }}</td>
                       <td class="py-2.5 pr-3">
                         <label class="sr-only" :for="`lottery-reward-${tier.position}`">
-                          {{ copy.slot.replace('{n}', String(tier.position)) }} {{ copy.colReward }}
+                          {{ t('operationsConsole.lotteryConfig.slot', { n: tier.position }) }} {{ t('operationsConsole.lotteryConfig.colReward') }}
                         </label>
                         <div class="input-unit" style="max-width: 140px">
                           <span aria-hidden="true">$</span>
@@ -152,7 +152,7 @@
                       </td>
                       <td class="py-2.5 pr-3">
                         <label class="sr-only" :for="`lottery-weight-${tier.position}`">
-                          {{ copy.slot.replace('{n}', String(tier.position)) }} {{ copy.colWeight }}
+                          {{ t('operationsConsole.lotteryConfig.slot', { n: tier.position }) }} {{ t('operationsConsole.lotteryConfig.colWeight') }}
                         </label>
                         <div class="input-unit" style="max-width: 140px">
                           <span aria-hidden="true">#</span>
@@ -181,7 +181,7 @@
                 </table>
               </div>
               <div class="form-foot">
-                <span>{{ copy.pending }}</span>
+                <span>{{ t('operationsConsole.lotteryConfig.pending') }}</span>
                 <button type="submit" class="action-primary" :disabled="saving" :aria-busy="saving">
                   {{ t('dashboard.activity.save') }}
                 </button>
@@ -191,8 +191,8 @@
 
           <aside class="side-stack">
             <section class="budget-panel">
-              <div class="surface-title"><h2>{{ copy.budgetTitle }}</h2></div>
-              <div class="budget-label">{{ copy.spentLabel }}</div>
+              <div class="surface-title"><h2>{{ t('operationsConsole.lotteryConfig.budgetTitle') }}</h2></div>
+              <div class="budget-label">{{ t('operationsConsole.lotteryConfig.spentLabel') }}</div>
               <div class="budget-amount">
                 ${{ dollar(form.spent_usd) }} <span>/ ${{ dollar(form.budget_usd) }}</span>
               </div>
@@ -201,8 +201,8 @@
               </div>
               <div class="field">
                 <div>
-                  <label for="lottery-budget">{{ copy.budgetField }}</label>
-                  <RewardFieldTip :label="copy.budgetField" :text="copy.budgetHelp" />
+                  <label for="lottery-budget">{{ t('operationsConsole.lotteryConfig.budgetField') }}</label>
+                  <RewardFieldTip :label="t('operationsConsole.lotteryConfig.budgetField')" :text="t('operationsConsole.lotteryConfig.budgetHelp')" />
                 </div>
                 <div class="input-unit">
                   <span aria-hidden="true">$</span>
@@ -218,31 +218,31 @@
                     @input="clearError('budget_usd')"
                   />
                 </div>
-                <small id="lottery-budget-help">{{ copy.budgetHelp }}</small>
+                <small id="lottery-budget-help">{{ t('operationsConsole.lotteryConfig.budgetHelp') }}</small>
                 <span v-if="errors.budget_usd" id="lottery-budget-err" class="error-text">
                   {{ errors.budget_usd }}
                 </span>
               </div>
-              <div class="inline-note">{{ copy.budgetPauseNote }}</div>
-              <p class="section-copy">{{ copy.outstanding }}: {{ accounting?.outstanding_tickets ?? 0 }} · {{ copy.liability }}: ${{ ((accounting?.expected_liability_cents ?? 0)/100).toFixed(2) }}</p>
-              <p v-if="(accounting?.expected_liability_cents ?? 0) > (Number(form.budget_usd)-form.spent_usd)*100" class="inline-note" role="status">{{ copy.liabilityWarning }}</p>
+              <div class="inline-note">{{ t('operationsConsole.lotteryConfig.budgetPauseNote') }}</div>
+              <p class="section-copy">{{ t('operationsConsole.lotteryConfig.outstanding') }}: {{ accounting?.outstanding_tickets ?? 0 }} · {{ t('operationsConsole.lotteryConfig.liability') }}: ${{ ((accounting?.expected_liability_cents ?? 0)/100).toFixed(2) }}</p>
+              <p v-if="(accounting?.expected_liability_cents ?? 0) > (Number(form.budget_usd)-form.spent_usd)*100" class="inline-note" role="status">{{ t('operationsConsole.lotteryConfig.liabilityWarning') }}</p>
             </section>
           </aside>
         </div>
       </template>
 
-      <p v-else-if="!failed" class="section-copy" role="status">{{ copy.loading }}</p>
+      <p v-else-if="!failed" class="section-copy" role="status">{{ t('operationsConsole.lotteryConfig.loading') }}</p>
     </form>
 
     <!-- User Lottery & Ticket Lookup (separate non-nested form) -->
     <details class="accounting-panel">
       <summary class="cursor-pointer text-sm font-semibold text-gray-800 dark:text-dark-100">
-        {{ copy.lookupTitle }}
+        {{ t('operationsConsole.lotteryConfig.lookupTitle') }}
       </summary>
-      <p class="mt-2 text-xs leading-relaxed text-gray-500">{{ copy.lookupHelp }}</p>
+      <p class="mt-2 text-xs leading-relaxed text-gray-500">{{ t('operationsConsole.lotteryConfig.lookupHelp') }}</p>
       <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="lookupUser">
         <div class="input-label">
-          <label for="lottery-lookup-uid">{{ copy.userID }}</label>
+          <label for="lottery-lookup-uid">{{ t('operationsConsole.lotteryConfig.userID') }}</label>
           <input
             id="lottery-lookup-uid"
             v-model.number="lookupUserID"
@@ -255,29 +255,29 @@
           />
         </div>
         <button type="submit" class="btn btn-secondary" :disabled="lookingUp">
-          {{ lookingUp ? t('common.loading') : copy.lookupBtn }}
+          {{ lookingUp ? t('common.loading') : t('operationsConsole.lotteryConfig.lookupBtn') }}
         </button>
       </form>
       <p v-if="lookupError" class="mt-3 text-xs text-red-600 dark:text-red-400" role="alert">{{ lookupError }}</p>
       <div v-if="userSummary" class="mt-4 space-y-4 text-xs">
         <p class="text-sm text-gray-700 dark:text-dark-200">
-          {{ copy.remainingDraws }}: <strong>{{ userSummary.remaining_draws }}</strong> ({{ copy.netTickets }}:
-          {{ userSummary.net_tickets }}) · {{ copy.totalWon }}:
-          <strong>${{ userSummary.total_won.toFixed(2) }}</strong> · {{ copy.walletAvailable }}:
+          {{ t('operationsConsole.lotteryConfig.remainingDraws') }}: <strong>{{ userSummary.remaining_draws }}</strong> ({{ t('operationsConsole.lotteryConfig.netTickets') }}:
+          {{ userSummary.net_tickets }}) · {{ t('operationsConsole.lotteryConfig.totalWon') }}:
+          <strong>${{ userSummary.total_won.toFixed(2) }}</strong> · {{ t('operationsConsole.lotteryConfig.walletAvailable') }}:
           <strong>${{ userSummary.wallet.available.toFixed(2) }}</strong>
           <span v-if="userSummary.draw_blocked" class="ml-2 text-amber-600 dark:text-amber-400">
-            [{{ copy.frozen }}]
+            [{{ t('operationsConsole.lotteryConfig.frozen') }}]
           </span>
         </p>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs text-gray-600 dark:text-dark-300">
-            <caption class="sr-only">{{ copy.ticketLedger }}</caption>
+            <caption class="sr-only">{{ t('operationsConsole.lotteryConfig.ticketLedger') }}</caption>
             <thead>
               <tr class="border-b border-gray-200 dark:border-dark-700">
                 <th scope="col" class="p-2">ID</th>
-                <th scope="col" class="p-2">{{ copy.source }}</th>
-                <th scope="col" class="p-2">{{ copy.delta }}</th>
-                <th scope="col" class="p-2">{{ copy.time }}</th>
+                <th scope="col" class="p-2">{{ t('operationsConsole.lotteryConfig.source') }}</th>
+                <th scope="col" class="p-2">{{ t('operationsConsole.lotteryConfig.delta') }}</th>
+                <th scope="col" class="p-2">{{ t('operationsConsole.lotteryConfig.time') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -329,7 +329,7 @@ interface LotteryFormState {
   tiers: LotteryTierForm[]
 }
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const formRef = ref<HTMLFormElement | null>(null)
 const accounting = ref<ApiAdminLotteryConfig | null>(null)
 const form = ref<LotteryFormState | null>(null)
@@ -344,121 +344,6 @@ const lookingUp = ref(false)
 const lookupError = ref('')
 const userSummary = ref<AdminLotteryUserSummary | null>(null)
 
-const copy = computed(() =>
-  locale.value.startsWith('zh')
-    ? {
-        title: '九宫格 · 充值送抽奖配置',
-        intro: '常驻开关型充值回馈，奖励入账活动钱包，退款同步核对并扣回对应奖励',
-        unit: '奖金与预算单位为美元（USD），充值门槛为人民币（CNY）',
-        preview: '九宫格 · 8 档奖池与单抽期望预览',
-        drawAction: '抽奖',
-        tiersHelp: '八档奖金与正整数权重统一配置、一起保存，八档全部参与抽奖。',
-        legacyPool: '当前历史奖池继续兑现原概率。关闭赠次并结清已有和待同步次数后，可整套切换八档；修改后需点击保存。',
-        useDefaults: '填入八档默认配置（单抽期望 $0.629）',
-        ruleSummary: '单笔人民币余额充值每实付满 ¥{yuan} 赠送 1 次（向下取整，不追溯开启前历史订单）',
-        expectedCost: '单抽期望奖励（1:1 名义折算）',
-        tiersLocked: '赠次窗口开启或仍有未结清次数时，奖金与概率锁定；先关闭赠次并结清已有次数后再修改。',
-        outstanding: '未使用次数', liability: '未使用次数的期望奖励', liabilityWarning: '剩余预算低于现有次数的期望奖励，请补充预算；预算不足时次数保留，抽奖暂停。',
-        slot: '第 {n} 格',
-        probability: '中奖率',
-        prize: '奖金',
-        guardRule:
-          '不受个人终身上限限制；当抽奖专用剩余预算低于最高档奖金时自动暂停抽奖并保留次数，绝不暗改概率。',
-        rulesTitle: '抽奖规则与奖池权重',
-        pending: '下方规则与预算修改后，点击保存配置生效；右上角开关点击即刻生效。',
-        switchLabel: '充值抽奖总开关',
-        enabled: '活动已开启',
-        disabled: '活动已关闭',
-        grantSection: '充值赠次条件',
-        unitPayLabel: '单次抽奖实付门槛（人民币元）',
-        unitPayHelp: '默认 ¥10.00，仅计活动开启期间新完成支付的人民币余额充值订单，单笔向下取整。',
-        tiersSection: '8 档奖金与正整数权重（用户可在活动规则中查看概率）',
-        colSlot: '格位',
-        colReward: '单次奖金（USD）',
-        colWeight: '整数权重',
-        colRate: '真实概率',
-        budgetTitle: '抽奖专用预算',
-        spentLabel: '累计已发奖金',
-        budgetField: '抽奖专用总预算（USD）',
-        budgetHelp: '启用抽奖时，专用剩余预算须至少覆盖 1 次最高档奖金；抽奖预算独立使用。',
-        budgetPauseNote: '关闭活动开关后停止对新充值赠次，但已有剩余次数的用户仍可在预算内抽完。',
-        loading: '正在加载充值抽奖配置…',
-        lookupTitle: '用户抽奖次数与流水查询',
-        lookupHelp: '按用户 ID 同步并查看剩余次数、净票券账本、退款扣回记录及活动钱包状态。',
-        userID: '用户 ID',
-        lookupBtn: '查询用户明细',
-        remainingDraws: '可用次数',
-        netTickets: '账面净票数',
-        totalWon: '累计中奖',
-        walletAvailable: '活动钱包可转入',
-        frozen: '退款审核冻结中',
-        ticketLedger: '最近票券流水',
-        source: '来源',
-        delta: '变动次数',
-        time: '时间',
-        errUnitPay: '请输入不少于 ¥1.00 的金额，最多两位小数。',
-        errReward: '请输入大于 0 的美元金额，最多两位小数。',
-        errWeight: '八档均需配置 1 至 1000000 的整数权重。',
-        errBudget: '请输入不小于已发放金额的预算，且启用时须至少覆盖一次最高档奖金。',
-        errSummary: '配置未保存，请修正标红字段后重试。',
-      }
-    : {
-        title: 'Nine-Grid · Recharge Lottery',
-        intro: 'Always-on switchable recharge lottery credited to the isolated activity wallet',
-        unit: 'Prizes & budgets in USD; recharge threshold in CNY',
-        preview: 'Nine-grid · 8-tier prize pool & expected cost',
-        drawAction: 'Draw',
-        tiersHelp: 'Configure and save all eight prize amounts and positive weights together. All eight participate.',
-        legacyPool: 'This historical pool keeps its original odds. Close grants and settle existing and unsynced draws before switching the entire pool. Save to apply changes.',
-        useDefaults: 'Fill eight-tier defaults ($0.629 expected reward)',
-        ruleSummary: '1 draw per ¥{yuan} paid in a single CNY balance order (floored per order; no historical backfill)',
-        expectedCost: 'Expected reward / draw (nominal 1:1)',
-        tiersLocked: 'Prizes and odds are locked while grants are open or tickets remain. Close grants and settle existing tickets before editing.',
-        outstanding: 'Outstanding draws', liability: 'Expected outstanding rewards', liabilityWarning: 'Remaining budget is below expected outstanding rewards. Add budget; draws pause with tickets preserved when underfunded.',
-        slot: 'Slot {n}',
-        probability: 'Odds',
-        prize: 'Prize',
-        guardRule:
-          'Exempt from per-user lifetime cap; drawing pauses automatically if remaining budget cannot cover the top prize, preserving exact odds.',
-        rulesTitle: 'Rules & prize weights',
-        pending: 'Save rule and budget edits below; the top-right activity switch applies immediately.',
-        switchLabel: 'Recharge lottery switch',
-        enabled: 'Activity ON',
-        disabled: 'Activity OFF',
-        grantSection: 'Grant threshold',
-        unitPayLabel: 'CNY paid per draw (¥)',
-        unitPayHelp: 'Default ¥10.00. Only completed CNY balance orders settled while enabled qualify.',
-        tiersSection: '8 prize amounts & positive integer weights (odds disclosed in rules)',
-        colSlot: 'Slot',
-        colReward: 'Prize (USD)',
-        colWeight: 'Weight',
-        colRate: 'Exact odds',
-        budgetTitle: 'Dedicated lottery budget',
-        spentLabel: 'Total awarded',
-        budgetField: 'Lottery budget (USD)',
-        budgetHelp: 'When enabled, the dedicated remaining budget must cover at least one top-tier prize. This budget is independent.',
-        budgetPauseNote: 'Disabling stops new ticket grants while allowing users to spend existing draws within budget.',
-        loading: 'Loading recharge lottery settings…',
-        lookupTitle: 'User ticket & draw lookup',
-        lookupHelp: 'Sync and inspect a user’s remaining draws, net ticket ledger, refund deductions and activity wallet.',
-        userID: 'User ID',
-        lookupBtn: 'Look up user',
-        remainingDraws: 'Available draws',
-        netTickets: 'Net tickets',
-        totalWon: 'Total won',
-        walletAvailable: 'Wallet withdrawable',
-        frozen: 'Frozen for refund review',
-        ticketLedger: 'Recent ticket ledger',
-        source: 'Source',
-        delta: 'Delta',
-        time: 'Time',
-        errUnitPay: 'Enter at least ¥1.00 with at most two decimal places.',
-        errReward: 'Enter a positive USD amount with at most two decimal places.',
-        errWeight: 'All eight tiers require an integer weight from 1 to 1000000.',
-        errBudget: 'Enter a valid budget covering spent rewards (and at least one top prize when enabled).',
-        errSummary: 'Not saved. Fix the highlighted fields and try again.',
-      }
-)
 
 const dollar = (value: number) => (Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '0.00')
 
@@ -556,7 +441,7 @@ function buildValidatedPayload(state: LotteryFormState) {
 
   const unitPayCents = validMoneyCents(state.unit_pay_yuan)
   if (unitPayCents === null || unitPayCents < 100) {
-    nextErrors.unit_pay_yuan = copy.value.errUnitPay
+    nextErrors.unit_pay_yuan = t('operationsConsole.lotteryConfig.errUnitPay')
   }
 
   // Budget-only saves of a locked historical pool must remain possible.
@@ -565,12 +450,12 @@ function buildValidatedPayload(state: LotteryFormState) {
   const apiTiers = state.tiers.map((tier) => {
     const rewardCents = validMoneyCents(tier.reward_usd)
     if (rewardCents === null || rewardCents <= 0) {
-      nextErrors[`reward_${tier.position}`] = copy.value.errReward
+      nextErrors[`reward_${tier.position}`] = t('operationsConsole.lotteryConfig.errReward')
     } else if (tier.weight > 0 && rewardCents > maxRewardCents) {
       maxRewardCents = rewardCents
     }
     if (!Number.isInteger(tier.weight) || (tier.weight <= 0 && !unchangedTiers) || tier.weight < 0 || tier.weight > 1_000_000) {
-      nextErrors[`weight_${tier.position}`] = copy.value.errWeight
+      nextErrors[`weight_${tier.position}`] = t('operationsConsole.lotteryConfig.errWeight')
     }
     return {
       position: tier.position,
@@ -580,7 +465,7 @@ function buildValidatedPayload(state: LotteryFormState) {
   })
 
   if (!state.tiers.some((tier) => Number.isInteger(tier.weight) && tier.weight > 0)) {
-    nextErrors.weight_1 = copy.value.errWeight
+    nextErrors.weight_1 = t('operationsConsole.lotteryConfig.errWeight')
   }
 
   const budgetCents = validMoneyCents(state.budget_usd)
@@ -590,7 +475,7 @@ function buildValidatedPayload(state: LotteryFormState) {
     budgetCents < spentCents ||
     (state.enabled && budgetCents - spentCents < maxRewardCents)
   ) {
-    nextErrors.budget_usd = copy.value.errBudget
+    nextErrors.budget_usd = t('operationsConsole.lotteryConfig.errBudget')
   }
 
   return {
@@ -630,7 +515,7 @@ async function toggleEnabled(event: Event) {
       input.checked = form.value.enabled
       errors.value = nextErrors
       failed.value = true
-      message.value = copy.value.errSummary
+      message.value = t('operationsConsole.lotteryConfig.errSummary')
       await nextTick()
       formRef.value?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus()
       return
@@ -671,7 +556,7 @@ async function save() {
   errors.value = nextErrors
   if (Object.keys(nextErrors).length > 0) {
     failed.value = true
-    message.value = copy.value.errSummary
+    message.value = t('operationsConsole.lotteryConfig.errSummary')
     await nextTick()
     formRef.value?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus()
     return
