@@ -1,6 +1,6 @@
 # 验证记录
 
-代码提交在分支 `feat/operations-group-cache`，未合并到 main，未部署。本地后端未运行，因此没有连接真实数据库做端到端验证。
+代码在分支 `feat/operations-group-cache` 上开发，已快进合并到 main 并推送到 origin，未部署。本地后端未运行，因此没有连接真实数据库做端到端验证。
 
 ## 自动化验证
 
