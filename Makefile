@@ -1,4 +1,4 @@
-.PHONY: help dev dev-local build build-backend build-frontend build-docker up-file test test-backend test-frontend test-frontend-critical
+.PHONY: help dev dev-local build build-backend build-frontend build-docker up-file test test-backend test-frontend test-frontend-critical test-marketing-upstream
 
 # 裸 make 仍保持编译行为（help 现在是第一个目标，需显式声明默认目标）
 .DEFAULT_GOAL := build
@@ -126,3 +126,6 @@ test-frontend: ## 运行前端检查（lint + 类型检查 + 关键单测）
 
 test-frontend-critical: ## 运行前端关键单测
 	@$(PNPM) --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
+
+test-marketing-upstream: ## 合并上游后验证营销奖励、账务与迁移契约
+	@bash scripts/test-marketing-upstream.sh "$(MODE)"

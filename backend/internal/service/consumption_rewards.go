@@ -377,7 +377,8 @@ func (s *ActivityService) ConsumptionStatus(ctx context.Context, uid int64, sele
 		if err = s.db.QueryRowContext(ctx, `SELECT activity_consumption_spend($1,$2)::text`, c.ID, uid).Scan(&out.Spend); err != nil {
 			return nil, err
 		}
-		if err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_consumption_entitlements WHERE user_id=$1 AND state='review') OR EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending') OR EXISTS(SELECT 1 FROM activity_wallets WHERE user_id=$1 AND recovery_debt_cents>0) OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))`, uid).Scan(&out.Blocked); err != nil {
+		out.Blocked, err = activitystore.GlobalRewardReviewBlocked(ctx, s.db, uid)
+		if err != nil {
 			return nil, err
 		}
 		var campaignUsed, personalUsed, userCap int64
@@ -445,8 +446,8 @@ func (s *ActivityService) ClaimConsumption(ctx context.Context, uid, cid int64, 
 		return err
 	}
 
-	var active bool
-	if err = tx.QueryRowContext(ctx, `SELECT status='active' FROM users WHERE id=$1 AND deleted_at IS NULL`, uid).Scan(&active); err != nil {
+	active, err := activitystore.UserActive(ctx, tx, uid)
+	if err != nil {
 		return err
 	}
 	if !active {
@@ -465,8 +466,8 @@ func (s *ActivityService) ClaimConsumption(ctx context.Context, uid, cid int64, 
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM activity_config WHERE id=1 FOR UPDATE`).Scan(&lock); err != nil {
 		return err
 	}
-	var blocked bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_consumption_entitlements WHERE user_id=$1 AND state='review') OR EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending') OR EXISTS(SELECT 1 FROM activity_wallets WHERE user_id=$1 AND recovery_debt_cents>0) OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))`, uid).Scan(&blocked); err != nil {
+	blocked, err := activitystore.GlobalRewardReviewBlocked(ctx, tx, uid)
+	if err != nil {
 		return err
 	}
 	if blocked {
@@ -579,8 +580,8 @@ func (s *ActivityService) ResolveConsumptionReview(ctx context.Context, actor, u
 	if err := settleUserRefundRewardsTx(ctx, tx, uid); err != nil {
 		return err
 	}
-	var inflight bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))`, uid).Scan(&inflight); err != nil {
+	inflight, err := activitystore.HasPendingBalanceRefund(ctx, tx, uid)
+	if err != nil {
 		return err
 	}
 	if inflight {

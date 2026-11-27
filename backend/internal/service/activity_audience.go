@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"github.com/lib/pq"
 )
 
@@ -75,8 +76,8 @@ func (s *ActivityService) UpdateAudience(ctx context.Context, actor int64, kind 
 	if err = tx.QueryRowContext(ctx, `SELECT mode,user_ids FROM activity_audiences WHERE kind=$1 FOR UPDATE`, kind).Scan(&old.Mode, pq.Array(&old.UserIDs)); err != nil {
 		return err
 	}
-	var count int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE id=ANY($1) AND deleted_at IS NULL`, pq.Array(ids)).Scan(&count); err != nil {
+	count, err := activitystore.UsersExistCount(ctx, tx, ids)
+	if err != nil {
 		return err
 	}
 	if count != len(ids) {

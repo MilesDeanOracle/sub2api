@@ -293,53 +293,24 @@ func syncUserLotteryTx(ctx context.Context, tx *sql.Tx, userID int64) error {
 		}
 		if len(windows) > 0 {
 			earliest := windows[0].openedAt
-			rows, err := tx.QueryContext(ctx, `
-				SELECT o.id, ROUND(o.pay_amount * 100)::bigint, COALESCE(o.completed_at, o.paid_at)
-				FROM payment_orders o
-				WHERE o.user_id = $1
-				  AND o.order_type = 'balance'
-				  AND o.status IN ('COMPLETED','PARTIALLY_REFUNDED')
-				  AND COALESCE(o.completed_at, o.paid_at) >= $2
-				  AND COALESCE(NULLIF(UPPER(TRIM(o.provider_snapshot->>'currency')), ''), 'CNY') = 'CNY'
-				  AND NOT EXISTS (SELECT 1 FROM activity_lottery_orders lo WHERE lo.order_id = o.id)
-				ORDER BY o.id ASC
-			`, userID, earliest)
+			candidates, err := activitystore.LotteryGrantCandidates(ctx, tx, userID, earliest)
 			if err != nil {
 				return err
 			}
-			type candidate struct {
-				id        int64
-				payCents  int64
-				settledAt time.Time
-			}
-			var candidates []candidate
-			for rows.Next() {
-				var c candidate
-				if err := rows.Scan(&c.id, &c.payCents, &c.settledAt); err != nil {
-					rows.Close()
-					return err
-				}
-				candidates = append(candidates, c)
-			}
-			if err := rows.Err(); err != nil {
-				rows.Close()
-				return err
-			}
-			rows.Close()
 
 			for _, c := range candidates {
-				unitPayCents, ok := matchLotteryWindow(windows, c.settledAt)
+				unitPayCents, ok := matchLotteryWindow(windows, c.SettledAt)
 				if !ok {
 					continue
 				}
-				tickets := calculateLotteryOrderTickets(c.payCents, unitPayCents)
+				tickets := calculateLotteryOrderTickets(c.PayCents, unitPayCents)
 				var inserted bool
 				err := tx.QueryRowContext(ctx, `
 					INSERT INTO activity_lottery_orders (order_id, user_id, unit_pay_cents, granted_tickets, effective_tickets)
 					VALUES ($1, $2, $3, $4, $4)
 					ON CONFLICT (order_id) DO NOTHING
 					RETURNING TRUE
-				`, c.id, userID, unitPayCents, tickets).Scan(&inserted)
+				`, c.OrderID, userID, unitPayCents, tickets).Scan(&inserted)
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return err
 				}
@@ -348,7 +319,7 @@ func syncUserLotteryTx(ctx context.Context, tx *sql.Tx, userID int64) error {
 						INSERT INTO activity_lottery_ticket_ledger (user_id, source_type, source_id, order_id, delta_tickets)
 						VALUES ($1, 'order_grant', $2, $3, $4)
 						ON CONFLICT (source_type, source_id) DO NOTHING
-					`, userID, fmt.Sprintf("%d", c.id), c.id, tickets); err != nil {
+					`, userID, fmt.Sprintf("%d", c.OrderID), c.OrderID, tickets); err != nil {
 						return err
 					}
 				}
@@ -357,62 +328,30 @@ func syncUserLotteryTx(ctx context.Context, tx *sql.Tx, userID int64) error {
 	}
 
 	// Reconcile finalized refunds on previously granted orders.
-	refundRows, err := tx.QueryContext(ctx, `
-		SELECT lo.order_id, lo.unit_pay_cents, lo.effective_tickets,
-		       o.status, COALESCE(o.amount, 0)::float8, COALESCE(o.pay_amount, 0)::float8, COALESCE(o.refund_amount, 0)::float8
-		FROM activity_lottery_orders lo
-		JOIN payment_orders o ON o.id = lo.order_id
-		WHERE lo.user_id = $1
-		  AND lo.effective_tickets > 0
-		  AND o.status IN ('PARTIALLY_REFUNDED', 'REFUNDED')
-		FOR UPDATE OF lo
-	`, userID)
+	refunds, err := activitystore.LotteryRefundCandidates(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
-	type refundCandidate struct {
-		orderID          int64
-		unitPayCents     int
-		effectiveTickets int
-		status           string
-		orderAmount      float64
-		payAmount        float64
-		refundAmount     float64
-	}
-	var refunds []refundCandidate
-	for refundRows.Next() {
-		var r refundCandidate
-		if err := refundRows.Scan(&r.orderID, &r.unitPayCents, &r.effectiveTickets, &r.status, &r.orderAmount, &r.payAmount, &r.refundAmount); err != nil {
-			refundRows.Close()
-			return err
-		}
-		refunds = append(refunds, r)
-	}
-	if err := refundRows.Err(); err != nil {
-		refundRows.Close()
-		return err
-	}
-	refundRows.Close()
 
 	for _, r := range refunds {
-		newEffective, refundCents := calculateLotteryRefundRemainingTickets(r.status, r.orderAmount, r.payAmount, r.refundAmount, r.unitPayCents, r.effectiveTickets)
-		if newEffective >= r.effectiveTickets {
+		newEffective, refundCents := calculateLotteryRefundRemainingTickets(r.Status, r.OrderAmount, r.PayAmount, r.RefundAmount, r.UnitPayCents, r.EffectiveTickets)
+		if newEffective >= r.EffectiveTickets {
 			continue
 		}
-		delta := newEffective - r.effectiveTickets
+		delta := newEffective - r.EffectiveTickets
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE activity_lottery_orders
 			SET effective_tickets = $2, last_refund_cents = $3, updated_at = NOW()
 			WHERE order_id = $1
-		`, r.orderID, newEffective, refundCents); err != nil {
+		`, r.OrderID, newEffective, refundCents); err != nil {
 			return err
 		}
-		sourceID := fmt.Sprintf("%d:%d", r.orderID, newEffective)
+		sourceID := fmt.Sprintf("%d:%d", r.OrderID, newEffective)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO activity_lottery_ticket_ledger (user_id, source_type, source_id, order_id, delta_tickets)
 			VALUES ($1, 'order_refund', $2, $3, $4)
 			ON CONFLICT (source_type, source_id) DO NOTHING
-		`, userID, sourceID, r.orderID, delta); err != nil {
+		`, userID, sourceID, r.OrderID, delta); err != nil {
 			return err
 		}
 	}
@@ -447,48 +386,10 @@ func (s *ActivityService) SyncLotteryOrders(ctx context.Context) error {
 		return nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT user_id FROM (
-			SELECT o.user_id
-			FROM payment_orders o
-			WHERE o.order_type = 'balance'
-			  AND o.status IN ('COMPLETED','PARTIALLY_REFUNDED')
-			  AND COALESCE(o.completed_at, o.paid_at) >= $1
-			  AND COALESCE(NULLIF(UPPER(TRIM(o.provider_snapshot->>'currency')), ''), 'CNY') = 'CNY'
-			  AND activity_audience_allowed('lottery', o.user_id)
-			  AND NOT EXISTS (SELECT 1 FROM activity_lottery_orders lo WHERE lo.order_id = o.id)
-			  AND EXISTS (
-			      SELECT 1 FROM activity_lottery_windows w
-			      WHERE COALESCE(o.completed_at, o.paid_at) >= w.opened_at
-			        AND (w.closed_at IS NULL OR COALESCE(o.completed_at, o.paid_at) < w.closed_at)
-			  )
-			LIMIT 50
-		) pending_grants
-		UNION
-		SELECT DISTINCT lo.user_id
-		FROM activity_lottery_orders lo
-		JOIN payment_orders o ON o.id = lo.order_id
-		WHERE lo.effective_tickets > 0
-		  AND o.status IN ('PARTIALLY_REFUNDED', 'REFUNDED')
-		LIMIT 50
-	`, earliest.Time)
+	userIDs, err := activitystore.LotterySyncUserIDs(ctx, s.db, earliest.Time, 50)
 	if err != nil {
 		return err
 	}
-	var userIDs []int64
-	for rows.Next() {
-		var uid int64
-		if err := rows.Scan(&uid); err != nil {
-			rows.Close()
-			return err
-		}
-		userIDs = append(userIDs, uid)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
 
 	for _, uid := range userIDs {
 		tx, err := s.db.BeginTx(ctx, nil)
@@ -509,6 +410,10 @@ func (s *ActivityService) SyncLotteryOrders(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+type activityQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
 func loadLotteryConfigRow(ctx context.Context, q activityQueryer) (bool, int, int64, []LotteryTier, int, int64, float64, error) {
@@ -532,15 +437,8 @@ func loadLotteryConfigRow(ctx context.Context, q activityQueryer) (bool, int, in
 	return enabled, unitPayCents, budgetCents, normalized, maxReward, totalWeight, expected, nil
 }
 
-func isUserLotteryDrawBlocked(ctx context.Context, q activityQueryer, userID int64) (bool, error) {
-	var blocked bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM activity_consumption_entitlements WHERE user_id=$1 AND state='review')
-		    OR EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending')
-		    OR EXISTS(SELECT 1 FROM activity_wallets WHERE user_id=$1 AND recovery_debt_cents>0)
-		OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))
-	`, userID).Scan(&blocked)
-	return blocked, err
+func isUserLotteryDrawBlocked(ctx context.Context, q activitystore.Tx, userID int64) (bool, error) {
+	return activitystore.DrawReviewBlocked(ctx, q, userID)
 }
 
 func (s *ActivityService) LotteryStatus(ctx context.Context, userID int64) (*LotteryStatus, error) {
@@ -691,8 +589,8 @@ func (s *ActivityService) DrawLottery(ctx context.Context, userID int64, count i
 		return nil, err
 	}
 
-	var active bool
-	if err := tx.QueryRowContext(ctx, `SELECT status='active' FROM users WHERE id=$1 AND deleted_at IS NULL`, userID).Scan(&active); err != nil {
+	active, err := activitystore.UserActive(ctx, tx, userID)
+	if err != nil {
 		return nil, err
 	}
 	if !active {
@@ -1049,8 +947,8 @@ func (s *ActivityService) UpdateAdminLotteryConfig(ctx context.Context, actor in
 }
 
 func (s *ActivityService) AdminLotteryUser(ctx context.Context, userID int64) (*AdminLotteryUserSummary, error) {
-	var exists bool
-	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, userID).Scan(&exists); err != nil {
+	exists, err := activitystore.UserExists(ctx, s.db, userID)
+	if err != nil {
 		return nil, err
 	}
 	if !exists {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/repository/activitystore"
 	"github.com/lib/pq"
 )
 
@@ -62,39 +63,22 @@ func (s *ActivityService) SetRewardSharing(ctx context.Context, uid int64, allow
 // on every request. The bounded projection avoids scanning the financial ledger.
 func (s *ActivityService) RewardMoments(ctx context.Context, uid int64) (*RewardMoments, error) {
 	out := &RewardMoments{Items: []RewardMoment{}}
-	rows, err := s.db.QueryContext(ctx, `SELECT m.ledger_id,m.user_id,m.kind,m.campaign_id,COALESCE(c.name,''),m.amount_cents,m.created_at,cfg.alias_secret
- FROM activity_reward_moments m
- JOIN activity_reward_moments_config cfg ON cfg.id=1 AND cfg.enabled AND $1=ANY(cfg.user_ids)
- JOIN activity_reward_sharing p ON p.user_id=m.user_id AND p.allowed AND m.created_at>=p.granted_at
- JOIN users u ON u.id=m.user_id AND u.status='active' AND u.deleted_at IS NULL
- LEFT JOIN activity_consumption_campaigns c ON c.id=m.campaign_id
- WHERE m.created_at>=NOW()-interval '7 days' AND m.created_at<=NOW() AND m.user_id<>$1
- AND CASE m.kind
- WHEN 'checkin' THEN activity_rollout_allowed('checkin',(SELECT checkin_rollout_percent FROM activity_config WHERE id=1),$1) AND activity_audience_allowed('checkin',m.user_id)
- WHEN 'lottery' THEN activity_audience_allowed('lottery',$1) AND activity_audience_allowed('lottery',m.user_id)
- WHEN 'consumption' THEN c.published_at IS NOT NULL AND activity_rollout_allowed('consumption',c.rollout_percent,$1) AND activity_audience_allowed('consumption',m.user_id)
- ELSE FALSE END
- ORDER BY m.created_at DESC,m.ledger_id DESC LIMIT 6`, uid)
+	records, err := activitystore.RewardMomentRecords(ctx, s.db, uid, 6)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var item RewardMoment
-		var id, owner int64
-		var secret string
-		if err := rows.Scan(&id, &owner, &item.Kind, &item.CampaignID, &item.CampaignName, &item.AmountCents, &item.CreatedAt, &secret); err != nil {
-			rows.Close()
-			return nil, err
+	for _, record := range records {
+		item := RewardMoment{
+			Kind:         record.Kind,
+			CampaignID:   record.CampaignID,
+			CampaignName: record.CampaignName,
+			AmountCents:  record.AmountCents,
+			CreatedAt:    record.CreatedAt,
 		}
-		item.ID = rewardMomentToken(secret, fmt.Sprintf("event:%d", id))
+		item.ID = rewardMomentToken(record.AliasSecret, fmt.Sprintf("event:%d", record.LedgerID))
 		year, week := time.Now().In(activityShanghai).ISOWeek()
-		item.Alias = rewardMomentToken(secret, fmt.Sprintf("alias:%d-%d:%d", year, week, owner))
+		item.Alias = rewardMomentToken(record.AliasSecret, fmt.Sprintf("alias:%d-%d:%d", year, week, record.OwnerID))
 		out.Items = append(out.Items, item)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, err
 	}
 	sharing, err := s.RewardSharing(ctx, uid)
 	if err != nil {
@@ -133,8 +117,8 @@ func (s *ActivityService) UpdateRewardMomentsConfig(ctx context.Context, actor i
 		return err
 	}
 	defer tx.Rollback()
-	var count int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE id=ANY($1) AND deleted_at IS NULL`, pq.Array(ids)).Scan(&count); err != nil {
+	count, err := activitystore.UsersExistCount(ctx, tx, ids)
+	if err != nil {
 		return err
 	}
 	if count != len(ids) {

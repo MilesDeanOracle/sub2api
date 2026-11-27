@@ -145,7 +145,7 @@ func (s *ActivityService) eligible(ctx context.Context, userID int64) (bool, *ti
 	if !errors.Is(err, sql.ErrNoRows) {
 		return false, nil, err
 	}
-	err = s.db.QueryRowContext(ctx, `SELECT created_at FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0) <> 4 ORDER BY created_at LIMIT 1`, userID).Scan(&first)
+	first, err = activitystore.FirstEligibleUsageAt(ctx, s.db, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil, nil
 	}
@@ -175,11 +175,12 @@ func (s *ActivityService) loadWalletSummary(ctx context.Context, userID int64, i
 	summary.TotalWithdrawn = float64(summary.TotalWithdrawnCents) / 100
 	summary.Visible = audienceVisible || summary.AvailableCents > 0 || summary.ReservedCents > 0 || summary.RecoveryDebtCents > 0
 
-	var awardsEnabled, reviewBlocked bool
+	var awardsEnabled bool
 	if err := s.db.QueryRowContext(ctx, `SELECT awards_enabled FROM activity_runtime WHERE id=1`).Scan(&awardsEnabled); err != nil {
 		return summary, err
 	}
-	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_consumption_entitlements WHERE user_id=$1 AND state='review') OR EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending') OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING')) OR COALESCE((SELECT SUM(delta_tickets) FROM activity_lottery_ticket_ledger WHERE user_id=$1),0)<0`, userID).Scan(&reviewBlocked); err != nil {
+	reviewBlocked, err := activitystore.WalletReviewBlocked(ctx, s.db, userID)
+	if err != nil {
 		return summary, err
 	}
 	summary.WithdrawBlocked = !awardsEnabled || reviewBlocked || summary.RecoveryDebtCents > 0
@@ -249,38 +250,10 @@ func creditActivityWalletTx(ctx context.Context, tx *sql.Tx, userID int64, kind,
 // syncUserRefundReviewsTx performs a read-only check on payment_orders for real
 // in-flight or completed refunds (excluding REFUND_FAILED, where no principal left).
 func syncUserRefundReviewsTx(ctx context.Context, tx *sql.Tx, userID int64) error {
-	rows, err := tx.QueryContext(ctx, `
-		SELECT id, status, COALESCE(refund_amount,0)::text
-		FROM payment_orders
-		WHERE user_id = $1
-		  AND order_type = 'balance'
-		  AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING','PARTIALLY_REFUNDED','REFUNDED')
-          AND (status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING')
-               OR COALESCE(updated_at,paid_at) >= (SELECT first_call_tracking_started_at FROM activity_config WHERE id=1)
-               OR EXISTS(SELECT 1 FROM activity_lottery_orders lo WHERE lo.order_id=payment_orders.id))
-	`, userID)
+	orders, err := activitystore.RefundOrdersForReview(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
-	type refundOrder struct {
-		id     int64
-		status string
-		amount string
-	}
-	var orders []refundOrder
-	for rows.Next() {
-		var o refundOrder
-		if err := rows.Scan(&o.id, &o.status, &o.amount); err != nil {
-			rows.Close()
-			return err
-		}
-		orders = append(orders, o)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
 
 	flagged := false
 	for _, o := range orders {
@@ -295,7 +268,7 @@ func syncUserRefundReviewsTx(ctx context.Context, tx *sql.Tx, userID int64) erro
 			    updated_at = NOW()
 			WHERE activity_refund_reviews.order_status IS DISTINCT FROM EXCLUDED.order_status OR activity_refund_reviews.refund_amount IS DISTINCT FROM EXCLUDED.refund_amount
 			RETURNING TRUE
-		`, o.id, userID, o.status, o.amount).Scan(&changed)
+		`, o.ID, userID, o.Status, o.RefundAmount).Scan(&changed)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -328,8 +301,8 @@ func (s *ActivityService) WithdrawWallet(ctx context.Context, userID int64) (*Ac
 	if err := syncUserRefundReviewsTx(ctx, tx, userID); err != nil {
 		return nil, err
 	}
-	var blocked bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_consumption_entitlements WHERE user_id=$1 AND state='review') OR EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending') OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING')) OR COALESCE((SELECT SUM(delta_tickets) FROM activity_lottery_ticket_ledger WHERE user_id=$1),0)<0`, userID).Scan(&blocked); err != nil {
+	blocked, err := activitystore.WalletReviewBlocked(ctx, tx, userID)
+	if err != nil {
 		return nil, err
 	}
 	var debt int64
@@ -553,8 +526,7 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 		return nil, err
 	}
 
-	var active bool
-	err = tx.QueryRowContext(ctx, `SELECT status='active' FROM users WHERE id=$1 AND deleted_at IS NULL`, userID).Scan(&active)
+	active, err := activitystore.UserActive(ctx, tx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -571,8 +543,8 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	if err := syncUserRefundReviewsTx(ctx, tx, userID); err != nil {
 		return nil, err
 	}
-	var blocked bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_refund_reviews WHERE user_id=$1 AND review_status='pending') OR EXISTS(SELECT 1 FROM activity_wallets WHERE user_id=$1 AND recovery_debt_cents>0) OR EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))`, userID).Scan(&blocked); err != nil {
+	blocked, err := activitystore.CheckinReviewBlocked(ctx, tx, userID)
+	if err != nil {
 		return nil, err
 	}
 	if blocked {
@@ -660,26 +632,18 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	return s.Status(ctx, userID)
 }
 
-type activityQueryer interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
-func checkinRechargeEligible(ctx context.Context, db activityQueryer, userID int64, requireRecharge bool) (bool, error) {
+func checkinRechargeEligible(ctx context.Context, db activitystore.Tx, userID int64, requireRecharge bool) (bool, error) {
 	if !requireRecharge {
 		return true, nil
 	}
-	var hasRecharge bool
-	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND status='COMPLETED' AND COALESCE(pay_amount,0)>0)`, userID).Scan(&hasRecharge)
-	return hasRecharge, err
+	return activitystore.HasCompletedRecharge(ctx, db, userID)
 }
 
-func checkinSpendEligible(ctx context.Context, db activityQueryer, userID, minimumCents int64) (bool, error) {
+func checkinSpendEligible(ctx context.Context, db activitystore.Tx, userID, minimumCents int64) (bool, error) {
 	if minimumCents == 0 {
 		return true, nil
 	}
-	var eligible bool
-	err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(actual_cost),0) >= $2::numeric/100 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0)<>4`, userID, minimumCents).Scan(&eligible)
-	return eligible, err
+	return activitystore.EligibleSpendAtLeast(ctx, db, userID, minimumCents)
 }
 
 func calculateCheckinReward(streak, daily, milestone, cap, spent int, budget, globalSpent int64) int {
@@ -719,23 +683,25 @@ type activityPaidOrder struct {
 }
 
 func (s *ActivityService) secondOrders(ctx context.Context, userID int64) ([]activityPaidOrder, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,ROUND(pay_amount*100)::int,COALESCE(paid_at,completed_at),status,
-		COALESCE(NULLIF(provider_snapshot->>'currency',''),'CNY')
-		FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND paid_at IS NOT NULL
-		ORDER BY paid_at,id LIMIT 3`, userID)
+	orders, err := activitystore.PaidBalanceOrders(ctx, s.db, userID, 3)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	orders := make([]activityPaidOrder, 0, 3)
-	for rows.Next() {
-		var order activityPaidOrder
-		if err := rows.Scan(&order.id, &order.payCents, &order.paidAt, &order.status, &order.currency); err != nil {
-			return nil, err
-		}
-		orders = append(orders, order)
+	return convertActivityPaidOrders(orders), nil
+}
+
+func convertActivityPaidOrders(orders []activitystore.PaidOrder) []activityPaidOrder {
+	out := make([]activityPaidOrder, 0, len(orders))
+	for _, order := range orders {
+		out = append(out, activityPaidOrder{
+			id:       order.ID,
+			payCents: order.PayCents,
+			paidAt:   order.PaidAt,
+			status:   order.Status,
+			currency: order.Currency,
+		})
 	}
-	return orders, rows.Err()
+	return out
 }
 
 func (s *ActivityService) secondEligible(ctx context.Context, userID int64) (bool, error) {
@@ -754,9 +720,7 @@ func (s *ActivityService) secondEligible(ctx context.Context, userID int64) (boo
 	if first.status != "COMPLETED" || second.status != "COMPLETED" || first.currency != "CNY" || second.currency != "CNY" || first.payCents < minPay || second.payCents < minPay || second.paidAt.Sub(first.paidAt) > 30*24*time.Hour {
 		return false, nil
 	}
-	var used bool
-	err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0) <> 4 AND created_at>$2 AND created_at<$3)`, userID, first.paidAt, second.paidAt).Scan(&used)
-	return used, err
+	return activitystore.EligibleUsageBetween(ctx, s.db, userID, first.paidAt, second.paidAt)
 }
 
 func (s *ActivityService) secondOffer(ctx context.Context, userID int64) (bool, error) {
@@ -775,9 +739,7 @@ func (s *ActivityService) secondOffer(ctx context.Context, userID int64) (bool, 
 	if first.status != "COMPLETED" || first.currency != "CNY" || first.payCents < minPay || time.Since(first.paidAt) > 30*24*time.Hour {
 		return false, nil
 	}
-	var used bool
-	err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0)<>4 AND created_at>$2)`, userID, first.paidAt).Scan(&used)
-	return used, err
+	return activitystore.EligibleUsageAfter(ctx, s.db, userID, first.paidAt)
 }
 
 type ActivityConfig struct {
@@ -842,8 +804,8 @@ func (s *ActivityService) MarkRefundReviewed(ctx context.Context, orderID int64,
 	if err := settleUserRefundRewardsTx(ctx, tx, uid); err != nil {
 		return err
 	}
-	var inflight bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM payment_orders WHERE user_id=$1 AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING'))`, uid).Scan(&inflight); err != nil {
+	inflight, err := activitystore.HasPendingBalanceRefund(ctx, tx, uid)
+	if err != nil {
 		return err
 	}
 	if inflight {
@@ -950,8 +912,8 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM activity_wallets WHERE user_id=$1 FOR UPDATE`, userID).Scan(&lockedUser); err != nil {
 		return false, err
 	}
-	var active bool
-	if err = tx.QueryRowContext(ctx, `SELECT status='active' FROM users WHERE id=$1 AND deleted_at IS NULL`, userID).Scan(&active); err != nil {
+	active, err := activitystore.UserActive(ctx, tx, userID)
+	if err != nil {
 		return false, err
 	}
 	if !active {
@@ -981,26 +943,11 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if userID%2 != 0 {
 		return false, ErrActivityIneligible
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,ROUND(pay_amount*100)::int,paid_at,status,COALESCE(NULLIF(provider_snapshot->>'currency',''),'CNY')
-		FROM payment_orders WHERE user_id=$1 AND order_type='balance' AND paid_at IS NOT NULL
-		ORDER BY paid_at,id LIMIT 3`, userID)
+	paidOrders, err := activitystore.PaidBalanceOrders(ctx, tx, userID, 3)
 	if err != nil {
 		return false, err
 	}
-	orders := make([]activityPaidOrder, 0, 3)
-	for rows.Next() {
-		var o activityPaidOrder
-		if err = rows.Scan(&o.id, &o.payCents, &o.paidAt, &o.status, &o.currency); err != nil {
-			rows.Close()
-			return false, err
-		}
-		orders = append(orders, o)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return false, err
-	}
+	orders := convertActivityPaidOrders(paidOrders)
 	if len(orders) < 2 {
 		return false, ErrActivityIneligible
 	}
@@ -1008,8 +955,8 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if first.status != "COMPLETED" || second.status != "COMPLETED" || first.currency != "CNY" || second.currency != "CNY" || first.payCents < minPay || second.payCents < minPay || second.paidAt.Sub(first.paidAt) > 30*24*time.Hour {
 		return false, ErrActivityIneligible
 	}
-	var used bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0)<>4 AND created_at>$2 AND created_at<$3)`, userID, first.paidAt, second.paidAt).Scan(&used); err != nil {
+	used, err := activitystore.EligibleUsageBetween(ctx, tx, userID, first.paidAt, second.paidAt)
+	if err != nil {
 		return false, err
 	}
 	if !used {

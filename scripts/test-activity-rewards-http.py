@@ -2,6 +2,8 @@
 """Real login/HTTP/SQL regression in disposable PostgreSQL and Redis containers.
 
 Run: python3 scripts/test-activity-rewards-http.py [--binary /path/to/server]
+Add --with-contracts to run backend contracts before HTTP, or --contracts-only
+to run only backend contracts in disposable PostgreSQL.
 No existing database, Redis instance, .env or server is used.
 """
 
@@ -12,6 +14,7 @@ from pathlib import Path
 import secrets
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -20,10 +23,76 @@ import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CONTRACT_PATTERN = "^Test(Activity|Checkin|Consumption|DrawLottery|Lottery|RewardMoments|Regression|Migration259)"
+REQUIRED_CONTRACTS = {
+    ("handler", "TestActivityCorrectionSignedEventID"),
+    ("repository", "TestActivityMigrationLineagesPostgres"),
+    ("repository", "TestActivityMaintenanceGate"),
+    ("service", "TestActivityProductionPostgres"),
+    ("service", "TestActivityPaymentProductionPostgres"),
+    ("service", "TestActivityRefundUncertainResponses"),
+    ("service", "TestActivityWalletExperiencePostgres"),
+    ("service", "TestConsumptionPostgres"),
+    ("service", "TestConsumptionMasterSwitchPostgres"),
+    ("service", "TestConsumptionMasterSwitchConcurrentPostgres"),
+    ("service", "TestDrawLotteryBudgetPauseNeverSilentlyAltersOdds"),
+    ("service", "TestDrawLotteryIdempotentReplayReturnsSavedBatch"),
+    ("service", "TestRegressionOutOfOrderUsageCommitPostgres"),
+    ("service", "TestRegressionTransferMustNotAbsorbEarlierUsagePostgres"),
+    ("service", "TestRegressionConsumptionPendingAndSignedEventsPostgres"),
+    ("service", "TestRegressionRefundQueryUsesGatewayAmount"),
+    ("service", "TestRegressionRefundWithoutDeductionRequiresForcePostgres"),
+    ("service", "TestRewardMomentsPrivacyPostgres"),
+    ("service", "TestRewardMomentsRevocationPostgres"),
+    ("service", "TestRewardMomentsConsumptionPostgres"),
+    ("service", "TestRewardMomentsConfigPostgres"),
+    ("service", "TestRewardMomentsEarliestClaimPostgres"),
+}
 
 
 def run(*args, **kwargs):
-    return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs).stdout.strip()
+    try:
+        return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs).stdout.strip()
+    except subprocess.CalledProcessError as error:
+        if error.stderr:
+            print(error.stderr.strip(), file=sys.stderr, flush=True)
+        raise
+
+
+def validate_contract_events(events):
+    passed = set()
+    for event in events:
+        package = event["Package"].rsplit("/", 1)[-1]
+        test = event.get("Test", "")
+        if event["Action"] in ("skip", "fail"):
+            raise RuntimeError(f"backend contract {event['Action']}: {package}/{test}")
+        if event["Action"] == "pass" and test and "/" not in test:
+            passed.add((package, test))
+    missing = REQUIRED_CONTRACTS - passed
+    if missing:
+        names = ", ".join(f"{package}/{test}" for package, test in sorted(missing))
+        raise RuntimeError("required backend contracts did not pass: " + names)
+    return len(passed)
+
+
+def run_contracts(dsn, password):
+    print("Running backend contracts in disposable PostgreSQL", flush=True)
+    result = subprocess.run(
+        ["go", "test", "-json", "-tags", "unit", "./internal/handler", "./internal/service",
+         "./internal/repository", "./internal/server/routes", "-run", CONTRACT_PATTERN,
+         "-count=1", "-timeout=8m"],
+        cwd=ROOT / "backend", env=dict(os.environ, ACTIVITY_TEST_DSN=dsn),
+        capture_output=True, text=True,
+    )
+    try:
+        events = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        if result.returncode:
+            raise RuntimeError(f"backend contract command exited with {result.returncode}")
+        count = validate_contract_events(events)
+    except (ValueError, RuntimeError):
+        print((result.stdout + result.stderr).replace(password, "<REDACTED>"), file=sys.stderr, flush=True)
+        raise
+    print(f"PASS: {count} backend contract tests, no skips; all required contracts passed", flush=True)
 
 
 def wait_until(check, process=None):
@@ -43,15 +112,17 @@ def wait_until(check, process=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path)
+    contracts = parser.add_mutually_exclusive_group()
+    contracts.add_argument("--with-contracts", action="store_true")
+    contracts.add_argument("--contracts-only", action="store_true")
     args = parser.parse_args()
+    # Fail with Docker's actual diagnostic before compiling or running any tests.
+    run("docker", "info", "--format", "{{.ServerVersion}}", timeout=15)
     containers = []
     process = None
     with tempfile.TemporaryDirectory(prefix="activity-http-") as tmp:
         tmp = Path(tmp)
         binary = args.binary.resolve() if args.binary else tmp / "server"
-        if args.binary is None:
-            print("Building backend", flush=True)
-            run("go", "build", "-o", str(binary), "./cmd/server", cwd=ROOT / "backend")
         password = secrets.token_urlsafe(32)
         suffix = uuid.uuid4().hex[:12]
         pg, redis = "activity-http-pg-" + suffix, "activity-http-redis-" + suffix
@@ -63,11 +134,19 @@ def main():
                 "-e", "POSTGRES_DB=rewards", "-p", "127.0.0.1::5432",
                 "postgres:16-alpine", env=env)
             containers.append(pg)
+            wait_until(lambda: run("docker", "exec", pg, "pg_isready", "-h", "127.0.0.1", "-U", "rewards", "-d", "rewards"))
+            pg_port = run("docker", "port", pg, "5432/tcp").rsplit(":", 1)[1]
+            if args.with_contracts or args.contracts_only:
+                dsn = f"postgresql://rewards:{password}@127.0.0.1:{pg_port}/rewards?sslmode=disable"
+                run_contracts(dsn, password)
+            if args.contracts_only:
+                return
+            if args.binary is None:
+                print("Building backend", flush=True)
+                run("go", "build", "-o", str(binary), "./cmd/server", cwd=ROOT / "backend")
             run("docker", "run", "-d", "--rm", "--name", redis,
                 "-p", "127.0.0.1::6379", "redis:7-alpine")
             containers.append(redis)
-            wait_until(lambda: run("docker", "exec", pg, "pg_isready", "-h", "127.0.0.1", "-U", "rewards", "-d", "rewards"))
-            pg_port = run("docker", "port", pg, "5432/tcp").rsplit(":", 1)[1]
             redis_port = run("docker", "port", redis, "6379/tcp").rsplit(":", 1)[1]
             with socket.socket() as sock:
                 sock.bind(("127.0.0.1", 0))

@@ -102,9 +102,7 @@ func (s *ActivityService) SyncRefundReviews(ctx context.Context) error {
 	if lastScan.Valid {
 		since = lastScan.Time.Add(-10 * time.Second)
 	}
-	if _, err := scan.ExecContext(ctx, `INSERT INTO activity_refund_sync_queue(user_id,updated_at,next_attempt_at)
- SELECT DISTINCT user_id,$2::timestamptz,$2::timestamptz FROM payment_orders WHERE order_type='balance' AND status IN ('REFUND_REQUESTED','REFUNDING','REFUND_PENDING','PARTIALLY_REFUNDED','REFUNDED') AND user_id IS NOT NULL AND COALESCE(updated_at,NOW()) >= $1
- ON CONFLICT(user_id) DO UPDATE SET updated_at=EXCLUDED.updated_at`, since, scanStarted); err != nil {
+	if err := activitystore.EnqueueRefundReviewUsers(ctx, scan, since, scanStarted); err != nil {
 		return err
 	}
 	if _, err := scan.ExecContext(ctx, `UPDATE activity_worker_status SET last_refund_scan_at=$1 WHERE id=1`, scanStarted); err != nil {

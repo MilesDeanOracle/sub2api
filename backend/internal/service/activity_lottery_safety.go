@@ -42,9 +42,5 @@ func pauseDepletedLotteryTx(ctx context.Context, tx *sql.Tx) error {
 }
 
 func lotteryTiersLocked(ctx context.Context, db activityAccountingDB) (bool, error) {
-	var locked bool
-	err := activitystore.Scan(ctx, db, `SELECT EXISTS(SELECT 1 FROM activity_lottery_windows WHERE closed_at IS NULL)
- OR EXISTS(SELECT 1 FROM activity_lottery_ticket_ledger GROUP BY user_id HAVING SUM(delta_tickets)>0)
- OR EXISTS(SELECT 1 FROM payment_orders o JOIN activity_lottery_windows w ON COALESCE(o.completed_at,o.paid_at)>=w.opened_at AND (w.closed_at IS NULL OR COALESCE(o.completed_at,o.paid_at)<w.closed_at) WHERE o.order_type='balance' AND o.status IN ('COMPLETED','PARTIALLY_REFUNDED') AND o.pay_amount*100>=w.unit_pay_cents AND COALESCE(NULLIF(UPPER(TRIM(o.provider_snapshot->>'currency')),''),'CNY')='CNY' AND NOT EXISTS(SELECT 1 FROM activity_lottery_orders lo WHERE lo.order_id=o.id))`, nil, &locked)
-	return locked, err
+	return activitystore.LotteryTiersLocked(ctx, db)
 }
