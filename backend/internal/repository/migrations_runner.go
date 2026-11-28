@@ -226,6 +226,14 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
 		}
 
+		skip, err := prepareActivityMigration(ctx, lockConn, name)
+		if err != nil {
+			return err
+		}
+		if skip {
+			continue
+		}
+
 		nonTx, err := validateMigrationExecutionMode(name, content)
 		if err != nil {
 			return fmt.Errorf("validate migration %s: %w", name, err)
@@ -263,6 +271,10 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 
+		if err := configureActivityMigrationTx(ctx, tx, name); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		// 执行迁移 SQL
 		if _, err := tx.ExecContext(ctx, content); err != nil {
 			_ = tx.Rollback()

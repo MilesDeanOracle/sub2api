@@ -820,3 +820,52 @@ func (p *refundQueryProviderTestDouble) QueryRefund(_ context.Context, req payme
 	p.lastQuery = req
 	return p.refundResponse, nil
 }
+
+func TestRegressionRefundQueryUsesGatewayAmount(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		payAmount    float64
+		refundAmount float64
+		want         string
+	}{
+		{name: "one_to_one_partial", payAmount: 100, refundAmount: 50, want: "50.00"},
+		{name: "one_to_one_full", payAmount: 100, refundAmount: 100, want: "100.00"},
+		{name: "historical_order_ratio", payAmount: 700, refundAmount: 50, want: "350.00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			client := newPaymentConfigServiceTestClient(t)
+			order := createPendingRefundOrderForTest(t, ctx, client, "review-"+tc.name)
+			_, err := client.PaymentOrder.UpdateOneID(order.ID).SetPayAmount(tc.payAmount).SetRefundAmount(tc.refundAmount).SetProviderSnapshot(map[string]any{"currency": "CNY"}).Save(ctx)
+			require.NoError(t, err)
+			svc := &PaymentService{entClient: client, userRepo: &mockUserRepo{}, loadBalancer: &captureLoadBalancer{}}
+			prov := &refundQueryProviderTestDouble{refundResponse: &payment.RefundResponse{RefundID: "rf_test", Status: payment.ProviderStatusPending}}
+			restore := replacePaymentProviderFactoryForTest(t, prov)
+			defer restore()
+			_, err = svc.QueryAndFinalizeRefund(ctx, order.ID)
+			require.NoError(t, err)
+			t.Logf("orderAmount=100 payAmount=%v refundAmount=%v queryAmount=%s", tc.payAmount, tc.refundAmount, prov.lastQuery.Amount)
+			require.Equal(t, tc.want, prov.lastQuery.Amount)
+		})
+	}
+}
+func TestRegressionRefundWithoutDeductionRequiresForcePostgres(t *testing.T) {
+	f := newActivityProductionFixture(t)
+	svc, p := f.paymentService()
+	p.DeductBalance = false
+	p.DeductionType = payment.DeductionTypeNone
+	p.BalanceToDeduct = 0
+	p.Force = false
+	result, err := svc.ExecuteRefund(f.ctx, p)
+	t.Logf("force=false deduct=false result=%+v error=%v remainingBalance=%s orderStatus=%s", result, err, f.scalar(`SELECT balance::text FROM users WHERE id=1`), f.scalar(`SELECT status FROM payment_orders WHERE id=100`))
+	require.Error(t, err, "a refund retaining user principal must require explicit force")
+	require.Nil(t, result)
+	require.Equal(t, "REFUND_REQUIRES_FORCE", infraerrors.Reason(err))
+	require.Equal(t, "COMPLETED", f.scalar(`SELECT status FROM payment_orders WHERE id=100`))
+	require.Equal(t, "100.00000000", f.scalar(`SELECT balance::text FROM users WHERE id=1`))
+	p.Force = true
+	result, err = svc.ExecuteRefund(f.ctx, p)
+	require.NoError(t, err)
+	require.True(t, result.Success)
+	require.Equal(t, "100.00000000", f.scalar(`SELECT balance::text FROM users WHERE id=1`))
+}

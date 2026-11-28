@@ -485,7 +485,7 @@ func collectGroupUsageRollupBuckets(t *testing.T, ctx context.Context, db *sql.D
 // groupUsageSummaryByGroup 返回 group_id → [total, today, yesterday]。
 func groupUsageSummaryByGroup(t *testing.T, ctx context.Context, db *sql.DB, todayStart time.Time) map[int64][3]float64 {
 	t.Helper()
-	result, err := newUsageLogRepositoryWithSQL(nil, db).GetAllGroupUsageSummary(ctx, todayStart)
+	result, err := newUsageLogRepositoryWithSQL(nil, db).GetAllGroupUsageSummary(ctx, todayStart, todayStart.Add(-24*time.Hour), todayStart.Add(-7*24*time.Hour))
 	require.NoError(t, err)
 	summary := make(map[int64][3]float64, len(result))
 	for _, row := range result {
