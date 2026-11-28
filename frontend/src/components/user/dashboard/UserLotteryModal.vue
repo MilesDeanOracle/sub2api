@@ -10,11 +10,11 @@
     <Icon name="gift" size="lg" />
     <span>{{ t('dashboard.activity.lottery.entry') }}</span>
     <span
-      v-if="(status?.remaining_draws ?? 0) > 0"
+      v-if="status?.admin_debug || (status?.remaining_draws ?? 0) > 0"
       data-testid="lottery-remaining-badge"
       class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900"
     >
-      {{ (status?.remaining_draws ?? 0) > 99 ? '99+' : status?.remaining_draws }}
+      {{ status?.admin_debug ? '∞' : (status?.remaining_draws ?? 0) > 99 ? '99+' : status?.remaining_draws }}
     </span>
   </button>
 
@@ -32,11 +32,13 @@
           <header class="chest-hero">
             <h4 class="chest-hero-title">{{ t('dashboard.activity.lottery.modalTitle') }}</h4>
             <p class="chest-hero-sub">{{ t('dashboard.activity.lottery.heroSubtitle') }}</p>
-            <p class="chest-rule-caption">
+            <p class="chest-rule-caption" :data-testid="status.admin_debug ? 'lottery-admin-debug' : undefined">
               {{
-                status.enabled
-                  ? t('dashboard.activity.lottery.ruleHint', { yuan: formatYuan(status.unit_pay_yuan) })
-                  : t('dashboard.activity.lottery.closedRemainingHint')
+                status.admin_debug
+                  ? t('dashboard.activity.lottery.adminDebugNotice')
+                  : status.enabled
+                    ? t('dashboard.activity.lottery.ruleHint', { yuan: formatYuan(status.unit_pay_yuan) })
+                    : t('dashboard.activity.lottery.closedRemainingHint')
               }}
             </p>
           </header>
@@ -49,7 +51,7 @@
                 :key="tier.position"
                 data-testid="lottery-prize-card"
                 class="prize-card"
-                :class="{ 'is-hit': !opening && highlightedPositions.has(tier.position), 'is-inactive': tier.probability === 0 }"
+                :class="{ 'is-hit': !opening && highlightedPositions.has(tier.position), 'is-spinning': opening && spinPosition === tier.position, 'is-inactive': tier.probability === 0 }"
                 :style="{ gridArea: `tier-${tier.position}` }"
                 :data-tier-position="tier.position"
               >
@@ -89,7 +91,11 @@
                 </span>
                 <strong class="prize-amount">${{ formatPrize(tier.reward) }}</strong>
                 <span v-if="tier.probability === 0" class="prize-state">{{ t('dashboard.activity.lottery.inactivePrize') }}</span>
-                <span v-else-if="!opening && highlightedPositions.has(tier.position)" class="prize-state is-winner">{{ t('dashboard.activity.lottery.winningPrize') }}</span>
+                <span
+                  v-if="lastBatch.length > 1 && !opening && batchWinCounts.has(tier.position)"
+                  class="prize-win-count"
+                  :data-testid="`lottery-win-count-${tier.position}`"
+                >x{{ batchWinCounts.get(tier.position) }}</span>
               </div>
               <button
                 type="button"
@@ -102,8 +108,11 @@
               >
                 <Icon name="gift" size="lg" class="draw-icon" aria-hidden="true" />
                 <strong>{{ drawingCount !== 0 ? t('common.loading') : t('dashboard.activity.lottery.drawOnce') }}</strong>
-                <span>{{ t('dashboard.activity.lottery.drawsLeft', { count: status.remaining_draws }) }}</span>
+                <span>{{ status.admin_debug ? t('dashboard.activity.lottery.adminDebugDraws') : t('dashboard.activity.lottery.drawsLeft', { count: status.remaining_draws }) }}</span>
               </button>
+            </div>
+            <div ref="confettiLayer" class="confetti-layer" aria-hidden="true">
+              <span v-for="piece in confettiPieces" :key="piece.id" class="confetti-piece" :style="piece.style"></span>
             </div>
           </div>
 
@@ -114,32 +123,10 @@
             <ul><li v-for="tier in status.tiers" :key="tier.position">${{ formatPrize(tier.reward) }}<span v-if="tier.probability != null"> · {{ (tier.probability * 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '') }}%</span></li></ul>
           </details>
 
-          <!-- Latest Batch Result Banner (1x or 10x) -->
-          <div v-if="lastBatch.length > 0" class="batch-result" role="status" aria-live="polite">
-            <p class="batch-result-title">
-              {{
-                lastBatch.length === 1
-                  ? t('dashboard.activity.lottery.wonSingle', { amount: lastTotalReward.toFixed(2) })
-                  : t('dashboard.activity.lottery.wonBatch', { amount: lastTotalReward.toFixed(2) })
-              }}
-            </p>
-            <div v-if="lastBatch.length > 1" class="batch-chips">
-              <span
-                v-for="(item, index) in lastBatch"
-                :key="item.id || index"
-                class="batch-chip"
-                :class="{ 'is-rare': item.reward_cents >= 300 }"
-                :style="{ '--sibling-index': index + 1 }"
-              >
-                +${{ formatPrize(item.reward) }}
-              </span>
-            </div>
-          </div>
-
           <!-- 3-Column Stats Bar -->
           <div class="chest-stats">
             <div class="chest-stat-item">
-              <strong data-testid="lottery-stat-remaining">{{ status.remaining_draws }}</strong>
+              <strong data-testid="lottery-stat-remaining">{{ status.admin_debug ? '∞' : status.remaining_draws }}</strong>
               <span>{{ t('dashboard.activity.lottery.remainingDraws') }}</span>
             </div>
             <div class="chest-stat-divider" aria-hidden="true"></div>
@@ -187,7 +174,7 @@
               {{
                 drawingCount === 10
                   ? t('common.loading')
-                  : status.remaining_draws >= 10
+                  : status.admin_debug || status.remaining_draws >= 10
                     ? t('dashboard.activity.lottery.drawTen')
                     : t('dashboard.activity.lottery.insufficientDraws')
               }}
@@ -195,7 +182,8 @@
           </div>
 
           <p class="chest-ten-hint">
-            <template v-if="(status.ticket_debt ?? 0)>0">{{ t('dashboard.activity.lottery.ticketDebt',{count:status.ticket_debt}) }}</template>
+            <template v-if="status.admin_debug">{{ t('dashboard.activity.lottery.adminDebugDraws') }}</template>
+            <template v-else-if="(status.ticket_debt ?? 0)>0">{{ t('dashboard.activity.lottery.ticketDebt',{count:status.ticket_debt}) }}</template>
             <template v-else-if="status.draw_blocked">{{ t('dashboard.activity.lottery.reviewBlocked') }}</template>
             <template v-else-if="status.pool_paused">{{ t('dashboard.activity.lottery.poolPaused') }}</template>
             <template v-else-if="status.remaining_draws >= 10 && status.ten_draw_paused">{{
@@ -208,7 +196,7 @@
           </p>
 
           <p v-if="notice" class="chest-notice" role="status">{{ notice }}</p>
-          <RouterLink v-if="status.enabled && !status.pool_paused && !status.draw_blocked && status.remaining_draws < 1 && !pendingDraw" to="/purchase" data-testid="lottery-go-recharge" class="chest-history-link" @click="closeModal">{{ t('dashboard.activity.lottery.goRecharge') }}</RouterLink>
+          <RouterLink v-if="status.enabled && !status.admin_debug && !status.pool_paused && !status.draw_blocked && status.remaining_draws < 1 && !pendingDraw" to="/purchase" data-testid="lottery-go-recharge" class="chest-history-link" @click="closeModal">{{ t('dashboard.activity.lottery.goRecharge') }}</RouterLink>
 
           <div class="chest-footer">
             <button
@@ -309,13 +297,25 @@ const auth = useAuthStore()
 const status = ref<LotteryStatus | null>(null)
 const showModal = ref(false)
 const viewMode = ref<'chest' | 'history'>('chest')
+interface ConfettiPiece {
+  id: number
+  style: Record<string, string>
+}
+
 const drawingCount = ref<0 | 1 | 10>(0)
 const opening = ref(false)
+const spinPosition = ref<number | null>(null)
+let spinTimer: ReturnType<typeof setTimeout> | null = null
+let spinResolve: (() => void) | null = null
+let spinGeneration = 0
+const confettiPieces = ref<ConfettiPiece[]>([])
+const confettiLayer = ref<HTMLElement | null>(null)
+let confettiTimer: ReturnType<typeof setTimeout> | null = null
+let confettiGeneration = 0
 const withdrawing = ref(false)
 const error = ref('')
 const notice = ref('')
 const lastBatch = ref<LotteryDrawItem[]>([])
-const lastTotalReward = ref(0)
 const pendingDraw = ref<{ key: string; count: 1 | 10 } | null>(null)
 const pendingStorageKey = computed(() => `activity-lottery-pending:${auth.user?.id ?? 'session'}`)
 function rememberPending(value: typeof pendingDraw.value) {
@@ -351,23 +351,193 @@ function notifyWalletPeers() {
 }
 
 const highlightedPositions = computed(() => new Set(lastBatch.value.map((item) => item.tier_position)))
+const batchWinCounts = computed(() => {
+  const counts = new Map<number, number>()
+  for (const item of lastBatch.value) {
+    counts.set(item.tier_position, (counts.get(item.tier_position) ?? 0) + 1)
+  }
+  return counts
+})
+const activePrizePositions = computed(() =>
+  (status.value?.tiers ?? [])
+    .filter((tier) => (tier.probability ?? 0) > 0)
+    .map((tier) => tier.position)
+    .sort((a, b) => a - b)
+)
+
+const CONFETTI_COLORS = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#f97316', '#eab308']
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function clearSpinTimer() {
+  if (spinTimer !== null) {
+    clearTimeout(spinTimer)
+    spinTimer = null
+  }
+  spinGeneration++
+  const finish = spinResolve
+  spinResolve = null
+  finish?.()
+}
+
+function resetSpin() {
+  clearSpinTimer()
+  spinPosition.value = null
+}
+
+function beginSpinLoop() {
+  resetSpin()
+  const positions = activePrizePositions.value
+  if (!positions.length) return
+  const generation = spinGeneration
+  let index = 0
+  spinPosition.value = positions[0]
+  const delay = 35
+  const tick = () => {
+    if (generation !== spinGeneration) return
+    index = (index + 1) % positions.length
+    spinPosition.value = positions[index]
+    spinTimer = setTimeout(tick, delay)
+  }
+  spinTimer = setTimeout(tick, delay)
+}
+
+// Timing profile for the landing spin: the first two rounds stay very fast,
+// rounds 3-4 ramp down, and the final half round crawls before stopping.
+function landingDelay(completedSteps: number, totalSteps: number, roundSize: number): number {
+  const fastSteps = roundSize * 2
+  const slowTail = Math.max(2, Math.floor(roundSize / 2))
+  const rampSteps = Math.max(1, totalSteps - fastSteps - slowTail)
+  if (completedSteps < fastSteps) return 35
+
+  const rampIndex = completedSteps - fastSteps
+  if (rampIndex < rampSteps) {
+    const progress = (rampIndex + 1) / rampSteps
+    return Math.round(40 + 110 * progress * progress)
+  }
+
+  const tailIndex = Math.min(slowTail - 1, rampIndex - rampSteps)
+  const progress = (tailIndex + 1) / slowTail
+  return Math.round(180 + 300 * progress * progress)
+}
+
+// Continue from the current highlight and land on the drawn tier with
+// progressively longer steps, so the spin visibly slows to a stop.
+function landSpin(targetPosition: number): Promise<void> {
+  clearSpinTimer()
+  const positions = activePrizePositions.value
+  const targetIndex = positions.indexOf(targetPosition)
+  if (targetIndex < 0) {
+    spinPosition.value = null
+    return Promise.resolve()
+  }
+  const generation = spinGeneration
+  let currentIndex = positions.indexOf(spinPosition.value ?? positions[0])
+  if (currentIndex < 0) currentIndex = 0
+  const offset = (targetIndex - currentIndex + positions.length) % positions.length
+  const steps = positions.length * 5 + offset
+  let step = 0
+  return new Promise((resolve) => {
+    const finish = () => {
+      if (spinResolve === finish) spinResolve = null
+      resolve()
+    }
+    spinResolve = finish
+    const tick = () => {
+      if (generation !== spinGeneration) {
+        finish()
+        return
+      }
+      step++
+      currentIndex = (currentIndex + 1) % positions.length
+      spinPosition.value = positions[currentIndex]
+      if (step >= steps) {
+        spinPosition.value = targetPosition
+        spinTimer = null
+        finish()
+        return
+      }
+      spinTimer = setTimeout(tick, landingDelay(step, steps, positions.length))
+    }
+    spinTimer = setTimeout(tick, 35)
+  })
+}
+
+function spinTargetPosition(items: LotteryDrawItem[]): number | null {
+  if (!items.length) return null
+  return items.reduce((best, item) => (item.reward_cents > best.reward_cents ? item : best), items[0]).tier_position
+}
+
+function launchConfetti(position: number) {
+  if (prefersReducedMotion()) return
+  const layer = confettiLayer.value
+  if (!layer) return
+  const layerRect = layer.getBoundingClientRect()
+  const card = layer.parentElement?.querySelector<HTMLElement>(`[data-tier-position="${position}"]`)
+  const cardRect = card?.getBoundingClientRect()
+  const originX = cardRect ? cardRect.left + cardRect.width / 2 - layerRect.left : layerRect.width / 2
+  const originY = cardRect ? cardRect.top + cardRect.height / 2 - layerRect.top : layerRect.height / 2
+  const generation = ++confettiGeneration
+  confettiPieces.value = Array.from({ length: 42 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 42 + (Math.random() - 0.5) * 0.32
+    const distance = 50 + Math.random() * 130
+    const size = 4 + Math.random() * 5
+    return {
+      id: generation * 1000 + index,
+      style: {
+        left: `${originX.toFixed(1)}px`,
+        top: `${originY.toFixed(1)}px`,
+        width: `${size.toFixed(1)}px`,
+        height: `${(size * (0.55 + Math.random())).toFixed(1)}px`,
+        backgroundColor: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+        borderRadius: index % 3 === 0 ? '50%' : '2px',
+        '--dx': `${(Math.cos(angle) * distance).toFixed(1)}px`,
+        '--dy': `${(Math.sin(angle) * distance + 28).toFixed(1)}px`,
+        '--rot': `${Math.round((Math.random() - 0.5) * 720)}deg`,
+        animationDelay: `${Math.round(Math.random() * 90)}ms`,
+        animationDuration: `${720 + Math.round(Math.random() * 380)}ms`,
+      },
+    }
+  })
+  if (confettiTimer !== null) clearTimeout(confettiTimer)
+  confettiTimer = setTimeout(() => {
+    if (generation === confettiGeneration) confettiPieces.value = []
+    confettiTimer = null
+  }, 1800)
+}
+
+function clearConfetti() {
+  confettiGeneration++
+  if (confettiTimer !== null) {
+    clearTimeout(confettiTimer)
+    confettiTimer = null
+  }
+  confettiPieces.value = []
+}
+
 const historyTotalPages = computed(() => Math.max(1, Math.ceil(historyTotal.value / historyPageSize)))
 
 const canDrawOne = computed(
   () =>
     !!status.value &&
-    status.value.remaining_draws >= 1 &&
-    !status.value.draw_blocked &&
-    !status.value.pool_paused &&
+    (status.value.admin_debug ||
+      (status.value.remaining_draws >= 1 &&
+        !status.value.draw_blocked &&
+        !status.value.pool_paused)) &&
     drawingCount.value === 0 && !pendingDraw.value
 )
 const canDrawTen = computed(
   () =>
     !!status.value &&
-    status.value.remaining_draws >= 10 &&
-    !status.value.draw_blocked &&
-    !status.value.pool_paused &&
-    !status.value.ten_draw_paused &&
+    (status.value.admin_debug ||
+      (status.value.remaining_draws >= 10 &&
+        !status.value.draw_blocked &&
+        !status.value.pool_paused &&
+        !status.value.ten_draw_paused)) &&
     drawingCount.value === 0 && !pendingDraw.value
 )
 const canWithdraw = computed(
@@ -449,24 +619,24 @@ async function handleDraw(count: 1 | 10) {
   if (unresolved && unresolved.count !== count) { drawingCount.value = 0; opening.value = false; return }
   const key = unresolved?.key ?? makeBatchKey()
   const drawUserID = auth.user?.id
-  const startedAt = Date.now()
+  const reducedMotion = prefersReducedMotion()
+  clearConfetti()
+  if (!reducedMotion) beginSpinLoop()
   try {
     rememberPending({ key, count })
     const res = await drawLottery(count, key)
     if (drawUserID !== auth.user?.id) return
-    const elapsed = Date.now() - startedAt
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!prefersReduced && elapsed < 520) {
-      await new Promise((resolve) => window.setTimeout(resolve, 520 - elapsed))
+    if (!reducedMotion) {
+      const target = spinTargetPosition(res.items)
+      if (target !== null) {
+        await landSpin(target)
+        launchConfetti(target)
+      }
     }
     if (drawUserID !== auth.user?.id) return
     rememberPending(null)
     status.value = res.status
     lastBatch.value = res.items
-    lastTotalReward.value = res.total_reward
     notifyWalletPeers()
   } catch (e) {
     if (drawUserID !== auth.user?.id) return
@@ -479,6 +649,7 @@ async function handleDraw(count: 1 | 10) {
   } finally {
     opening.value = false
     drawingCount.value = 0
+    resetSpin()
   }
 }
 
@@ -532,6 +703,8 @@ watch(() => auth.user?.id, () => {
   lastBatch.value = []
   historyItems.value = []
   error.value = ''
+  resetSpin()
+  clearConfetti()
   restorePending()
   void refresh()
 })
@@ -555,6 +728,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  resetSpin()
+  clearConfetti()
   window.removeEventListener('activity-lottery-requested', onLotteryRequested)
   window.removeEventListener('focus', onExternalSync)
   document.removeEventListener('visibilitychange', onExternalSync)
@@ -632,6 +807,7 @@ onUnmounted(() => {
 }
 
 .prize-panel {
+  position: relative;
   margin-top: 14px;
   padding: 10px;
   border-radius: 14px;
@@ -651,6 +827,7 @@ onUnmounted(() => {
 }
 
 .prize-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -661,13 +838,51 @@ onUnmounted(() => {
   border-radius: 11px;
   background: #ffffff;
   border: 1px solid #edf2f7;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.12s ease, background-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .prize-card.is-hit {
   border-color: #f59e0b;
   background: #fffbeb;
   box-shadow: inset 0 0 0 1px #fde68a;
+}
+
+.prize-card.is-spinning {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4), 0 0 20px rgba(245, 158, 11, 0.3);
+  transform: scale(1.04);
+}
+
+.confetti-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.confetti-piece {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  transform: translate3d(-50%, -50%, 0);
+  animation-name: confetti-burst;
+  animation-timing-function: cubic-bezier(0.16, 0.62, 0.36, 1);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes confetti-burst {
+  0% {
+    transform: translate3d(-50%, -50%, 0) rotate(0deg) scale(0.8);
+    opacity: 1;
+  }
+  12% { opacity: 1; }
+  100% {
+    transform: translate3d(calc(-50% + var(--dx)), calc(-50% + var(--dy)), 0) rotate(var(--rot)) scale(0.85);
+    opacity: 0;
+  }
 }
 
 .prize-center {
@@ -696,7 +911,23 @@ onUnmounted(() => {
 .prize-card.is-inactive { background: #f1f5f9; border-style: dashed; }
 .prize-card.is-inactive .prize-icon { background: #e2e8f0; color: #64748b; }
 .prize-state { font-size: 10px; line-height: 1.3; color: #64748b; }
-.prize-state.is-winner { color: #92400e; font-weight: 600; }
+
+.prize-win-count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-inline-size: 22px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+}
 .grid-odds-hint { margin-top: 8px; font-size: 11px; line-height: 1.6; color: #64748b; text-align: center; }
 
 @keyframes draw-pulse {
@@ -731,65 +962,6 @@ onUnmounted(() => {
   font-weight: 700;
   color: #1e293b;
   font-variant-numeric: tabular-nums;
-}
-
-.batch-result {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  text-align: center;
-}
-
-.batch-result-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #b45309;
-}
-
-.batch-chips {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-
-@keyframes chip-pop {
-  from { opacity: 0; transform: translateY(4px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.batch-chip {
-  --stagger-step: 0.04s;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #fcd34d;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #92400e;
-  font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .batch-chip {
-    animation: chip-pop 0.24s ease-out both;
-    animation-delay: calc(var(--sibling-index, 1) * var(--stagger-step));
-  }
-}
-
-@supports (animation-delay: calc(sibling-index() * 0.04s)) {
-  .batch-chip {
-    animation-delay: calc(sibling-index() * var(--stagger-step));
-  }
-}
-
-.batch-chip.is-rare {
-  background: #fef3c7;
-  border-color: #f59e0b;
-  color: #78350f;
 }
 
 .chest-stats {
@@ -1109,7 +1281,6 @@ onUnmounted(() => {
 }
 :global(.dark .mystery-chest .prize-card.is-inactive) { background: #172033; }
 :global(.dark .mystery-chest .prize-state) { color: #94a3b8; }
-:global(.dark .mystery-chest .prize-state.is-winner) { color: #fcd34d; }
 :global(.dark .mystery-chest .prize-center:disabled) { background: #292524; border-color: #57534e; color: #d6c2a6; }
 :global(.dark .mystery-chest .prize-card.is-hit) {
   background: #422b13;
@@ -1122,18 +1293,6 @@ onUnmounted(() => {
 :global(.dark .mystery-chest .prize-icon.is-coin) {
   background: rgb(16 185 129 / 18%);
   color: #34d399;
-}
-:global(.dark .mystery-chest .batch-result) {
-  background: #3b2a14;
-  border-color: #92400e;
-}
-:global(.dark .mystery-chest .batch-result-title) {
-  color: #fcd34d;
-}
-:global(.dark .mystery-chest .batch-chip) {
-  background: #1e293b;
-  border-color: #b45309;
-  color: #fde68a;
 }
 :global(.dark .mystery-chest .chest-stats) {
   background: #1e293b;

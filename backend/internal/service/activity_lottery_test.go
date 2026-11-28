@@ -188,6 +188,8 @@ func TestDrawLotteryBudgetPauseNeverSilentlyAltersOdds(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(7)))
 	mock.ExpectQuery(`SELECT status='active' FROM users`).WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(\(SELECT role='admin' FROM users`).WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"admin"}).AddRow(false))
 	mock.ExpectQuery(`SELECT mode,`).WithArgs("lottery", int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed", "admin"}).AddRow("all", true, false))
 	mock.ExpectQuery(`SELECT id, batch_key, draw_count`).WithArgs(int64(7), "batch-1").
@@ -222,6 +224,68 @@ func TestDrawLotteryBudgetPauseNeverSilentlyAltersOdds(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestDrawLotteryAdminDebugNeverCreditsRewards(t *testing.T) {
+	// Why: administrators may trigger unlimited debug draws to preview the UI,
+	// but debug draws must not require tickets, persist history, or credit money.
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	tiersJSON, err := json.Marshal(defaultLotteryTiers())
+	require.NoError(t, err)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id FROM users WHERE id=\$1 FOR UPDATE`).WithArgs(int64(11)).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(11)))
+	mock.ExpectExec(`INSERT INTO activity_wallets`).WithArgs(int64(11)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT user_id FROM activity_wallets WHERE user_id=\$1 FOR UPDATE`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(11)))
+	mock.ExpectQuery(`SELECT status='active' FROM users`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(\(SELECT role='admin' FROM users`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"admin"}).AddRow(true))
+	mock.ExpectQuery(`SELECT tiers FROM activity_lottery_config`).
+		WillReturnRows(sqlmock.NewRows([]string{"tiers"}).AddRow(tiersJSON))
+	mock.ExpectRollback()
+
+	// readLotteryStatusSnapshot: lottery closed, no budget and a refund review
+	// are all intentionally ignored for the admin debug view.
+	mock.ExpectQuery(`SELECT enabled, unit_pay_cents, budget_cents, tiers FROM activity_lottery_config`).
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "unit_pay_cents", "budget_cents", "tiers"}).AddRow(false, 1000, int64(0), tiersJSON))
+	mock.ExpectQuery(`SELECT awards_enabled FROM activity_runtime`).
+		WillReturnRows(sqlmock.NewRows([]string{"awards_enabled"}).AddRow(false))
+	mock.ExpectQuery(`SELECT COALESCE\(\(SELECT role='admin' FROM users`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"admin"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(delta_tickets\), 0\)::int FROM activity_lottery_ticket_ledger`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"net"}).AddRow(0))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(reward_cents\), 0\)`).WithArgs(int64(11), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"total", "today"}).AddRow(int64(0), int64(0)))
+	mock.ExpectQuery(`SELECT EXISTS`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"blocked"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount_cents\), 0\) FROM activity_reward_ledger WHERE kind='lottery'`).
+		WillReturnRows(sqlmock.NewRows([]string{"spent"}).AddRow(int64(0)))
+	mock.ExpectQuery(`SELECT available_cents,total_earned_cents,total_withdrawn_cents,unabsorbed_gift::text,recovery_debt_cents FROM activity_wallets`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"available", "earned", "withdrawn", "gift", "debt"}).AddRow(int64(0), int64(0), int64(0), "0", int64(0)))
+	mock.ExpectQuery(`SELECT activity_reserved_cents`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"reserved", "visible"}).AddRow(int64(0), true))
+	mock.ExpectQuery(`SELECT awards_enabled FROM activity_runtime`).
+		WillReturnRows(sqlmock.NewRows([]string{"awards_enabled"}).AddRow(false))
+	mock.ExpectQuery(`SELECT EXISTS`).WithArgs(int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"blocked"}).AddRow(true))
+
+	svc := NewActivityService(db, nil, nil)
+	res, err := svc.DrawLottery(context.Background(), 11, 1, "debug-key")
+	require.NoError(t, err)
+	require.Len(t, res.Items, 1)
+	require.Positive(t, res.TotalRewardCents)
+	require.True(t, res.Status.AdminDebug)
+	require.Zero(t, res.Status.RemainingDraws)
+	require.False(t, res.Status.DrawBlocked)
+	require.False(t, res.Status.PoolPaused)
+	require.False(t, res.Status.TenDrawPaused)
+	require.Zero(t, res.Status.WalletBalanceCents)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestDrawLotteryIdempotentReplayReturnsSavedBatch(t *testing.T) {
 	// Why: Network retries with the same idempotency_key must replay the committed
 	// draw result without charging extra tickets or crediting wallet twice.
@@ -240,6 +304,8 @@ func TestDrawLotteryIdempotentReplayReturnsSavedBatch(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(9)))
 	mock.ExpectQuery(`SELECT status='active' FROM users`).WithArgs(int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(\(SELECT role='admin' FROM users`).WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"admin"}).AddRow(false))
 	mock.ExpectQuery(`SELECT mode,`).WithArgs("lottery", int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed", "admin"}).AddRow("all", true, false))
 	mock.ExpectQuery(`SELECT id, batch_key, draw_count`).WithArgs(int64(9), "idem-key-1").
@@ -252,6 +318,8 @@ func TestDrawLotteryIdempotentReplayReturnsSavedBatch(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"enabled", "unit_pay_cents", "budget_cents", "tiers"}).AddRow(true, 1000, int64(50000), tiersJSON))
 	mock.ExpectQuery(`SELECT awards_enabled FROM activity_runtime`).
 		WillReturnRows(sqlmock.NewRows([]string{"awards_enabled"}).AddRow(true))
+	mock.ExpectQuery(`SELECT COALESCE\(\(SELECT role='admin' FROM users`).WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"admin"}).AddRow(false))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(delta_tickets\), 0\)::int FROM activity_lottery_ticket_ledger`).WithArgs(int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"net"}).AddRow(4))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(reward_cents\), 0\)`).WithArgs(int64(9), sqlmock.AnyArg()).

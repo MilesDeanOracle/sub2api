@@ -296,7 +296,8 @@ describe('UserLotteryModal & AdminLotteryConfig', () => {
     expect(wrapper.get('[data-testid="lottery-stat-total"]').text()).toBe('$2.50')
     expect(wrapper.findAll('.prize-card.is-hit')).toHaveLength(1)
     expect(wrapper.get('.prize-card.is-hit').attributes('data-tier-position')).toBe('2')
-    expect(wrapper.get('.prize-card.is-hit').text()).toContain('dashboard.activity.lottery.winningPrize')
+    expect(wrapper.get('.prize-card.is-hit').text()).not.toContain('winningPrize')
+    expect(wrapper.find('[data-testid="lottery-win-count-2"]').exists()).toBe(false)
   })
 
   it('links users without draws to the purchase route', async () => {
@@ -313,6 +314,82 @@ describe('UserLotteryModal & AdminLotteryConfig', () => {
     expect(wrapper.get('[data-testid="lottery-draw-1"]').attributes('disabled')).toBeDefined()
     await wrapper.get('[data-testid="lottery-go-recharge"]').trigger('click')
     expect(wrapper.find('[data-testid="lottery-nine-grid"]').exists()).toBe(false)
+  })
+
+  it('lets admins debug-draw without tickets or reward credit', async () => {
+    const status = {
+      ...(await mocks.status()),
+      remaining_draws: 0,
+      enabled: false,
+      awards_enabled: false,
+      draw_blocked: true,
+      pool_paused: true,
+      ten_draw_paused: true,
+      admin_debug: true,
+    }
+    mocks.status.mockResolvedValue(status)
+    mocks.draw.mockResolvedValue({
+      items: [{ id: -1, tier_position: 2, reward: 1, reward_cents: 100 }],
+      total_reward: 1,
+      status,
+    })
+    const wrapper = mount(UserLotteryModal, {
+      props: { quickEntry: true },
+      global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' } } },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="lottery-remaining-badge"]').text()).toBe('∞')
+    await wrapper.get('[data-testid="lottery-entry"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="lottery-admin-debug"]').text()).toContain('adminDebugNotice')
+    expect(wrapper.get('[data-testid="lottery-draw-1"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="lottery-draw-10"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="lottery-go-recharge"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="lottery-draw-1"]').trigger('click')
+    await flushPromises()
+    expect(mocks.draw).toHaveBeenCalledWith(1, expect.any(String))
+    expect(wrapper.get('[data-testid="lottery-stat-remaining"]').text()).toBe('∞')
+    expect(wrapper.get('[data-testid="lottery-stat-total"]').text()).toBe('$1.50')
+    expect(wrapper.get('[data-testid="lottery-admin-debug"]').text()).toContain('adminDebugNotice')
+  })
+
+  it('spins five rounds, lands on the prize and bursts confetti without a won banner', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({ matches: false }),
+    })
+    try {
+      const status = { ...(await mocks.status()), remaining_draws: 5 }
+      mocks.status.mockResolvedValue(status)
+      mocks.draw.mockResolvedValue({
+        items: [{ id: 1, tier_position: 2, reward: 1, reward_cents: 100 }],
+        total_reward: 1,
+        status: { ...status, remaining_draws: 4 },
+      })
+      const wrapper = mount(UserLotteryModal, {
+        props: { quickEntry: true },
+        global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' } } },
+      })
+      await flushPromises()
+      await wrapper.get('[data-testid="lottery-entry"]').trigger('click')
+      await flushPromises()
+      await wrapper.get('[data-testid="lottery-draw-1"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="lottery-nine-grid"]').attributes('aria-busy')).toBe('true')
+      for (let i = 0; i < 60 && wrapper.findAll('.confetti-piece').length === 0; i++) {
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(wrapper.findAll('.confetti-piece').length).toBeGreaterThan(0)
+      expect(wrapper.get('.prize-card.is-hit').attributes('data-tier-position')).toBe('2')
+      expect(wrapper.find('.batch-result').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="lottery-nine-grid"]').attributes('aria-busy')).toBe('false')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('blocks repeated draws while pending and supports prizes seven and eight in ten draws', async () => {
@@ -341,7 +418,8 @@ describe('UserLotteryModal & AdminLotteryConfig', () => {
     })
     await flushPromises()
     expect(mocks.draw).toHaveBeenCalledWith(10, expect.any(String))
-    expect(wrapper.findAll('.batch-chip')).toHaveLength(10)
+    expect(wrapper.get('[data-testid="lottery-win-count-7"]').text()).toBe('x5')
+    expect(wrapper.get('[data-testid="lottery-win-count-8"]').text()).toBe('x5')
     expect(wrapper.findAll('.prize-card.is-hit').map((card) => card.attributes('data-tier-position'))).toEqual(['7', '8'])
     expect(wrapper.get('[data-testid="lottery-nine-grid"]').attributes('aria-busy')).toBe('false')
   })

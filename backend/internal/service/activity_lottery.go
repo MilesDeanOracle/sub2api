@@ -47,6 +47,7 @@ type LotteryStatus struct {
 	UnitPayYuan          float64             `json:"unit_pay_yuan"`
 	TicketDebt           int                 `json:"ticket_debt"`
 	RemainingDraws       int                 `json:"remaining_draws"`
+	AdminDebug           bool                `json:"admin_debug"`
 	TotalWonCents        int64               `json:"total_won_cents"`
 	TotalWon             float64             `json:"total_won"`
 	TodayWonCents        int64               `json:"today_won_cents"`
@@ -487,6 +488,10 @@ func (s *ActivityService) readLotteryStatusSnapshot(ctx context.Context, userID 
 	if err := s.db.QueryRowContext(ctx, `SELECT awards_enabled FROM activity_runtime WHERE id=1`).Scan(&awardsEnabled); err != nil {
 		return nil, err
 	}
+	admin, err := activitystore.UserIsAdmin(ctx, s.db, userID)
+	if err != nil {
+		return nil, err
+	}
 
 	var netTickets int
 	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(delta_tickets), 0)::int FROM activity_lottery_ticket_ledger WHERE user_id=$1`, userID).Scan(&netTickets); err != nil {
@@ -504,7 +509,7 @@ func (s *ActivityService) readLotteryStatusSnapshot(ctx context.Context, userID 
 		}
 	}
 
-	visible := (enabled && awardsEnabled) || remainingDraws > 0 || netTickets < 0
+	visible := admin || (enabled && awardsEnabled) || remainingDraws > 0 || netTickets < 0
 	if !visible {
 		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_lottery_draws WHERE user_id=$1)`, userID).Scan(&visible); err != nil {
 			return nil, err
@@ -555,14 +560,15 @@ func (s *ActivityService) readLotteryStatusSnapshot(ctx context.Context, userID 
 		UnitPayCents:         unitPayCents,
 		UnitPayYuan:          float64(unitPayCents) / 100,
 		RemainingDraws:       remainingDraws,
+		AdminDebug:           admin,
 		TicketDebt:           max(0, -netTickets),
 		TotalWonCents:        totalWonCents,
 		TotalWon:             float64(totalWonCents) / 100,
 		TodayWonCents:        todayWonCents,
 		TodayWon:             float64(todayWonCents) / 100,
-		DrawBlocked:          !awardsEnabled || drawBlocked,
-		PoolPaused:           effectiveRemaining < int64(maxReward),
-		TenDrawPaused:        effectiveRemaining < 10*int64(maxReward),
+		DrawBlocked:          !admin && (!awardsEnabled || drawBlocked),
+		PoolPaused:           !admin && effectiveRemaining < int64(maxReward),
+		TenDrawPaused:        !admin && effectiveRemaining < 10*int64(maxReward),
 		WalletBalanceCents:   wallet.AvailableCents,
 		WalletBalance:        wallet.Available,
 		WalletTotalEarned:    wallet.TotalEarned,
@@ -595,6 +601,13 @@ func (s *ActivityService) DrawLottery(ctx context.Context, userID int64, count i
 	}
 	if !active {
 		return nil, ErrActivityIneligible
+	}
+	admin, err := activitystore.UserIsAdmin(ctx, tx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if admin {
+		return s.drawLotteryDebug(ctx, tx, userID, count, idempotencyKey)
 	}
 
 	if err := activityAudienceAllowed(ctx, tx, "lottery", userID); err != nil {
@@ -752,6 +765,57 @@ func (s *ActivityService) DrawLottery(ctx context.Context, userID int64, count i
 		return nil, err
 	}
 
+	status, err := s.readLotteryStatusSnapshot(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &LotteryDrawResponse{
+		Items:            items,
+		TotalRewardCents: totalRewardCents,
+		TotalReward:      float64(totalRewardCents) / 100,
+		Status:           status,
+	}, nil
+}
+
+// drawLotteryDebug generates ephemeral draw results for administrators. It
+// never consumes tickets, writes draw/ledger rows, or credits the wallet; the
+// prizes are returned only so the client can render the draw animation.
+func (s *ActivityService) drawLotteryDebug(ctx context.Context, tx *sql.Tx, userID int64, count int, idempotencyKey string) (*LotteryDrawResponse, error) {
+	var rawTiers []byte
+	if err := tx.QueryRowContext(ctx, `SELECT tiers FROM activity_lottery_config WHERE id=1`).Scan(&rawTiers); err != nil {
+		return nil, err
+	}
+	var rawList []LotteryTier
+	if err := json.Unmarshal(rawTiers, &rawList); err != nil {
+		return nil, err
+	}
+	tiers, _, totalWeight, _, err := parseAndValidateLotteryTiers(rawList)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	items := make([]LotteryDrawItem, 0, count)
+	var totalRewardCents int64
+	for idx := 1; idx <= count; idx++ {
+		chosen, err := pickWeightedLotteryTier(tiers, totalWeight, cryptoLotteryRandInt)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, LotteryDrawItem{
+			ID:           -(now.UnixNano() + int64(idx)),
+			BatchKey:     idempotencyKey,
+			DrawCount:    count,
+			DrawIndex:    idx,
+			TierPosition: chosen.Position,
+			RewardCents:  chosen.RewardCents,
+			Reward:       chosen.Reward,
+			CreatedAt:    now,
+		})
+		totalRewardCents += int64(chosen.RewardCents)
+	}
+
+	_ = tx.Rollback()
 	status, err := s.readLotteryStatusSnapshot(ctx, userID)
 	if err != nil {
 		return nil, err

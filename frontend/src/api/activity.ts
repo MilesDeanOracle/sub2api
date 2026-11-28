@@ -106,6 +106,7 @@ export interface LotteryStatus {
   unit_pay_yuan: number
   ticket_debt?: number
   remaining_draws: number
+  admin_debug?: boolean
   total_won_cents: number
   total_won: number
   today_won_cents: number
