@@ -143,7 +143,7 @@
                             min="0.01"
                             step="0.01"
                             :aria-invalid="!!errors[`reward_${tier.position}`] || undefined"
-                            @input="clearError(`reward_${tier.position}`)"
+                            @input="clearErrorAndTest(`reward_${tier.position}`)"
                           />
                         </div>
                         <span v-if="errors[`reward_${tier.position}`]" class="error-text">
@@ -166,7 +166,7 @@
                             max="1000000"
                             step="1"
                             :aria-invalid="!!errors[`weight_${tier.position}`] || undefined"
-                            @input="clearError(`weight_${tier.position}`)"
+                            @input="clearErrorAndTest(`weight_${tier.position}`)"
                           />
                         </div>
                         <span v-if="errors[`weight_${tier.position}`]" class="error-text">
@@ -226,6 +226,52 @@
               <div class="inline-note">{{ t('operationsConsole.lotteryConfig.budgetPauseNote') }}</div>
               <p class="section-copy">{{ t('operationsConsole.lotteryConfig.outstanding') }}: {{ accounting?.outstanding_tickets ?? 0 }} · {{ t('operationsConsole.lotteryConfig.liability') }}: ${{ ((accounting?.expected_liability_cents ?? 0)/100).toFixed(2) }}</p>
               <p v-if="(accounting?.expected_liability_cents ?? 0) > (Number(form.budget_usd)-form.spent_usd)*100" class="inline-note" role="status">{{ t('operationsConsole.lotteryConfig.liabilityWarning') }}</p>
+            </section>
+            <section class="lottery-test" aria-labelledby="lottery-test-title">
+              <div class="surface-title">
+                <div>
+                  <h3 id="lottery-test-title">{{ t('operationsConsole.lotteryConfig.testTitle') }}</h3>
+                  <p>{{ t('operationsConsole.lotteryConfig.testHelp') }}</p>
+                </div>
+              </div>
+              <div class="lottery-test-controls">
+                <div class="field">
+                  <label for="lottery-test-count">{{ t('operationsConsole.lotteryConfig.testCount') }}</label>
+                  <input
+                    id="lottery-test-count"
+                    v-model.number="testCount"
+                    name="lottery_test_count"
+                    type="number"
+                    min="1"
+                    :max="MAX_LOTTERY_TEST_DRAWS"
+                    step="1"
+                    class="input"
+                    :disabled="testRunning"
+                    @keydown.enter.prevent="runLotteryTest"
+                  />
+                </div>
+                <button
+                  type="button"
+                  data-testid="lottery-test-run"
+                  class="action-secondary"
+                  :disabled="testRunning || saving || simulationTiers.length === 0"
+                  :aria-busy="testRunning"
+                  @click="runLotteryTest"
+                >
+                  {{ testRunning ? t('operationsConsole.lotteryConfig.testing') : t('operationsConsole.lotteryConfig.startTest') }}
+                </button>
+              </div>
+              <p v-if="testError" class="error-text" role="alert">{{ testError }}</p>
+              <p v-else-if="simulationTiers.length === 0" class="section-copy" role="status">{{ t('operationsConsole.lotteryConfig.testNoTiers') }}</p>
+              <div v-if="testResults.length > 0 && !testRunning" data-testid="lottery-test-results" class="lottery-test-results">
+                <p class="section-copy" role="status">{{ t('operationsConsole.lotteryConfig.testSummary', { count: testDraws }) }}</p>
+                <ul>
+                  <li v-for="row in testResults" :key="row.position" :data-wins="row.wins">
+                    <span>{{ t('operationsConsole.lotteryConfig.testSlot', { n: row.position }) }} · ${{ dollar(row.rewardCents / 100) }}</span>
+                    <strong>{{ t('operationsConsole.lotteryConfig.testWins', { count: row.wins }) }}</strong>
+                  </li>
+                </ul>
+              </div>
             </section>
           </aside>
         </div>
@@ -314,6 +360,11 @@ import {
   type AdminLotteryUserSummary,
 } from '@/api/admin/activity'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import {
+  MAX_LOTTERY_TEST_DRAWS,
+  simulateLotteryDraws,
+  type LotterySimulationRow,
+} from '@/utils/lotterySimulation'
 
 interface LotteryTierForm {
   position: number
@@ -344,6 +395,23 @@ const lookingUp = ref(false)
 const lookupError = ref('')
 const userSummary = ref<AdminLotteryUserSummary | null>(null)
 
+const testCount = ref(100)
+const testRunning = ref(false)
+const testError = ref('')
+const testDraws = ref(0)
+const testResults = ref<LotterySimulationRow[]>([])
+
+const simulationTiers = computed(() => {
+  if (!form.value) return []
+  return form.value.tiers
+    .map((tier) => ({
+      position: tier.position,
+      rewardCents: Math.round(Number(tier.reward_usd) * 100),
+      weight: Number(tier.weight),
+    }))
+    .filter((tier) => Number.isInteger(tier.weight) && tier.weight > 0 && tier.rewardCents > 0)
+})
+
 
 const dollar = (value: number) => (Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '0.00')
 
@@ -363,6 +431,48 @@ function useDefaultTiers() {
   form.value.tiers = defaultTiers.map((tier) => ({ ...tier }))
   errors.value = {}
   message.value = ''
+  clearTestResults()
+}
+
+async function runLotteryTest() {
+  if (!form.value || testRunning.value) return
+  const total = Number(testCount.value)
+  testError.value = ''
+  if (!Number.isInteger(total) || total < 1 || total > MAX_LOTTERY_TEST_DRAWS) {
+    testResults.value = []
+    testDraws.value = 0
+    testError.value = t('operationsConsole.lotteryConfig.testCountInvalid')
+    return
+  }
+  if (simulationTiers.value.length === 0) {
+    testResults.value = []
+    testDraws.value = 0
+    testError.value = t('operationsConsole.lotteryConfig.testNoTiers')
+    return
+  }
+
+  testRunning.value = true
+  testResults.value = []
+  testDraws.value = 0
+  try {
+    // Yield once so the running state renders before the synchronous simulation.
+    await nextTick()
+    testResults.value = simulateLotteryDraws(simulationTiers.value, total)
+    testDraws.value = total
+  } finally {
+    testRunning.value = false
+  }
+}
+
+function clearTestResults() {
+  testResults.value = []
+  testDraws.value = 0
+  testError.value = ''
+}
+
+function clearErrorAndTest(key: string) {
+  clearError(key)
+  clearTestResults()
 }
 
 const totalWeight = computed(() =>
@@ -619,6 +729,41 @@ async function lookupUser() {
 .marketing-rewards .lottery-tier-track .tier-value { display: block; }
 .marketing-rewards .lottery-tier-track .tier-value span { display: block; }
 .lottery-defaults { margin-block: 12px; }
+.lottery-test {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  padding: 23px;
+}
+.lottery-test .surface-title { margin-block-end: 16px; }
+.lottery-test-controls {
+  display: grid;
+  gap: 10px;
+}
+.lottery-test-controls .field { min-inline-size: 0; }
+.lottery-test-controls input { inline-size: 100%; }
+.lottery-test-controls .action-secondary { inline-size: 100%; }
+.lottery-test-results { margin-block-start: 14px; }
+.lottery-test-results ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lottery-test-results li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed var(--line);
+  padding-block: 6px;
+  font-size: 13px;
+}
+.lottery-test-results strong {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
 .lottery-preview-center {
   grid-area: draw;
   display: grid;

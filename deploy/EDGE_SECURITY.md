@@ -224,6 +224,14 @@ server {
 }
 ```
 
+The backup upload/restore feature accepts archives up to 5 GiB. If you use it,
+raise both layers: set `server.max_request_body_size` to at least `5368709120`,
+and allow the upload path through the proxy (`client_max_body_size 5g` for
+`/api/v1/admin/backups/upload`). Otherwise large backups fail with 413 before
+reaching the application. The server also needs temporary disk space for the
+upload; when the archive exceeds the 4 GiB part size it is split, so peak temp
+usage can approach twice the file size.
+
 If Nginx gzip is enabled in the `http` block, keep `text/event-stream` out of
 `gzip_types` and do not use `gzip_types *` for Sub2API. The
 `proxy_buffering off` setting above prevents proxy buffering, but it does not

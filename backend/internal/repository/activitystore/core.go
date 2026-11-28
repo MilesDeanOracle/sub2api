@@ -17,6 +17,14 @@ func UserActive(ctx context.Context, tx Tx, userID int64) (bool, error) {
 	return active, err
 }
 
+// UserIsAdmin reports whether the user is an active administrator. Activity
+// participation checks use it to bypass audience/rollout and personal limits.
+func UserIsAdmin(ctx context.Context, tx Tx, userID int64) (bool, error) {
+	var admin bool
+	err := Scan(ctx, tx, `SELECT COALESCE((SELECT role='admin' FROM users WHERE id=$1 AND deleted_at IS NULL),FALSE)`, []any{userID}, &admin)
+	return admin, err
+}
+
 func UserExists(ctx context.Context, tx Tx, userID int64) (bool, error) {
 	var exists bool
 	err := Scan(ctx, tx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, []any{userID}, &exists)

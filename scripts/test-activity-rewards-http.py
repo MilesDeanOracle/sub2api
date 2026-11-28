@@ -160,7 +160,7 @@ def main():
                               AUTO_SETUP="true", SERVER_HOST="127.0.0.1", SERVER_PORT=str(port),
                               ADMIN_EMAIL="admin@example.com", ADMIN_PASSWORD=password,
                               JWT_SECRET=secrets.token_hex(32), TOTP_ENCRYPTION_KEY=secrets.token_hex(32),
-                              ACTIVITY_MAINTENANCE_CONFIRMED="", RUN_MODE="standard", TZ="Asia/Shanghai")
+                              RUN_MODE="standard", TZ="Asia/Shanghai")
             # CONFIG_FILE is created by auto-setup before normal startup loads it.
             with (tmp / "server.log").open("w") as log:
                 process = subprocess.Popen([str(binary)], env=server_env, cwd=tmp,

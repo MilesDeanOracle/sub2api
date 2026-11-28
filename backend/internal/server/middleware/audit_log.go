@@ -134,6 +134,7 @@ var auditActionOverrides = map[string]string{
 	"POST /api/v1/admin/audit-logs/clear":                     service.AuditActionAuditLogClear,
 	"POST /api/v1/admin/accounts/data":                        "admin.accounts.import",
 	"POST /api/v1/admin/backups":                              "admin.backups.create",
+	"POST /api/v1/admin/backups/upload":                       "admin.backups.upload",
 	"POST /api/v1/admin/backups/:id/restore":                  "admin.backups.restore",
 	"DELETE /api/v1/admin/backups/:id":                        "admin.backups.delete",
 	"PUT /api/v1/admin/backups/s3-config":                     "admin.backups.s3_config.update",

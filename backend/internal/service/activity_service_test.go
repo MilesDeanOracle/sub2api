@@ -73,7 +73,7 @@ func TestCheckinSpendEligibility(t *testing.T) {
 			if tc.minimum > 0 {
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT COALESCE(SUM(actual_cost),0) >= $2::numeric/100 FROM usage_logs WHERE user_id=$1 AND COALESCE(billing_type,0)=0 AND actual_cost>0 AND COALESCE(request_type,0)<>4`)).WithArgs(int64(42), tc.minimum).WillReturnRows(sqlmock.NewRows([]string{"eligible"}).AddRow(tc.qualifies))
 			}
-			got, err := checkinSpendEligible(context.Background(), db, 42, tc.minimum)
+			got, err := checkinSpendEligible(context.Background(), db, 42, tc.minimum, false)
 			if err != nil || got != tc.qualifies {
 				t.Fatalf("got %v, %v", got, err)
 			}
@@ -84,6 +84,47 @@ func TestCheckinSpendEligibility(t *testing.T) {
 	}
 }
 
+func TestCheckinSpendEligibilityAdminBypass(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	got, err := checkinSpendEligible(context.Background(), db, 42, 100, true)
+	if err != nil || !got {
+		t.Fatalf("admin must bypass spend threshold, got %v, %v", got, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestActivityAudienceModeAllowedAdminBypass(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	mock.ExpectQuery(`SELECT mode,`).WithArgs("checkin", int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed", "admin"}).AddRow("selected", false, true))
+
+	mode, err := activityAudienceModeAllowed(context.Background(), tx, "checkin", 7)
+	if err != nil || mode != "admin" {
+		t.Fatalf("got mode %q, err %v", mode, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCheckinSpendEligibilityFailsOnDatabaseError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -91,7 +132,7 @@ func TestCheckinSpendEligibilityFailsOnDatabaseError(t *testing.T) {
 	}
 	defer db.Close()
 	mock.ExpectQuery("SELECT COALESCE").WillReturnError(errors.New("database unavailable"))
-	got, err := checkinSpendEligible(context.Background(), db, 42, 100)
+	got, err := checkinSpendEligible(context.Background(), db, 42, 100, false)
 	if err == nil || got {
 		t.Fatalf("must not grant eligibility on database error")
 	}

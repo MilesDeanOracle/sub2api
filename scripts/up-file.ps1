@@ -1,12 +1,13 @@
 ﻿# make up-file <tar路径> (Windows)：跳过构建，直接上传已打包的 docker 镜像 tar 到远端服务器。
 # 与 scripts/build-docker.ps1 的第 8 步相同，只是复用本地已有产物（如 dist\*.tar），
 # 适合构建完成后重传、或 build-docker 只跑到 save 就中断的场景。
+# host 参数缺省用内置服务器；指定后按输入的地址和 SSH 端口上传，例如 host=192.168.0.2:8888。
 # 流程（与 scripts/up-file.sh 一致，Linux/macOS 使用 .sh 版本）：
 #   1. 校验 tar 文件存在
 #   2. 提示输入 SSH 用户名（密码由 ssh/scp 在连接时提示输入，脚本不保存密码）
 #   3. 上传 tar 到远端服务器 /data/docker-img/ 目录
 #      （ssh 建目录、scp 上传，各提示一次密码）
-param($TarPath)
+param($TarPath, $TargetHost)
 $ErrorActionPreference = 'Stop'
 
 # ===== 可按需修改的配置（与 scripts/build-docker.ps1 保持一致） =====
@@ -14,6 +15,18 @@ $ServerHost = '154.51.40.64'   # 远端服务器地址
 $SshPort    = '9922'           # 远端 SSH 端口
 $RemoteDir  = '/data/docker-img' # 远端镜像存放目录
 # ============================
+
+# 0. 可选参数：-TargetHost host=地址:端口（Makefile 传入），指定后按输入的地址和 SSH 端口上传。
+#    make 会把 host=... 当作变量赋值，传入时前缀已被去掉，故两种形式都接受。
+if (-not [string]::IsNullOrWhiteSpace($TargetHost)) {
+    $spec = if ($TargetHost -like 'host=*') { $TargetHost.Substring(5) } else { $TargetHost }
+    if ($spec -notmatch '^[^:]+:[0-9]+$') {
+        Write-Host "错误：host 参数需要带端口，例如 host=192.168.0.2:8888（当前：$TargetHost）"
+        exit 1
+    }
+    $ServerHost, $SshPort = $spec.Split(':')
+    Write-Host "==> 目标服务器：$ServerHost，SSH 端口：$SshPort"
+}
 
 # 1. 参数：tar 文件路径；缺省或传入目录时，自动选取该目录（默认 dist\）下最新的 *.tar
 if ([string]::IsNullOrWhiteSpace($TarPath) -or $TarPath -eq 'latest') {
@@ -30,8 +43,9 @@ if (Test-Path $TarPath -PathType Container) {
 } else {
     if (-not (Test-Path $TarPath -PathType Leaf)) {
         Write-Host "错误：找不到 tar 文件：$TarPath"
-        Write-Host '用法：make up-file [tar文件路径]（不带参数自动上传 dist/ 下最新的 tar）'
+        Write-Host '用法：make up-file [tar文件路径] [host=地址:端口]（不带 tar 自动上传 dist/ 下最新的 tar，host 缺省用内置服务器）'
         Write-Host '      例如：make up-file dist/sub2api-0.2.19-20260101-1200.tar'
+        Write-Host '      例如：make up-file host=192.168.0.2:8888'
         exit 1
     }
     $TarItem = Get-Item $TarPath

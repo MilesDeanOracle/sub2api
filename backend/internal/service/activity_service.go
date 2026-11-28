@@ -358,9 +358,18 @@ func (s *ActivityService) WithdrawWallet(ctx context.Context, userID int64) (*Ac
 
 func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivityStatus, error) {
 	var audienceMode string
-	var visible bool
-	if err := s.db.QueryRowContext(ctx, `SELECT mode, mode='all' OR $1=ANY(user_ids) FROM activity_audiences WHERE kind='checkin'`, userID).Scan(&audienceMode, &visible); err != nil {
+	var visible, admin bool
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT mode,
+		       mode='all' OR $1=ANY(user_ids),
+		       COALESCE((SELECT role='admin' FROM users WHERE id=$1 AND deleted_at IS NULL),FALSE)
+		FROM activity_audiences WHERE kind='checkin'
+	`, userID).Scan(&audienceMode, &visible, &admin); err != nil {
 		return nil, err
+	}
+	if admin {
+		audienceMode = "admin"
+		visible = true
 	}
 	if !visible {
 		return &ActivityStatus{CheckedDays: []string{}}, nil
@@ -403,15 +412,15 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 	out.CheckinEnabled = out.CheckinEnabled && awardsEnabled
 	out.SecondEnabled = out.SecondEnabled && awardsEnabled
 	out.CheckinMinSpend = float64(minSpend) / 100
-	out.CheckinHasRecharge, err = checkinRechargeEligible(ctx, s.db, userID, out.CheckinRequireRecharge)
+	out.CheckinHasRecharge, err = checkinRechargeEligible(ctx, s.db, userID, out.CheckinRequireRecharge, admin)
 	if err != nil {
 		return nil, err
 	}
-	spendEligible, err := checkinSpendEligible(ctx, s.db, userID, minSpend)
+	spendEligible, err := checkinSpendEligible(ctx, s.db, userID, minSpend, admin)
 	if err != nil {
 		return nil, err
 	}
-	out.CheckinEligible = out.CheckinHasRecharge && spendEligible
+	out.CheckinEligible = admin || (out.CheckinHasRecharge && spendEligible)
 	// Allowlisted test users in 'selected' mode bypass percentage rollout modulo checks.
 	if audienceMode == "all" {
 		out.CheckinEnabled = out.CheckinEnabled && int(userID%100) < checkinRollout
@@ -429,7 +438,7 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 		if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&userSpent); err != nil {
 			return nil, err
 		}
-		out.SecondEnabled = secondReward > 0 && spent+int64(secondReward) <= secondBudget && userSpent+int64(secondReward) <= userCap
+		out.SecondEnabled = secondReward > 0 && (admin || spent+int64(secondReward) <= secondBudget) && (admin || userSpent+int64(secondReward) <= userCap)
 		out.SecondReward = float64(secondReward) / 100
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT local_day::text, streak, reward_cents FROM activity_checkins WHERE user_id=$1 AND to_char(local_day,'YYYY-MM')=$2 ORDER BY local_day`, userID, month)
@@ -467,7 +476,16 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&personalSpent); err != nil {
 		return nil, err
 	}
-	out.NextRewardCents = activityRemainingUserCap(calculateCheckinReward(out.Streak+1, dailyCents, milestoneCents, cap, int(math.Round(out.MonthReward*100)), monthlyBudget, siteSpent), userCap, personalSpent)
+	nextReward := calculateCheckinReward(out.Streak+1, dailyCents, milestoneCents, cap, int(math.Round(out.MonthReward*100)), monthlyBudget, siteSpent)
+	if admin {
+		nextReward = dailyCents
+		if (out.Streak+1)%7 == 0 {
+			nextReward += milestoneCents
+		}
+	} else {
+		nextReward = activityRemainingUserCap(nextReward, userCap, personalSpent)
+	}
+	out.NextRewardCents = nextReward
 	switch {
 	case !out.CheckinEnabled:
 		out.CheckinBlockReason = "disabled"
@@ -479,15 +497,15 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 			out.CheckinBlockReason = "awards_paused"
 		}
 		out.CheckinEligible = false
-	case !out.CheckinHasRecharge:
+	case !admin && !out.CheckinHasRecharge:
 		out.CheckinBlockReason = "recharge_required"
-	case !spendEligible:
+	case !admin && !spendEligible:
 		out.CheckinBlockReason = "spend_required"
-	case personalSpent >= userCap:
+	case !admin && personalSpent >= userCap:
 		out.CheckinBlockReason = "user_cap"
-	case out.MonthReward*100 >= float64(cap):
+	case !admin && out.MonthReward*100 >= float64(cap):
 		out.CheckinBlockReason = "monthly_cap"
-	case siteSpent >= monthlyBudget:
+	case !admin && siteSpent >= monthlyBudget:
 		out.CheckinBlockReason = "budget_exhausted"
 	case out.NextRewardCents <= 0:
 		out.CheckinBlockReason = "no_reward"
@@ -500,12 +518,12 @@ func (s *ActivityService) Status(ctx context.Context, userID int64) (*ActivitySt
 		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM activity_reward_ledger WHERE user_id=$1 AND kind='second_recharge')`, userID).Scan(&out.SecondClaimed); err != nil {
 			return nil, err
 		}
-		out.SecondEligible, err = s.secondEligible(ctx, userID)
+		out.SecondEligible, err = s.secondEligible(ctx, userID, admin)
 		if err != nil {
 			return nil, err
 		}
 		if !out.SecondClaimed && !out.SecondEligible {
-			out.SecondOffer, err = s.secondOffer(ctx, userID)
+			out.SecondOffer, err = s.secondOffer(ctx, userID, admin)
 			if err != nil {
 				return nil, err
 			}
@@ -532,6 +550,10 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	}
 	if !active {
 		return nil, ErrActivityIneligible
+	}
+	admin, err := activitystore.UserIsAdmin(ctx, tx, userID)
+	if err != nil {
+		return nil, err
 	}
 	audienceMode, err := activityAudienceModeAllowed(ctx, tx, "checkin", userID)
 	if err != nil {
@@ -584,37 +606,47 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 		_ = tx.Rollback()
 		return s.Status(ctx, userID)
 	}
-	hasRecharge, err := checkinRechargeEligible(ctx, tx, userID, requireRecharge)
-	if err != nil {
-		return nil, err
-	}
-	if !hasRecharge {
-		return nil, ErrActivityIneligible
-	}
-	eligible, err := checkinSpendEligible(ctx, tx, userID, minSpend)
-	if err != nil {
-		return nil, err
-	}
-	if !eligible {
-		return nil, ErrActivityIneligible
+	if !admin {
+		hasRecharge, err := checkinRechargeEligible(ctx, tx, userID, requireRecharge, false)
+		if err != nil {
+			return nil, err
+		}
+		if !hasRecharge {
+			return nil, ErrActivityIneligible
+		}
+		eligible, err := checkinSpendEligible(ctx, tx, userID, minSpend, false)
+		if err != nil {
+			return nil, err
+		}
+		if !eligible {
+			return nil, ErrActivityIneligible
+		}
 	}
 	var streak int
 	_ = tx.QueryRowContext(ctx, `SELECT streak FROM activity_checkins WHERE user_id=$1 AND local_day=($2::date - 1)`, userID, day).Scan(&streak)
 	streak++
-	var spent int
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(reward_cents),0) FROM activity_checkins WHERE user_id=$1 AND to_char(local_day,'YYYY-MM')=$2`, userID, month).Scan(&spent); err != nil {
-		return nil, err
+	var reward int
+	if admin {
+		reward = daily
+		if streak%7 == 0 {
+			reward += milestone
+		}
+	} else {
+		var spent int
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(reward_cents),0) FROM activity_checkins WHERE user_id=$1 AND to_char(local_day,'YYYY-MM')=$2`, userID, month).Scan(&spent); err != nil {
+			return nil, err
+		}
+		var globalSpent int64
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0) FROM activity_reward_ledger WHERE kind='checkin' AND to_char(created_at AT TIME ZONE 'Asia/Shanghai','YYYY-MM')=$1`, month).Scan(&globalSpent); err != nil {
+			return nil, err
+		}
+		reward = calculateCheckinReward(streak, daily, milestone, cap, spent, budget, globalSpent)
+		var userSpent int64
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&userSpent); err != nil {
+			return nil, err
+		}
+		reward = activityRemainingUserCap(reward, userCap, userSpent)
 	}
-	var globalSpent int64
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0) FROM activity_reward_ledger WHERE kind='checkin' AND to_char(created_at AT TIME ZONE 'Asia/Shanghai','YYYY-MM')=$1`, month).Scan(&globalSpent); err != nil {
-		return nil, err
-	}
-	reward := calculateCheckinReward(streak, daily, milestone, cap, spent, budget, globalSpent)
-	var userSpent int64
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&userSpent); err != nil {
-		return nil, err
-	}
-	reward = activityRemainingUserCap(reward, userCap, userSpent)
 	if reward <= 0 {
 		return nil, ErrActivityNoReward
 	}
@@ -632,15 +664,15 @@ func (s *ActivityService) Checkin(ctx context.Context, userID int64) (*ActivityS
 	return s.Status(ctx, userID)
 }
 
-func checkinRechargeEligible(ctx context.Context, db activitystore.Tx, userID int64, requireRecharge bool) (bool, error) {
-	if !requireRecharge {
+func checkinRechargeEligible(ctx context.Context, db activitystore.Tx, userID int64, requireRecharge, admin bool) (bool, error) {
+	if admin || !requireRecharge {
 		return true, nil
 	}
 	return activitystore.HasCompletedRecharge(ctx, db, userID)
 }
 
-func checkinSpendEligible(ctx context.Context, db activitystore.Tx, userID, minimumCents int64) (bool, error) {
-	if minimumCents == 0 {
+func checkinSpendEligible(ctx context.Context, db activitystore.Tx, userID, minimumCents int64, admin bool) (bool, error) {
+	if admin || minimumCents == 0 {
 		return true, nil
 	}
 	return activitystore.EligibleSpendAtLeast(ctx, db, userID, minimumCents)
@@ -704,8 +736,8 @@ func convertActivityPaidOrders(orders []activitystore.PaidOrder) []activityPaidO
 	return out
 }
 
-func (s *ActivityService) secondEligible(ctx context.Context, userID int64) (bool, error) {
-	if userID%2 != 0 {
+func (s *ActivityService) secondEligible(ctx context.Context, userID int64, admin bool) (bool, error) {
+	if !admin && userID%2 != 0 {
 		return false, nil
 	}
 	orders, err := s.secondOrders(ctx, userID)
@@ -723,8 +755,8 @@ func (s *ActivityService) secondEligible(ctx context.Context, userID int64) (boo
 	return activitystore.EligibleUsageBetween(ctx, s.db, userID, first.paidAt, second.paidAt)
 }
 
-func (s *ActivityService) secondOffer(ctx context.Context, userID int64) (bool, error) {
-	if userID%2 != 0 {
+func (s *ActivityService) secondOffer(ctx context.Context, userID int64, admin bool) (bool, error) {
+	if !admin && userID%2 != 0 {
 		return false, nil
 	}
 	orders, err := s.secondOrders(ctx, userID)
@@ -919,6 +951,10 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if !active {
 		return false, ErrActivityIneligible
 	}
+	admin, err := activitystore.UserIsAdmin(ctx, tx, userID)
+	if err != nil {
+		return false, err
+	}
 	if err := activityAwardsAllowed(ctx, tx); err != nil {
 		return false, err
 	}
@@ -930,7 +966,7 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if err = tx.QueryRowContext(ctx, `SELECT second_recharge_enabled,second_recharge_reward_cents,second_recharge_total_budget_cents,second_recharge_min_pay_cents,user_lifetime_cap_cents FROM activity_config WHERE id=1 FOR UPDATE`).Scan(&enabled, &reward, &budget, &minPay, &userCap); err != nil {
 		return false, err
 	}
-	if !enabled || reward <= 0 || budget <= 0 {
+	if !enabled || reward <= 0 || (!admin && budget <= 0) {
 		return false, ErrActivityDisabled
 	}
 	var claimed bool
@@ -940,7 +976,7 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if claimed {
 		return false, nil
 	}
-	if userID%2 != 0 {
+	if !admin && userID%2 != 0 {
 		return false, ErrActivityIneligible
 	}
 	paidOrders, err := activitystore.PaidBalanceOrders(ctx, tx, userID, 3)
@@ -962,19 +998,21 @@ func (s *ActivityService) ClaimSecondRecharge(ctx context.Context, userID int64)
 	if !used {
 		return false, ErrActivityIneligible
 	}
-	var spent int64
-	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0) FROM activity_reward_ledger WHERE kind='second_recharge'`).Scan(&spent); err != nil {
-		return false, err
-	}
-	if spent+int64(reward) > budget {
-		return false, ErrActivityDisabled
-	}
-	var userSpent int64
-	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&userSpent); err != nil {
-		return false, err
-	}
-	if userSpent+int64(reward) > userCap {
-		return false, ErrActivityDisabled
+	if !admin {
+		var spent int64
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0) FROM activity_reward_ledger WHERE kind='second_recharge'`).Scan(&spent); err != nil {
+			return false, err
+		}
+		if spent+int64(reward) > budget {
+			return false, ErrActivityDisabled
+		}
+		var userSpent int64
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_cents),0)+activity_reserved_cents($1) FROM activity_reward_ledger WHERE user_id=$1 AND kind<>'lottery'`, userID).Scan(&userSpent); err != nil {
+			return false, err
+		}
+		if userSpent+int64(reward) > userCap {
+			return false, ErrActivityDisabled
+		}
 	}
 	if err := creditActivityWalletTx(ctx, tx, userID, "second_recharge", fmt.Sprintf("%d", orders[1].id), int64(reward)); err != nil {
 		return false, err

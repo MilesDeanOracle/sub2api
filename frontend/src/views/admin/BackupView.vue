@@ -194,6 +194,9 @@
             <button type="button" class="btn btn-primary btn-sm" :disabled="creatingBackup" @click="createBackup">
               {{ creatingBackup ? t('admin.backup.operations.backing') : t('admin.backup.operations.createBackup') }}
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="uploadDialogOpen = true">
+              {{ t('admin.backup.upload.button') }}
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="loadingBackups" @click="loadBackups">
               {{ loadingBackups ? t('common.loading') : t('common.refresh') }}
             </button>
@@ -241,7 +244,7 @@
                     : record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}
                 </td>
                 <td class="py-3 pr-4 text-xs">
-                  {{ record.triggered_by === 'scheduled' ? t('admin.backup.trigger.scheduled') : t('admin.backup.trigger.manual') }}
+                  {{ triggerLabel(record.triggered_by) }}
                 </td>
                 <td class="py-3 pr-4 text-xs">{{ formatDate(record.started_at) }}</td>
                 <td class="py-3 text-xs">
@@ -411,6 +414,12 @@
       </transition>
     </teleport>
     <TotpStepUpDialog :controller="backupStepUp" />
+    <BackupUploadRestoreDialog
+      :show="uploadDialogOpen"
+      @close="uploadDialogOpen = false"
+      @uploaded="handleUploaded"
+      @restore-started="handleRestoreStarted"
+    />
 </template>
 
 <script setup lang="ts">
@@ -429,6 +438,7 @@ import type {
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import BackupArchiveSettings from '@/components/admin/BackupArchiveSettings.vue'
+import BackupUploadRestoreDialog from '@/components/admin/BackupUploadRestoreDialog.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -532,6 +542,7 @@ const restoringId = ref('')
 const manualExpireDays = ref(14)
 const downloadParts = ref<BackupDownloadPart[]>([])
 const downloadPartsModalOpen = ref(false)
+const uploadDialogOpen = ref(false)
 
 // Polling
 const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -876,6 +887,22 @@ async function restoreBackup(id: string) {
   }
 }
 
+function handleUploaded(record: BackupRecord) {
+  const idx = backups.value.findIndex(item => item.id === record.id)
+  if (idx >= 0) {
+    backups.value[idx] = record
+  } else {
+    backups.value.unshift(record)
+  }
+}
+
+function handleRestoreStarted(record: BackupRecord) {
+  updateRecordInList(record)
+  restoringId.value = record.id
+  startRestorePolling(record.id)
+  void loadBackups()
+}
+
 async function removeBackup(id: string) {
   const archived = !!backups.value.find(record => record.id === id)?.monthly_archive
   if (!window.confirm(t(archived ? 'admin.backup.archive.deleteConfirm' : 'admin.backup.actions.deleteConfirm'))) return
@@ -885,6 +912,19 @@ async function removeBackup(id: string) {
     await loadBackups()
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
+  }
+}
+
+function triggerLabel(triggeredBy: string): string {
+  switch (triggeredBy) {
+    case 'scheduled':
+      return t('admin.backup.trigger.scheduled')
+    case 'uploaded':
+      return t('admin.backup.trigger.uploaded')
+    case 'pre-restore':
+      return t('admin.backup.trigger.preRestore')
+    default:
+      return t('admin.backup.trigger.manual')
   }
 }
 

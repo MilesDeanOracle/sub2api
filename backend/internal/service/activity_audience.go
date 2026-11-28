@@ -37,9 +37,17 @@ func activityAudienceAllowed(ctx context.Context, tx *sql.Tx, kind string, uid i
 
 func activityAudienceModeAllowed(ctx context.Context, tx *sql.Tx, kind string, uid int64) (string, error) {
 	var mode string
-	var allowed bool
-	if err := tx.QueryRowContext(ctx, `SELECT mode, mode='all' OR $2=ANY(user_ids) FROM activity_audiences WHERE kind=$1 FOR SHARE`, kind, uid).Scan(&mode, &allowed); err != nil {
+	var allowed, admin bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT mode,
+		       mode='all' OR $2=ANY(user_ids),
+		       COALESCE((SELECT role='admin' FROM users WHERE id=$2 AND deleted_at IS NULL),FALSE)
+		FROM activity_audiences WHERE kind=$1 FOR SHARE
+	`, kind, uid).Scan(&mode, &allowed, &admin); err != nil {
 		return "", err
+	}
+	if admin {
+		return "admin", nil
 	}
 	if !allowed {
 		return mode, ErrActivityIneligible

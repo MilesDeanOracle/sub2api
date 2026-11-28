@@ -685,6 +685,8 @@ func registerBackupRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 
 		// 备份操作
 		backup.POST("", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.CreateBackup)
+		// 上传备份文件会落库为一条可恢复记录（整库数据导入）——要求 step-up 2FA
+		backup.POST("/upload", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.UploadBackup)
 		backup.GET("", h.Admin.Backup.ListBackups)
 		backup.GET("/:id", h.Admin.Backup.GetBackup)
 		backup.DELETE("/:id", h.Admin.Backup.DeleteBackup)

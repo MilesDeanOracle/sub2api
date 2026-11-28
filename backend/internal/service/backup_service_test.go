@@ -1368,3 +1368,144 @@ func TestBackupService_StartRestore_SplitParts(t *testing.T) {
 	require.Equal(t, "completed", final.RestoreStatus)
 	require.Equal(t, dumpContent, dumper.restored)
 }
+
+func TestBackupService_StartUpload_RegistersParts(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	store := newMockObjectStore()
+	svc := newTestBackupService(repo, &mockDumper{}, store)
+
+	content := []byte("-- PostgreSQL dump\nCREATE TABLE upload_test (id int);\n")
+	compressed := gzipBackupBytes(t, content)
+
+	record, err := svc.StartUpload(context.Background(), bytes.NewReader(compressed), 14)
+	require.NoError(t, err)
+	require.Equal(t, "uploaded", record.TriggeredBy)
+	require.Equal(t, "running", record.Status)
+	require.Equal(t, "uploading", record.Progress)
+
+	svc.wg.Wait()
+
+	final, err := svc.GetBackupRecord(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, "completed", final.Status)
+	require.Empty(t, final.S3Key)
+	require.Len(t, final.Parts, 1)
+	require.Equal(t, int64(len(compressed)), final.Parts[0].SizeBytes)
+	require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(compressed)), final.Parts[0].SHA256)
+
+	store.mu.Lock()
+	uploaded, ok := store.objects[final.Parts[0].S3Key]
+	store.mu.Unlock()
+	require.True(t, ok)
+	require.Equal(t, compressed, uploaded)
+}
+
+func TestBackupService_StartUpload_RejectsInvalidArchive(t *testing.T) {
+	emptyGzip := gzipBackupBytes(t, nil)
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{name: "not gzip", data: []byte("not a gzip archive")},
+		{name: "empty", data: nil},
+		{name: "empty payload", data: emptyGzip},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newMockSettingRepo()
+			seedS3Config(t, repo)
+			svc := newTestBackupService(repo, &mockDumper{}, newMockObjectStore())
+
+			_, err := svc.StartUpload(context.Background(), bytes.NewReader(tt.data), 14)
+			require.ErrorIs(t, err, ErrBackupUploadInvalid)
+			require.Empty(t, svc.uploading)
+		})
+	}
+}
+
+func TestBackupService_StartUpload_UploadFailureCleansObjects(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	store := newMockObjectStore()
+	store.failUploadFileAt = 1
+	svc := newTestBackupService(repo, &mockDumper{}, store)
+
+	compressed := gzipBackupBytes(t, []byte("-- PostgreSQL dump\n"))
+	record, err := svc.StartUpload(context.Background(), bytes.NewReader(compressed), 14)
+	require.NoError(t, err)
+
+	svc.wg.Wait()
+
+	final, err := svc.GetBackupRecord(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, "failed", final.Status)
+	require.NotEmpty(t, final.Parts)
+
+	store.mu.Lock()
+	deletedKeys := append([]string(nil), store.deletedKeys...)
+	store.mu.Unlock()
+	require.Contains(t, deletedKeys, final.Parts[0].S3Key)
+}
+
+func TestStartRestoreWithOptions_PreRestoreBackup(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	dumpContent := "-- PostgreSQL dump\nCREATE TABLE pre_restore_test (id int);\n"
+	dumper := &mockDumper{dumpData: []byte(dumpContent)}
+	store := newMockObjectStore()
+	svc := newTestBackupService(repo, dumper, store)
+
+	record, err := svc.CreateBackup(context.Background(), "manual", 14)
+	require.NoError(t, err)
+
+	started, err := svc.StartRestoreWithOptions(context.Background(), record.ID, RestoreOptions{BackupBeforeRestore: true})
+	require.NoError(t, err)
+	require.Equal(t, "running", started.RestoreStatus)
+
+	svc.wg.Wait()
+
+	final, err := svc.GetBackupRecord(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, "completed", final.RestoreStatus)
+	require.Equal(t, dumpContent, string(dumper.restored))
+
+	records, err := svc.ListBackups(context.Background())
+	require.NoError(t, err)
+	var preRestore *BackupRecord
+	for i := range records {
+		if records[i].TriggeredBy == "pre-restore" {
+			preRestore = &records[i]
+			break
+		}
+	}
+	require.NotNil(t, preRestore)
+	require.Equal(t, "completed", preRestore.Status)
+	require.NotEmpty(t, preRestore.S3Key)
+	require.NotEmpty(t, preRestore.SizeBytes)
+}
+
+func TestStartRestoreWithOptions_PreRestoreBackupFailureAbortsRestore(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	dumpContent := "-- PostgreSQL dump\nCREATE TABLE abort_test (id int);\n"
+	dumper := &mockDumper{dumpData: []byte(dumpContent)}
+	store := newMockObjectStore()
+	svc := newTestBackupService(repo, dumper, store)
+
+	record, err := svc.CreateBackup(context.Background(), "manual", 14)
+	require.NoError(t, err)
+	dumper.dumpErr = fmt.Errorf("pg_dump unavailable")
+
+	_, err = svc.StartRestoreWithOptions(context.Background(), record.ID, RestoreOptions{BackupBeforeRestore: true})
+	require.NoError(t, err)
+
+	svc.wg.Wait()
+
+	final, err := svc.GetBackupRecord(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, "failed", final.RestoreStatus)
+	require.Contains(t, final.RestoreError, "pre-restore backup failed")
+	require.Empty(t, dumper.restored)
+}

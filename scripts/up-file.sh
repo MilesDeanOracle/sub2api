@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# make up-file <tar路径> (Linux/macOS)：跳过构建，直接上传已打包的 docker 镜像 tar 到远端服务器。
+# make up-file [tar路径] [host=地址:端口] (Linux/macOS)：跳过构建，直接上传已打包的 docker 镜像 tar 到远端服务器。
 # 与 scripts/build-docker.sh 的第 6 步相同，只是复用本地已有产物（如 dist/*.tar），
 # 适合构建完成后重传、或 build-docker 只跑到 save 就中断的场景。
+# host 参数缺省用下面的默认服务器；指定后按输入的地址和 SSH 端口上传，例如 host=192.168.0.2:8888。
 # 流程（与 scripts/up-file.ps1 一致，Windows 使用 .ps1 版本）：
 #   1. 校验 tar 文件存在
 #   2. 提示输入 SSH 用户名（密码由 ssh/scp 在连接时提示输入，脚本不保存密码）
@@ -14,6 +15,20 @@ SERVER_HOST='154.51.40.64'      # 远端服务器地址
 SSH_PORT='9922'                 # 远端 SSH 端口
 REMOTE_DIR='/data/docker-img'   # 远端镜像存放目录
 # ============================
+
+# 0. 可选参数 2：host=地址:端口（Makefile 经环境变量 UP_FILE_HOST 传入，直接调用也可作第 2 个参数）。
+#    make 会把 host=... 当作变量赋值，传入时前缀已被去掉，故两种形式都接受。
+HOST_SPEC="${2:-${UP_FILE_HOST:-}}"
+if [ -n "$HOST_SPEC" ]; then
+    spec="${HOST_SPEC#host=}"
+    SERVER_HOST="${spec%%:*}"
+    SSH_PORT="${spec#*:}"
+    if [ -z "$SERVER_HOST" ] || [ "$SSH_PORT" = "$spec" ] || ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]]; then
+        echo "错误：host 参数需要带端口，例如 host=192.168.0.2:8888（当前：$HOST_SPEC）"
+        exit 1
+    fi
+    echo "==> 目标服务器：${SERVER_HOST}，SSH 端口：${SSH_PORT}"
+fi
 
 # 1. 参数：tar 文件路径；缺省或传入目录时，自动选取该目录（默认 dist/）下最新的 *.tar
 TAR_PATH="${1:-}"
@@ -31,8 +46,9 @@ if [ -d "$TAR_PATH" ]; then
 fi
 if [ ! -f "$TAR_PATH" ]; then
     echo "错误：找不到 tar 文件：$TAR_PATH"
-    echo '用法：make up-file [tar文件路径]（不带参数自动上传 dist/ 下最新的 tar）'
+    echo '用法：make up-file [tar文件路径] [host=地址:端口]（不带 tar 自动上传 dist/ 下最新的 tar，host 缺省用内置服务器）'
     echo '      例如：make up-file dist/sub2api-0.2.19-20260101-1200.tar'
+    echo '      例如：make up-file host=192.168.0.2:8888'
     exit 1
 fi
 TAR_NAME="$(basename "$TAR_PATH")"

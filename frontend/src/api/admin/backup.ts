@@ -176,9 +176,43 @@ export async function getDownloadURL(id: string): Promise<BackupDownloadResponse
   return data
 }
 
+/**
+ * Upload a `.sql.gz` backup archive. The server validates the gzip stream,
+ * registers a completed backup record (triggered_by=uploaded) and uploads it
+ * to the configured S3 storage asynchronously.
+ */
+export async function uploadBackup(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<BackupRecord> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await apiClient.post<BackupRecord>('/admin/backups/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    // The global axios timeout is 30s; a multi-GB upload needs no client timeout.
+    timeout: 0,
+    onUploadProgress: (event) => {
+      if (!onProgress || !event.total || event.total <= 0) return
+      onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    },
+  })
+  return data
+}
+
+export interface RestoreBackupOptions {
+  backupBeforeRestore?: boolean
+}
+
 // Restore
-export async function restoreBackup(id: string, password: string): Promise<BackupRecord> {
-  const { data } = await apiClient.post<BackupRecord>(`/admin/backups/${id}/restore`, { password })
+export async function restoreBackup(
+  id: string,
+  password: string,
+  options: RestoreBackupOptions = {},
+): Promise<BackupRecord> {
+  const { data } = await apiClient.post<BackupRecord>(`/admin/backups/${id}/restore`, {
+    password,
+    backup_before_restore: Boolean(options.backupBeforeRestore),
+  })
   return data
 }
 
@@ -196,6 +230,7 @@ export const backupAPI = {
   getBackup,
   deleteBackup,
   getDownloadURL,
+  uploadBackup,
   restoreBackup,
 }
 

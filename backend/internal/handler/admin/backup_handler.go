@@ -1,6 +1,10 @@
 package admin
 
 import (
+	"errors"
+	"io"
+	"net/http"
+
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -108,6 +112,57 @@ func (h *BackupHandler) CreateBackup(c *gin.Context) {
 	response.Accepted(c, record)
 }
 
+// UploadBackup 接收管理员上传的备份归档（.sql.gz），登记为备份记录后异步上传 S3。
+// 使用 MultipartReader 直接流式落盘，避免大文件在 Gin 的 multipart 临时文件之外再复制一份。
+func (h *BackupHandler) UploadBackup(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.MaxBackupUploadBytes+(1<<20))
+
+	reader, err := c.Request.MultipartReader()
+	if err != nil {
+		response.BadRequest(c, "multipart/form-data is required")
+		return
+	}
+
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			if isRequestTooLarge(err) {
+				response.Error(c, http.StatusRequestEntityTooLarge, "backup file exceeds the 5 GiB upload limit")
+				return
+			}
+			response.BadRequest(c, "read upload: "+err.Error())
+			return
+		}
+		if part.FormName() != "file" {
+			_ = part.Close()
+			continue
+		}
+
+		record, err := h.backupService.StartUpload(c.Request.Context(), part, 14)
+		_ = part.Close()
+		if err != nil {
+			if isRequestTooLarge(err) || errors.Is(err, service.ErrBackupUploadTooLarge) {
+				response.Error(c, http.StatusRequestEntityTooLarge, "backup file exceeds the 5 GiB upload limit")
+				return
+			}
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Accepted(c, record)
+		return
+	}
+
+	response.BadRequest(c, "backup file is required")
+}
+
+func isRequestTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	return errors.As(err, &maxErr)
+}
+
 func (h *BackupHandler) ListBackups(c *gin.Context) {
 	records, err := h.backupService.ListBackups(c.Request.Context())
 	if err != nil {
@@ -170,7 +225,8 @@ func (h *BackupHandler) GetDownloadURL(c *gin.Context) {
 // ─── 恢复操作（需要重新输入管理员密码） ───
 
 type RestoreBackupRequest struct {
-	Password string `json:"password" binding:"required"`
+	Password            string `json:"password" binding:"required"`
+	BackupBeforeRestore bool   `json:"backup_before_restore"`
 }
 
 func (h *BackupHandler) RestoreBackup(c *gin.Context) {
@@ -204,7 +260,9 @@ func (h *BackupHandler) RestoreBackup(c *gin.Context) {
 		return
 	}
 
-	record, err := h.backupService.StartRestore(c.Request.Context(), backupID)
+	record, err := h.backupService.StartRestoreWithOptions(c.Request.Context(), backupID, service.RestoreOptions{
+		BackupBeforeRestore: req.BackupBeforeRestore,
+	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

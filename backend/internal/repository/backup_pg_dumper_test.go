@@ -149,6 +149,28 @@ func TestPgDumperDoesNotStartProcessWhenMigrationLockFails(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestPgDumperRestoreEnablesOnErrorStop(t *testing.T) {
+	dumper := &PgDumper{
+		cfg: &config.DatabaseConfig{
+			Host:   "db.example.test",
+			Port:   5432,
+			User:   "sub2api",
+			DBName: "sub2api",
+		},
+	}
+
+	args := dumper.restoreArgs()
+	require.Contains(t, args, "--single-transaction")
+	found := false
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "-v" && args[i+1] == "ON_ERROR_STOP=1" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "psql restore must set ON_ERROR_STOP=1")
+}
+
 func TestPgDumperRejectsNilDatabase(t *testing.T) {
 	dumper := &PgDumper{cfg: &config.DatabaseConfig{}}
 	reader, err := dumper.Dump(context.Background())

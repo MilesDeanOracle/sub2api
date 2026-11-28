@@ -105,15 +105,22 @@ func discardSQLConnection(conn *sql.Conn) {
 	_ = conn.Close()
 }
 
-// Restore executes psql to restore from a streaming reader
-func (d *PgDumper) Restore(ctx context.Context, data io.Reader) error {
-	args := []string{
+func (d *PgDumper) restoreArgs() []string {
+	return []string{
 		"-h", d.cfg.Host,
 		"-p", fmt.Sprintf("%d", d.cfg.Port),
 		"-U", d.cfg.User,
 		"-d", d.cfg.DBName,
+		// 没有 ON_ERROR_STOP 时 psql 遇到 SQL 错误仍会返回退出码 0，
+		// 损坏或不兼容的 dump 会被误判为恢复成功。
+		"-v", "ON_ERROR_STOP=1",
 		"--single-transaction",
 	}
+}
+
+// Restore executes psql to restore from a streaming reader
+func (d *PgDumper) Restore(ctx context.Context, data io.Reader) error {
+	args := d.restoreArgs()
 
 	cmd := exec.CommandContext(ctx, "psql", args...)
 	if d.cfg.Password != "" {

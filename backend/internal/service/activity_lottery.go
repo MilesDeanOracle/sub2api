@@ -282,7 +282,7 @@ func syncUserLotteryTx(ctx context.Context, tx *sql.Tx, userID int64) error {
 	}
 
 	var allowed bool
-	if err := tx.QueryRowContext(ctx, `SELECT mode='all' OR $1=ANY(user_ids) FROM activity_audiences WHERE kind='lottery' FOR SHARE`, userID).Scan(&allowed); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT activity_audience_allowed('lottery',$1) FROM activity_audiences WHERE kind='lottery' FOR SHARE`, userID).Scan(&allowed); err != nil {
 		return err
 	}
 
@@ -443,7 +443,7 @@ func isUserLotteryDrawBlocked(ctx context.Context, q activitystore.Tx, userID in
 
 func (s *ActivityService) LotteryStatus(ctx context.Context, userID int64) (*LotteryStatus, error) {
 	var allowed bool
-	if err := s.db.QueryRowContext(ctx, `SELECT mode='all' OR $1=ANY(user_ids) FROM activity_audiences WHERE kind='lottery'`, userID).Scan(&allowed); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT activity_audience_allowed('lottery',$1)`, userID).Scan(&allowed); err != nil {
 		return nil, err
 	}
 	if !allowed {

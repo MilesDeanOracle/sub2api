@@ -98,12 +98,16 @@ $(eval $(TAR_FILE):;@:)
 endif
 endif
 
+# make up-file [tar路径] [host=地址:端口]：host 是 make 变量（不会进入 MAKECMDGOALS），
+# 缺省用脚本内置的服务器，指定后按输入的地址和 SSH 端口上传（等价写法：HOST=地址:端口）
+UP_FILE_HOST := $(firstword $(host) $(HOST))
+
 ifeq ($(OS),Windows_NT)
-up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar）
-	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/up-file.ps1 -TarPath "$(TAR_FILE)"
+up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar；host=地址:端口 可指定目标）
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/up-file.ps1 -TarPath "$(TAR_FILE)" -TargetHost "$(UP_FILE_HOST)"
 else
-up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar）
-	@bash scripts/up-file.sh "$(TAR_FILE)"
+up-file: ## 上传已打包的镜像 tar 到服务器（不带参数自动选 dist/ 最新 tar；host=地址:端口 可指定目标）
+	@UP_FILE_HOST="$(UP_FILE_HOST)" bash scripts/up-file.sh "$(TAR_FILE)"
 endif
 
 build: build-backend build-frontend ## 编译前后端（后端 + 前端）

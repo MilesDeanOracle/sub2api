@@ -32,6 +32,10 @@ const (
 
 	backupObjectCleanupTimeout = 2 * time.Minute
 
+	// MaxBackupUploadBytes 是管理员上传备份文件的大小上限（5 GiB）。
+	// 上传文件与系统生成的备份共用同一套恢复链路，因此仍按 4 GiB 分卷阈值切片。
+	MaxBackupUploadBytes int64 = 5 << 30
+
 	// backupScheduledLeaderLockKey gates the scheduled full-database backup so
 	// that only one instance in a clustered deployment performs the
 	// dump-and-upload each cycle. Without it every instance runs the cron
@@ -56,6 +60,10 @@ var (
 	ErrBackupRecordsCorrupt   = infraerrors.InternalServer("BACKUP_RECORDS_CORRUPT", "backup records data is corrupted")
 	ErrBackupS3ConfigCorrupt  = infraerrors.InternalServer("BACKUP_S3_CONFIG_CORRUPT", "backup S3 config data is corrupted")
 	ErrBackupArchiveProtected = infraerrors.Conflict("BACKUP_ARCHIVE_PROTECTED", "explicit confirmation is required to delete an archived backup")
+
+	ErrBackupUploadTooLarge   = infraerrors.BadRequest("BACKUP_UPLOAD_TOO_LARGE", "backup file exceeds the 5 GiB upload limit")
+	ErrBackupUploadInvalid    = infraerrors.BadRequest("BACKUP_UPLOAD_INVALID", "uploaded file is not a valid gzip-compressed SQL backup")
+	ErrBackupUploadInProgress = infraerrors.Conflict("BACKUP_UPLOAD_IN_PROGRESS", "a backup upload is already in progress")
 
 	// ErrSecretEncryptionKeyNotConfigured is returned when an S3 SecretAccessKey
 	// would be encrypted with an auto-generated (ephemeral) key. That key is
@@ -140,6 +148,13 @@ type BackupRecord struct {
 	MonthlyArchive   *BackupMonthlyArchive `json:"monthly_archive,omitempty"`
 }
 
+// RestoreOptions 控制恢复行为。
+type RestoreOptions struct {
+	// BackupBeforeRestore 为 true 时，先对当前数据库做一次完整备份
+	// （triggered_by=pre-restore），备份成功后才执行恢复。
+	BackupBeforeRestore bool
+}
+
 // BackupDownloadPart 描述一个可下载的备份分卷。
 type BackupDownloadPart struct {
 	Index     int    `json:"index"`
@@ -166,9 +181,10 @@ type BackupService struct {
 	storeFactory            BackupObjectStoreFactory
 	dumper                  DBDumper
 
-	opMu      sync.Mutex // 保护 backingUp/restoring 标志
+	opMu      sync.Mutex // 保护 backingUp/restoring/uploading 标志
 	backingUp bool
 	restoring bool
+	uploading bool
 
 	storeMu sync.Mutex // 保护 store/s3Cfg 缓存
 	store   BackupObjectStore
@@ -917,6 +933,242 @@ func (s *BackupService) buildBackupPartKey(root string, index int) string {
 	return fmt.Sprintf("%s/payload.part-%06d", strings.TrimRight(root, "/"), index)
 }
 
+// ─── 上传备份 ───
+
+// StartUpload 接收管理员上传的备份归档，校验后登记为一条备份记录并异步上传对象存储。
+// 上传文件与系统生成的备份保持同一格式（.sql.gz）；始终落为分卷记录，恢复时可校验 SHA256。
+func (s *BackupService) StartUpload(ctx context.Context, r io.Reader, expireDays int) (*BackupRecord, error) {
+	if s.shuttingDown.Load() {
+		return nil, infraerrors.ServiceUnavailable("SERVER_SHUTTING_DOWN", "server is shutting down")
+	}
+
+	s.opMu.Lock()
+	if s.uploading {
+		s.opMu.Unlock()
+		return nil, ErrBackupUploadInProgress
+	}
+	s.uploading = true
+	s.opMu.Unlock()
+
+	launched := false
+	defer func() {
+		if !launched {
+			s.opMu.Lock()
+			s.uploading = false
+			s.opMu.Unlock()
+		}
+	}()
+
+	s3Cfg, err := s.loadS3Config(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s3Cfg == nil || !s3Cfg.IsConfigured() {
+		return nil, ErrBackupS3NotConfigured
+	}
+	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init object store: %w", err)
+	}
+
+	archivePath, sizeBytes, checksum, err := s.storeUploadedArchive(r)
+	if err != nil {
+		return nil, err
+	}
+	cleanupArchive := true
+	defer func() {
+		if cleanupArchive {
+			_ = cleanupBackupFiles(archivePath)
+		}
+	}()
+
+	now := time.Now()
+	backupID := uuid.New().String()[:8]
+	fileName := fmt.Sprintf("%s_upload_%s_%s.sql.gz", s.dbCfg.DBName, now.Format("20060102_150405"), backupID)
+	var expiresAt string
+	if expireDays > 0 {
+		expiresAt = now.AddDate(0, 0, expireDays).Format(time.RFC3339)
+	}
+
+	record := &BackupRecord{
+		ID:          backupID,
+		Status:      "running",
+		BackupType:  "postgres",
+		FileName:    fileName,
+		TriggeredBy: "uploaded",
+		SizeBytes:   sizeBytes,
+		StartedAt:   now.Format(time.RFC3339),
+		ExpiresAt:   expiresAt,
+		Progress:    "uploading",
+	}
+	if err := s.saveRecord(ctx, record); err != nil {
+		return nil, fmt.Errorf("save initial record: %w", err)
+	}
+
+	launched = true
+	cleanupArchive = false
+	result := *record
+
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		defer func() {
+			s.opMu.Lock()
+			s.uploading = false
+			s.opMu.Unlock()
+		}()
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.LegacyPrintf("service.backup", "[Backup] upload panic recovered: %v", rec)
+				record.Status = "failed"
+				record.ErrorMsg = fmt.Sprintf("internal panic: %v", rec)
+				record.Progress = ""
+				record.FinishedAt = time.Now().Format(time.RFC3339)
+				_ = s.saveRecord(context.Background(), record)
+			}
+		}()
+		s.executeUpload(record, objectStore, s3Cfg, archivePath, sizeBytes, checksum)
+	}()
+
+	return &result, nil
+}
+
+// storeUploadedArchive 把上传流落盘到临时文件，同时计算 SHA256 并校验 gzip 格式。
+func (s *BackupService) storeUploadedArchive(r io.Reader) (path string, sizeBytes int64, checksum string, err error) {
+	archive, err := os.CreateTemp("", "sub2api-upload-*.sql.gz")
+	if err != nil {
+		return "", 0, "", fmt.Errorf("create upload archive: %w", err)
+	}
+	path = archive.Name()
+
+	hash := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(archive, hash), io.LimitReader(r, MaxBackupUploadBytes+1))
+	closeErr := archive.Close()
+	if copyErr != nil {
+		_ = cleanupBackupFiles(path)
+		return "", 0, "", fmt.Errorf("write uploaded backup: %w", copyErr)
+	}
+	if closeErr != nil {
+		_ = cleanupBackupFiles(path)
+		return "", 0, "", fmt.Errorf("close uploaded backup: %w", closeErr)
+	}
+	if written == 0 {
+		_ = cleanupBackupFiles(path)
+		return "", 0, "", ErrBackupUploadInvalid
+	}
+	if written > MaxBackupUploadBytes {
+		_ = cleanupBackupFiles(path)
+		return "", 0, "", ErrBackupUploadTooLarge
+	}
+	if err := validateUploadedBackupArchive(path); err != nil {
+		_ = cleanupBackupFiles(path)
+		return "", 0, "", err
+	}
+	return path, written, hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func validateUploadedBackupArchive(path string) error {
+	archive, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open uploaded backup: %w", err)
+	}
+	defer func() { _ = archive.Close() }()
+
+	gzReader, err := gzip.NewReader(archive)
+	if err != nil {
+		return ErrBackupUploadInvalid
+	}
+	defer func() { _ = gzReader.Close() }()
+
+	buf := make([]byte, 64<<10)
+	n, readErr := gzReader.Read(buf)
+	if n == 0 || (readErr != nil && !errors.Is(readErr, io.EOF)) {
+		return ErrBackupUploadInvalid
+	}
+	return nil
+}
+
+func (s *BackupService) executeUpload(record *BackupRecord, objectStore BackupObjectStore, cfg *BackupS3Config, archivePath string, sizeBytes int64, checksum string) {
+	ctx, cancel := context.WithTimeout(s.bgCtx, 30*time.Minute)
+	defer cancel()
+	defer func() { _ = cleanupBackupFiles(archivePath) }()
+
+	partSize := s.partSizeBytes
+	if partSize <= 0 {
+		partSize = defaultBackupPartSizeBytes
+	}
+
+	localParts := []localBackupPart{{
+		Index:     1,
+		Path:      archivePath,
+		SizeBytes: sizeBytes,
+		SHA256:    checksum,
+	}}
+	if sizeBytes > partSize {
+		splitParts, err := splitBackupFile(archivePath, partSize)
+		if err != nil {
+			s.failUpload(record, objectStore, fmt.Errorf("split uploaded archive: %w", err))
+			return
+		}
+		localParts = splitParts
+		defer func() {
+			paths := make([]string, 0, len(splitParts))
+			for _, part := range splitParts {
+				paths = append(paths, part.Path)
+			}
+			_ = cleanupBackupFiles(paths...)
+		}()
+	}
+
+	root := strings.TrimRight(s.buildS3Key(cfg, record.ID), "/")
+	record.S3Key = ""
+	record.Parts = make([]BackupPart, 0, len(localParts))
+	for _, part := range localParts {
+		record.Parts = append(record.Parts, BackupPart{
+			Index:     part.Index,
+			S3Key:     s.buildBackupPartKey(root, part.Index),
+			SizeBytes: part.SizeBytes,
+			SHA256:    part.SHA256,
+		})
+	}
+	if err := s.saveRecord(ctx, record); err != nil {
+		s.failUpload(record, objectStore, fmt.Errorf("save upload part plan: %w", err))
+		return
+	}
+
+	for i, part := range localParts {
+		if _, err := objectStore.UploadFile(ctx, record.Parts[i].S3Key, part.Path, "application/octet-stream"); err != nil {
+			s.failUpload(record, objectStore, fmt.Errorf("upload backup part %d: %w", part.Index, err))
+			return
+		}
+	}
+
+	record.SizeBytes = sizeBytes
+	record.Status = "completed"
+	record.Progress = ""
+	record.FinishedAt = time.Now().Format(time.RFC3339)
+	if err := s.saveRecord(context.Background(), record); err != nil {
+		logger.LegacyPrintf("service.backup", "[Backup] 保存上传备份记录失败: %v", err)
+	}
+}
+
+func (s *BackupService) failUpload(record *BackupRecord, objectStore BackupObjectStore, cause error) {
+	record.Status = "failed"
+	record.ErrorMsg = cause.Error()
+	record.Progress = ""
+	record.FinishedAt = time.Now().Format(time.RFC3339)
+
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), backupObjectCleanupTimeout)
+	cleanupErr := deleteBackupObjectKeys(cleanupCtx, objectStore, record)
+	cleanupCancel()
+	if cleanupErr != nil {
+		record.ErrorMsg = errors.Join(cause, cleanupErr).Error()
+	}
+	if err := s.saveRecord(context.Background(), record); err != nil {
+		logger.LegacyPrintf("service.backup", "[Backup] 保存上传失败记录失败: %v", err)
+	}
+}
+
 // RestoreBackup 从 S3 下载备份并流式恢复到数据库
 func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) error {
 	s.opMu.Lock()
@@ -982,6 +1234,11 @@ func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) erro
 
 // StartRestore 异步恢复备份，立即返回
 func (s *BackupService) StartRestore(ctx context.Context, backupID string) (*BackupRecord, error) {
+	return s.StartRestoreWithOptions(ctx, backupID, RestoreOptions{})
+}
+
+// StartRestoreWithOptions 异步恢复备份，立即返回。
+func (s *BackupService) StartRestoreWithOptions(ctx context.Context, backupID string, options RestoreOptions) (*BackupRecord, error) {
 	if s.shuttingDown.Load() {
 		return nil, infraerrors.ServiceUnavailable("SERVER_SHUTTING_DOWN", "server is shutting down")
 	}
@@ -1047,16 +1304,33 @@ func (s *BackupService) StartRestore(ctx context.Context, backupID string) (*Bac
 				_ = s.saveRestoreRecord(context.Background(), record)
 			}
 		}()
-		s.executeRestore(record, objectStore)
+		s.executeRestore(record, objectStore, options)
 	}()
 
 	return &result, nil
 }
 
 // executeRestore 后台执行恢复
-func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupObjectStore) {
-	ctx, cancel := context.WithTimeout(s.bgCtx, 30*time.Minute)
+func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupObjectStore, options RestoreOptions) {
+	restoreTimeout := 30 * time.Minute
+	if options.BackupBeforeRestore {
+		// 安全备份本身最多 30 分钟，恢复再预留 30 分钟。
+		restoreTimeout = 60 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(s.bgCtx, restoreTimeout)
 	defer cancel()
+
+	var preRestore *BackupRecord
+	if options.BackupBeforeRestore {
+		var backupErr error
+		preRestore, backupErr = s.createPreRestoreBackup(objectStore)
+		if backupErr != nil {
+			record.RestoreStatus = "failed"
+			record.RestoreError = fmt.Sprintf("pre-restore backup failed: %v", backupErr)
+			_ = s.saveRestoreRecord(context.Background(), record)
+			return
+		}
+	}
 
 	if len(record.Parts) > 0 {
 		archivePath, err := s.downloadBackupParts(ctx, objectStore, record.Parts)
@@ -1073,11 +1347,7 @@ func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupO
 			_ = s.saveRestoreRecord(context.Background(), record)
 			return
 		}
-		record.RestoreStatus = "completed"
-		record.RestoredAt = time.Now().Format(time.RFC3339)
-		if err := s.saveRestoreRecord(context.Background(), record); err != nil {
-			logger.LegacyPrintf("service.backup", "[Backup] 保存恢复记录失败: %v", err)
-		}
+		s.completeRestore(record, preRestore)
 		return
 	}
 
@@ -1106,11 +1376,70 @@ func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupO
 		return
 	}
 
+	s.completeRestore(record, preRestore)
+}
+
+func (s *BackupService) completeRestore(record *BackupRecord, preRestore *BackupRecord) {
 	record.RestoreStatus = "completed"
 	record.RestoredAt = time.Now().Format(time.RFC3339)
 	if err := s.saveRestoreRecord(context.Background(), record); err != nil {
 		logger.LegacyPrintf("service.backup", "[Backup] 保存恢复记录失败: %v", err)
 	}
+	if preRestore != nil {
+		// 整库恢复可能回滚 settings，导致恢复前安全备份记录从列表中消失；
+		// 对象仍在 S3，这里重新登记记录。
+		if err := s.saveRecord(context.Background(), preRestore); err != nil {
+			logger.LegacyPrintf("service.backup", "[Backup] 重新登记恢复前安全备份失败: %v", err)
+		}
+	}
+}
+
+// createPreRestoreBackup 在恢复前同步执行一次完整备份。备份失败时调用方必须中止恢复。
+func (s *BackupService) createPreRestoreBackup(objectStore BackupObjectStore) (*BackupRecord, error) {
+	s.opMu.Lock()
+	if s.backingUp {
+		s.opMu.Unlock()
+		return nil, ErrBackupInProgress
+	}
+	s.backingUp = true
+	s.opMu.Unlock()
+	defer func() {
+		s.opMu.Lock()
+		s.backingUp = false
+		s.opMu.Unlock()
+	}()
+
+	s3Cfg, err := s.loadS3Config(s.bgCtx)
+	if err != nil {
+		return nil, err
+	}
+	if s3Cfg == nil || !s3Cfg.IsConfigured() {
+		return nil, ErrBackupS3NotConfigured
+	}
+
+	now := time.Now()
+	backupID := uuid.New().String()[:8]
+	fileName := fmt.Sprintf("%s_pre-restore_%s_%s.sql.gz", s.dbCfg.DBName, now.Format("20060102_150405"), backupID)
+	record := &BackupRecord{
+		ID:          backupID,
+		Status:      "running",
+		BackupType:  "postgres",
+		FileName:    fileName,
+		S3Key:       s.buildS3Key(s3Cfg, fileName),
+		TriggeredBy: "pre-restore",
+		StartedAt:   now.Format(time.RFC3339),
+		ExpiresAt:   now.AddDate(0, 0, 14).Format(time.RFC3339),
+		Progress:    "pending",
+	}
+	if err := s.saveRecord(s.bgCtx, record); err != nil {
+		return nil, fmt.Errorf("save pre-restore record: %w", err)
+	}
+
+	s.executeBackup(record, objectStore, s3Cfg)
+	if record.Status != "completed" {
+		return nil, fmt.Errorf("pre-restore backup %s failed: %s", record.ID, record.ErrorMsg)
+	}
+	return record, nil
 }
 
 func (s *BackupService) downloadBackupParts(ctx context.Context, objectStore BackupObjectStore, parts []BackupPart) (path string, err error) {

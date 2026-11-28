@@ -188,8 +188,8 @@ func TestDrawLotteryBudgetPauseNeverSilentlyAltersOdds(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(7)))
 	mock.ExpectQuery(`SELECT status='active' FROM users`).WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true))
-	mock.ExpectQuery(`SELECT mode, mode='all' OR \$2=ANY\(user_ids\) FROM activity_audiences`).WithArgs("lottery", int64(7)).
-		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed"}).AddRow("all", true))
+	mock.ExpectQuery(`SELECT mode,`).WithArgs("lottery", int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed", "admin"}).AddRow("all", true, false))
 	mock.ExpectQuery(`SELECT id, batch_key, draw_count`).WithArgs(int64(7), "batch-1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "batch_key", "draw_count", "draw_index", "tier_position", "reward_cents", "created_at", "revoked_at"}))
 	mock.ExpectQuery(`SELECT awards_enabled FROM activity_runtime`).
@@ -197,7 +197,7 @@ func TestDrawLotteryBudgetPauseNeverSilentlyAltersOdds(t *testing.T) {
 	// syncUserLotteryTx
 	mock.ExpectQuery(`SELECT id, status, COALESCE\(refund_amount,0\)::text FROM payment_orders`).WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}))
-	mock.ExpectQuery(`SELECT mode='all' OR \$1=ANY\(user_ids\) FROM activity_audiences WHERE kind='lottery'`).WithArgs(int64(7)).
+	mock.ExpectQuery(`SELECT activity_audience_allowed\('lottery',\$1\) FROM activity_audiences WHERE kind='lottery'`).WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"allowed"}).AddRow(true))
 	mock.ExpectQuery(`SELECT id, unit_pay_cents, opened_at, closed_at FROM activity_lottery_windows`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "unit_pay_cents", "opened_at", "closed_at"}))
@@ -240,8 +240,8 @@ func TestDrawLotteryIdempotentReplayReturnsSavedBatch(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(9)))
 	mock.ExpectQuery(`SELECT status='active' FROM users`).WithArgs(int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true))
-	mock.ExpectQuery(`SELECT mode, mode='all' OR \$2=ANY\(user_ids\) FROM activity_audiences`).WithArgs("lottery", int64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed"}).AddRow("all", true))
+	mock.ExpectQuery(`SELECT mode,`).WithArgs("lottery", int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"mode", "allowed", "admin"}).AddRow("all", true, false))
 	mock.ExpectQuery(`SELECT id, batch_key, draw_count`).WithArgs(int64(9), "idem-key-1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "batch_key", "draw_count", "draw_index", "tier_position", "reward_cents", "created_at", "revoked_at"}).
 			AddRow(int64(101), "idem-key-1", 1, 1, 3, 300, now, nil))

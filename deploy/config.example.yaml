@@ -49,6 +49,8 @@ server:
   # 全局最大请求体大小（字节，默认 256MB）
   # Applies to all requests, especially important for h2c first request memory protection
   # 适用于所有请求，对 h2c 第一请求的内存保护尤为重要
+  # 若使用「上传备份文件恢复」，需调到至少 5368709120（5 GiB）+ 少量 multipart 余量，
+  # 否则较大的备份文件会在进入 handler 前返回 413。
   max_request_body_size: 268435456
   # HTTP/2 Cleartext (h2c) configuration
   # HTTP/2 Cleartext (h2c) 配置
